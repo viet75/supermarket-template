@@ -1,0 +1,22 @@
+{
+    "name": "Supermercato Template",
+    "short_name": "Supermarket",
+    "description": "PWA e-commerce completa con pannello admin. Template per negozi locali.",
+    "start_url": "/",
+    "display": "standalone",
+    "orientation": "any",
+    "background_color": "#22c55e",
+    "theme_color": "#22c55e",
+    "icons": [
+        {
+            "src": "/icons/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/icons/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

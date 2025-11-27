@@ -1,0 +1,92 @@
+'use client'
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { Package, ShoppingCart, Layers, Menu, X } from 'lucide-react'
+import { useState } from 'react'
+
+export default function AdminSidebar() {
+    const pathname = usePathname()
+    const [open, setOpen] = useState(false)
+
+    const links = [
+        { href: '/admin/orders', label: 'Ordini', icon: ShoppingCart },
+        { href: '/admin/products', label: 'Prodotti', icon: Package },
+        { href: '/admin/categories', label: 'Categorie', icon: Layers },
+    ]
+
+    return (
+        <>
+            {/* Pulsante hamburger mobile */}
+            <button
+                className="fixed top-4 left-4 z-50 md:hidden p-2 rounded-md 
+                           bg-white dark:bg-gray-800 
+                           border border-gray-200 dark:border-gray-700 
+                           shadow-sm"
+                onClick={() => setOpen(!open)}
+                aria-label="Toggle menu"
+            >
+                {open ? (
+                    <X className="w-5 h-5 text-gray-700 dark:text-gray-200" />
+                ) : (
+                    <Menu className="w-5 h-5 text-gray-700 dark:text-gray-200" />
+                )}
+            </button>
+
+            {/* Overlay scuro animato su mobile */}
+            <div
+                className={`fixed inset-0 bg-black transition-opacity duration-300 ease-in-out z-40 md:hidden 
+                            ${open ? 'bg-opacity-40 visible' : 'bg-opacity-0 invisible'}`}
+                onClick={() => setOpen(false)}
+            />
+
+            {/* Sidebar */}
+            <aside
+                className={`fixed top-0 left-0 h-screen w-64 
+                            bg-white dark:bg-gray-900 
+                            border-r border-gray-200 dark:border-gray-700 
+                            flex flex-col z-50 transform transition-transform duration-300 ease-in-out
+                            ${open ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}
+            >
+                <div className="p-4 text-center font-semibold text-lg 
+                                border-b border-gray-200 dark:border-gray-700 
+                                text-gray-900 dark:text-gray-100">
+                    Il Centro del Risparmio
+                </div>
+
+                <nav className="flex-1 p-4 space-y-1">
+                    {links.map(({ href, label, icon: Icon }) => {
+                        const active = pathname.startsWith(href)
+                        return (
+                            <Link
+                                key={href}
+                                href={href}
+                                onClick={() => setOpen(false)}
+                                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
+                                    ${active
+                                        ? 'bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-200'
+                                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                                    }`}
+                            >
+                                <Icon className="w-4 h-4" />
+                                {label}
+                            </Link>
+                        )
+                    })}
+                </nav>
+                <Link
+                    href="/"
+                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
+                >
+                    🏪 Torna al sito
+                </Link>
+
+                <div className="p-4 text-xs 
+                                text-gray-400 dark:text-gray-500 
+                                border-t border-gray-200 dark:border-gray-700">
+                    Admin Panel v1.0
+                </div>
+            </aside>
+        </>
+    )
+}

@@ -1,0 +1,73 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { createClient } from '@supabase/supabase-js'
+import CategoryChips from './CategoryChips'
+import type { Category } from '@/lib/types'
+
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
+export default function CategoryChipsContainer({
+    activeId,
+    onChange,
+}: {
+    activeId: string | null
+    onChange: (id: string | null) => void
+}) {
+    const [categories, setCategories] = useState<Category[]>([])
+
+    useEffect(() => {
+        const load = async () => {
+            const { data, error } = await supabase
+                .from('categories')
+                .select('*')
+                .is('deleted_at', null) // mostra solo categorie attive
+                .order('name')
+
+            if (error) {
+                console.error('Errore caricamento categorie:', error.message)
+                return
+            }
+
+            setCategories(data ?? [])
+        }
+
+        // Prima chiamata
+        load()
+
+        // 🔁 Realtime: ascolta tutte le modifiche e ricarica lista filtrata
+        const channel = supabase
+            .channel('realtime:categories')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'categories' },
+                (payload) => {
+                    // Ricarica solo quando cambia deleted_at o viene inserita/eliminata una categoria
+                    if (
+                        payload.eventType === 'INSERT' ||
+                        payload.eventType === 'DELETE' ||
+                        payload.eventType === 'UPDATE'
+                    ) {
+                        load() // 👈 sempre carica di nuovo con filtro attivo
+                    }
+                }
+            )
+            .subscribe()
+
+        // 🔹 Polling di fallback ogni 30s
+        const interval = setInterval(load, 30000)
+
+        return () => {
+            supabase.removeChannel(channel)
+            clearInterval(interval)
+        }
+    }, [])
+
+
+    return (
+        <CategoryChips categories={categories} activeId={activeId} onChange={onChange} />
+    )
+}
