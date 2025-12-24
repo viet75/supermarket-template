@@ -5,6 +5,16 @@ import { supabaseClient } from '@/lib/supabaseClient'
 import CategoryChips from './CategoryChips'
 import type { Category } from '@/lib/types'
 
+// Type for Supabase Realtime postgres_changes payload
+type RealtimePostgresChangesPayload<T = Record<string, any>> = {
+    eventType: 'INSERT' | 'UPDATE' | 'DELETE'
+    new: T | null
+    old: T | null
+    schema: string
+    table: string
+    commit_timestamp?: string
+}
+
 export default function CategoryChipsContainer({
     activeId,
     onChange,
@@ -46,7 +56,7 @@ export default function CategoryChipsContainer({
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'categories' },
-                (payload) => {
+                (payload: RealtimePostgresChangesPayload<Category>) => {
                     // Ricarica solo quando cambia deleted_at o viene inserita/eliminata una categoria
                     if (
                         payload.eventType === 'INSERT' ||
