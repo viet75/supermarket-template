@@ -4,7 +4,7 @@ import type { PublicSettings } from './types';
 
 const DEFAULTS: PublicSettings = {
     delivery: { base: 2.5, per_km: 0.8, free_over: 50, max_km: 10 },
-    payments: { cash: true, card_on_delivery: true, card_online: false },
+    payments: { cash: true, pos_on_delivery: true, card_online: false },
 };
 
 export function useSettings() {

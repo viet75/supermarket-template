@@ -51,25 +51,69 @@ export async function PUT(req: Request, context: any) {
         if (typeof body.price_sale !== 'undefined') update.price_sale = numOrNull(body.price_sale)
         if (typeof body.image_url !== 'undefined') update.image_url = body.image_url ?? null
         if (typeof body.images !== 'undefined') update.images = Array.isArray(body.images) ? body.images : null
-        if (typeof body.unit_type !== 'undefined') update.unit_type = body.unit_type ?? null
         if (typeof body.category_id !== 'undefined') update.category_id = body.category_id ?? null
-        if (typeof body.stock !== 'undefined') update.stock = numOrNull(body.stock)
         if (typeof body.is_active === 'boolean') update.is_active = body.is_active
         if (typeof body.sort_order !== 'undefined') update.sort_order = mustNumber(body.sort_order, 'sort_order')
 
-        if (Object.keys(update).length === 0) {
-            return NextResponse.json({ error: 'Nessun campo valido da aggiornare' }, { status: 400 })
+        // Recupera stato attuale del prodotto (UNA SOLA QUERY)
+        const svc = supabaseServer()
+        const { data: current, error: currentError } = await svc
+            .from('products')
+            .select('unit_type, stock_unit')
+            .eq('id', id)
+            .single()
+
+        if (currentError || !current) {
+            throw new Error('Prodotto non trovato')
         }
 
-        const svc = supabaseServer()
-        const { data, error } = await svc.from('products').update(update).eq('id', id).select('*').single()
+        // unit_type finale (nuovo o attuale)
+        const unitType = body.unit_type ?? current.unit_type
+        update.unit_type = unitType
+
+        // stock_unit coerente
+        const stockUnit = unitType === 'per_kg' ? 100 : 1
+        update.stock_unit = stockUnit
+
+        // stock (convertito UNA SOLA VOLTA)
+        if (typeof body.stock !== 'undefined') {
+            const inputStock = numOrNull(body.stock)
+            if (inputStock === null) {
+                update.stock = null
+            } else if (unitType === 'per_kg') {
+                // admin inserisce KG → DB salva unità minime
+                update.stock = Math.round(inputStock * (1000 / stockUnit))
+            } else {
+                // per_unit
+                update.stock = inputStock
+            }
+        }
+
+        if (Object.keys(update).length === 0) {
+            return NextResponse.json(
+                { error: 'Nessun campo valido da aggiornare' },
+                { status: 400 }
+            )
+        }
+
+        const { data, error } = await svc
+            .from('products')
+            .update(update)
+            .eq('id', id)
+            .select('*')
+            .single()
+
         if (error) throw error
 
         return NextResponse.json({ product: data })
     } catch (e: any) {
-        return NextResponse.json({ error: e?.message ?? 'Errore aggiornamento prodotto' }, { status: 500 })
+        return NextResponse.json(
+            { error: e?.message ?? 'Errore aggiornamento prodotto' },
+            { status: 500 }
+        )
     }
 }
+
 
 /* ===========================
    DELETE /api/admin/products/[id]

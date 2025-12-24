@@ -90,6 +90,19 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: err.message }, { status: 400 });
         }
 
+        // Imposta stock_unit in base a unit_type
+        let stockUnit = 1
+        if (body.unit_type === 'per_kg') {
+            stockUnit = 100
+        }
+
+        // Converti stock inserito in unità intere
+        let stockValue = numOrNull(body.stock)
+        if (typeof stockValue === 'number' && stockValue !== null && body.unit_type === 'per_kg') {
+            // per_kg: converti kg in unità (1 kg = 10 unità da 100g)
+            stockValue = Math.round(stockValue * 10)
+        }
+
         const insert: any = {
             name: body.name,
             description: body.description ?? '',
@@ -99,7 +112,8 @@ export async function POST(req: NextRequest) {
             images: Array.isArray(body.images) ? body.images : null,
             unit_type: body.unit_type ?? null,
             category_id: body.category_id ?? null,
-            stock: numOrNull(body.stock), // null = illimitato
+            stock: stockValue, // null = illimitato
+            stock_unit: stockUnit,
             // preferisci is_active; se non passato, default true
             is_active:
                 typeof body.is_active === 'boolean'
@@ -191,7 +205,51 @@ export async function PATCH(req: NextRequest) {
         if (typeof rest.images !== 'undefined') update.images = Array.isArray(rest.images) ? rest.images : null;
         if (typeof rest.unit_type !== 'undefined') update.unit_type = rest.unit_type ?? null;
         if (typeof rest.category_id !== 'undefined') update.category_id = rest.category_id ?? null;
-        if (typeof rest.stock !== 'undefined') update.stock = numOrNull(rest.stock); // null = illimitato
+        
+        // Imposta stock_unit in base a unit_type
+        if (rest.unit_type === 'per_kg') {
+            update.stock_unit = 100
+        } else if (rest.unit_type === 'per_unit' || rest.unit_type === null || rest.unit_type === undefined) {
+            // Se unit_type non viene modificato, recupera unit_type attuale
+            const svc = supabaseServer()
+            const { data: current } = await svc
+                .from('products')
+                .select('unit_type, stock_unit')
+                .eq('id', id)
+                .single()
+            
+            if (current?.unit_type === 'per_kg') {
+                update.stock_unit = 100
+            } else {
+                update.stock_unit = 1
+            }
+        }
+
+        // Converti stock inserito in unità intere
+        if (typeof rest.stock !== 'undefined') {
+            let stockValue = numOrNull(rest.stock)
+            if (typeof stockValue === 'number' && stockValue !== null) {
+                const unitType = rest.unit_type
+                if (unitType === undefined) {
+                    // Se unit_type non viene modificato, recuperalo dal DB
+                    const svc = supabaseServer()
+                    const { data: current } = await svc
+                        .from('products')
+                        .select('unit_type')
+                        .eq('id', id)
+                        .single()
+                    
+                    if (current?.unit_type === 'per_kg') {
+                        stockValue = Math.round(stockValue * 10)
+                    }
+                } else if (unitType === 'per_kg') {
+                    // per_kg: converti kg in unità (1 kg = 10 unità da 100g)
+                    stockValue = Math.round(stockValue * 10)
+                }
+                // per_unit: stock rimane invariato (già in pezzi)
+            }
+            update.stock = stockValue // null = illimitato
+        }
 
         // mappa legacy active -> is_active
         if (typeof rest.is_active === 'boolean') {

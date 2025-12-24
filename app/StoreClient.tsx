@@ -1,16 +1,13 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { createClient } from '@supabase/supabase-js'
 import type { Product, Category } from '@/lib/types'
 import CategoryChipsContainer from '@/components/CategoryChipsContainer'
 import ProductsGrid from '@/components/ProductsGrid'
 
-// 👉 Supabase client
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// 👉 Usa il client singleton (NESSUN WARNING)
+import { supabaseClient } from '@/lib/supabaseClient'
+const supabase = supabaseClient()
 
 // ✅ Funzione di parsing sicuro
 function safeParse<T>(val: any, fallback: T): T {
@@ -41,6 +38,14 @@ export default function StoreClient({
     const [products, setProducts] = useState<Product[]>(initialProducts)
     const [activeCategory, setActiveCategory] = useState<string | null>(null)
     const [search, setSearch] = useState('')
+
+    // ✅ Sincronizza lo stato quando initialProducts cambia
+    useEffect(() => {
+        if (initialProducts.length > 0) {
+            setProducts(initialProducts)
+        }
+    }, [initialProducts])
+
 
     // ✅ Realtime: ascolta cambiamenti su `products`
     useEffect(() => {
@@ -84,9 +89,10 @@ export default function StoreClient({
         }
     }, [])
 
-    // 🔎 Filtro live: attivi + categoria + testo
+    // 🔎 Filtro live
     const filteredProducts = useMemo(() => {
-        let result = products.filter((p) => p.is_active)
+        // Filtra solo prodotti attivi
+        let result = products.filter((p) => p.is_active === true)
 
         if (activeCategory) {
             result = result.filter((p) => p.category_id === activeCategory)

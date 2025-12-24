@@ -1,13 +1,16 @@
 'use client'
+
 import { createBrowserClient } from '@supabase/ssr'
 
-export const supabaseClient = () =>
-    createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+// Singleton globale: NEXT NON ricostruisce più mille client
+let client: ReturnType<typeof createBrowserClient> | null = null
 
-export const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+export function supabaseClient() {
+    if (!client) {
+        client = createBrowserClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        )
+    }
+    return client
+}

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import AdminImageUploader from '@/components/AdminImageUploader'
 import { supabaseClient } from '@/lib/supabaseClient'
 import type { Product, Category } from '@/lib/types'
+import { toDisplayStock, getUnitLabel } from '@/lib/stock'
 
 
 export default function ProductsAdminPage() {
@@ -46,8 +47,11 @@ export default function ProductsAdminPage() {
             }
             if (filterStatus === 'active' && !p.is_active) return false
             if (filterStatus === 'hidden' && p.is_active) return false
-            if (filterStatus === 'lowstock' && (p.stock == null || p.stock >= 5)) {
-                return false
+            if (filterStatus === 'lowstock') {
+                const displayStock = toDisplayStock(p)
+                if (displayStock == null || displayStock >= 5) {
+                    return false
+                }
             }
             return true
         })
@@ -87,8 +91,9 @@ export default function ProductsAdminPage() {
                 setLoading(true)
                 try {
                     const base = sb
-                        .from('products')
-                        .select('id, name, description, price, price_sale, image_url, images, category_id, stock, is_active, created_at, sort_order, deleted_at')
+                    .from('products')
+                    .select('id, name, description, price, price_sale, image_url, images, category_id, stock, stock_unit, unit_type, is_active, created_at, sort_order, deleted_at')
+                    
                         .order('created_at', { ascending: false })
 
                     const query = showArchived
@@ -99,7 +104,7 @@ export default function ProductsAdminPage() {
                     if (error) throw error
 
                     // doppia cintura: filtro anche client-side nel caso in cui il server filtrasse male
-                    const filtered = (data ?? []).filter(p =>
+                    const filtered = (data ?? []).filter((p: Product) =>
                         showArchived ? p.deleted_at !== null : p.deleted_at === null
                     )
 
@@ -107,7 +112,7 @@ export default function ProductsAdminPage() {
                     console.log('loadProducts', {
                         showArchived,
                         total: data?.length ?? 0,
-                        archivedCount: (data ?? []).filter(p => p.deleted_at !== null).length
+                        archivedCount: (data ?? []).filter((p: Product) => p.deleted_at !== null).length
                     })
 
                     if (!cancelled) setItems(filtered)
@@ -227,7 +232,7 @@ export default function ProductsAdminPage() {
 
                 setItems((prev) =>
                     prev.map((p) =>
-                        p.id === editing.id ? { ...p, ...payload } : p
+                        p.id === editing.id ? json.product ?? json : p
                     )
                 )
             }
@@ -426,7 +431,7 @@ export default function ProductsAdminPage() {
                                         </div>
 
                                         <div className="text-xs text-gray-500">
-                                            Stock: {p.stock == null ? 'illimitato' : `${p.stock} ${p.unit_type === 'per_kg' ? 'kg' : 'pz'}`}
+                                            Stock: {toDisplayStock(p) == null ? 'illimitato' : `${toDisplayStock(p)} ${getUnitLabel(p)}`}
                                         </div>
 
                                     </div>
@@ -474,7 +479,13 @@ export default function ProductsAdminPage() {
                                             <>
                                                 <button
                                                     className="rounded-md border px-3 py-1.5 hover:bg-gray-50"
-                                                    onClick={() => setEditing(p)}
+                                                    onClick={() => {
+                                                        const displayStock = toDisplayStock(p)
+                                                        setEditing({
+                                                            ...p,
+                                                            stock: displayStock
+                                                        })
+                                                    }}
                                                 >
                                                     Modifica
                                                 </button>
@@ -541,7 +552,7 @@ export default function ProductsAdminPage() {
                                             </div>
 
                                             <div className="text-xs text-gray-500">
-                                                Stock: {p.stock == null ? 'illimitato' : `${p.stock} ${p.unit_type === 'per_kg' ? 'kg' : 'pz'}`}
+                                                Stock: {toDisplayStock(p) == null ? 'illimitato' : `${toDisplayStock(p)} ${getUnitLabel(p)}`}
                                             </div>
 
                                             <span
@@ -562,19 +573,31 @@ export default function ProductsAdminPage() {
                                             <button
                                                 className="flex-1 rounded-md border border-green-300 text-green-700 px-3 py-2 hover:bg-green-50 text-sm"
                                                 onClick={async () => {
-                                                    const { error } = await sb
-                                                        .from('products')
-                                                        .update({ deleted_at: null })
-                                                        .eq('id', p.id)
-                                                    if (!error) {
-                                                        setItems((prev) =>
-                                                            prev.map((prod) =>
-                                                                prod.id === p.id ? { ...prod, deleted_at: null } : prod
+                                                    try {
+                                                        const { data, error } = await sb
+                                                            .from('products')
+                                                            .update({ deleted_at: null })
+                                                            .eq('id', p.id)
+                                                            .select()
+                                                            .single()
+
+                                                        if (error) {
+                                                            console.error('Errore ripristino:', error)
+                                                            alert('⚠️ Errore durante il ripristino')
+                                                            return
+                                                        }
+
+                                                        if (data) {
+                                                            setItems((prev) =>
+                                                                prev.map((prod) =>
+                                                                    prod.id === p.id ? data : prod
+                                                                )
                                                             )
-                                                        )
+                                                        }
                                                         alert('✅ Prodotto ripristinato con successo')
-                                                    } else {
-                                                        alert('Errore durante il ripristino')
+                                                    } catch (e) {
+                                                        console.error('Eccezione ripristino:', e)
+                                                        alert('⚠️ Errore inatteso durante il ripristino')
                                                     }
                                                 }}
                                             >
@@ -584,7 +607,13 @@ export default function ProductsAdminPage() {
                                             <>
                                                 <button
                                                     className="flex-1 rounded-md border px-3 py-2 hover:bg-gray-50 text-sm"
-                                                    onClick={() => setEditing(p)}
+                                                    onClick={() => {
+                                                        const displayStock = toDisplayStock(p)
+                                                        setEditing({
+                                                            ...p,
+                                                            stock: displayStock
+                                                        })
+                                                    }}
                                                 >
                                                     Modifica
                                                 </button>
@@ -805,13 +834,14 @@ export default function ProductsAdminPage() {
 
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium">Stock</label>
+                                        <label className="block text-sm font-medium">Stock ({getUnitLabel(editing)})</label>
                                         <input
                                             type="number"
                                             min={0}
+                                            step={editing.unit_type === 'per_kg' ? 0.1 : 1}
                                             className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2"
 
-                                            value={editing.stock ?? ''} // '' quando null
+                                            value={editing.stock ?? ''} // '' quando null (valore già in formato display)
                                             onChange={(e) => {
                                                 const val = e.target.value
                                                 setEditing({

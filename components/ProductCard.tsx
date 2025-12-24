@@ -2,6 +2,7 @@
 
 import { useMemo, useCallback, useState, useEffect } from 'react'
 import { useCartStore } from '@/stores/cartStore'
+import { toDisplayStock, getUnitLabel } from '@/lib/stock'
 
 type Product = {
     id: string | number
@@ -12,6 +13,7 @@ type Product = {
     image_url?: string | null
     images?: any[] | null
     stock?: number | string | null
+    stock_unit?: number | null
     unit_type?: 'per_unit' | 'per_kg' | null
 }
 
@@ -36,18 +38,25 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
     const effective = sale != null && !Number.isNaN(sale) && sale > 0 ? sale : base
 
     const img = useMemo(() => {
+        // 1) immagine caricata dall’admin via Supabase Storage
         if (p?.image_url) return p.image_url
-        const first = Array.isArray(p?.images) ? p.images![0] : null
-        if (!first) return null
+
+        // 2) prima immagine dell’array (se usi images[])
+        const first = Array.isArray(p?.images) ? p.images[0] : null
         if (typeof first === 'string') return first
         if (typeof first === 'object' && first && 'url' in (first as any)) {
             return (first as any).url ?? null
         }
-        return null
-    }, [p?.image_url, p?.images])
 
-    const stockNum =
-        p?.stock == null || (p as any).stock === '' ? null : Number((p as any).stock)
+        // 3) immagine demo statica dal campo "image"
+        if ((p as any).image) return (p as any).image
+
+        // 4) fallback
+        return null
+    }, [p?.image_url, p?.images, (p as any)?.image])
+
+
+    const stockNum = toDisplayStock(p as any)
     const isUnlimited = stockNum === null
     const outOfStock = !isUnlimited && stockNum === 0
     const atLimit = !isUnlimited && !outOfStock && qtyInCart >= (stockNum ?? 0)
@@ -144,7 +153,7 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
 
                 <div className="mt-1 flex items-baseline gap-2">
                     <span className="text-base font-semibold text-gray-900">
-                        €{effective.toFixed(2)} / {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
+                        €{effective.toFixed(2)} / {getUnitLabel(p as any)}
                     </span>
                     {sale != null && sale > 0 && sale < base && (
                         <span className="text-sm text-gray-500 line-through">
@@ -169,7 +178,7 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
                                 {p.unit_type === 'per_kg' ? qtyInCart.toFixed(1) : qtyInCart}
                                 {!isUnlimited && typeof stockNum === 'number' ? (
                                     <span className="ml-1 text-xs text-gray-500">
-                                        / {stockNum} {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
+                                        / {stockNum} {getUnitLabel(p as any)}
                                     </span>
                                 ) : null}
                             </div>

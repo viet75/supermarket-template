@@ -8,22 +8,47 @@ export default async function Page() {
   const sb = supabaseServer()
 
   // categorie
-  const { data: categories } = await sb
+  const { data: categories, error: categoriesError } = await sb
     .from('categories')
     .select('id, name')
     .order('name', { ascending: true })
 
-  // prodotti
-  // prodotti
-  const { data: products } = await sb
-    .from('products')
-    .select(
-      'id, name, description, price, price_sale, image_url, category_id, stock, is_active, sort_order, unit_type'
-    )
-    .is('deleted_at', null)
-    .order('sort_order', { ascending: true })
-    .order('name', { ascending: true })
+  if (categoriesError) {
+    console.error('❌ Errore caricamento categorie:', categoriesError)
+  }
 
+  // prodotti
+  let products: any[] | null = null
+  let productsError: any = null
+
+  try {
+    // Seleziona tutte le colonne disponibili
+    const result = await sb
+      .from('products')
+      .select('*')
+      .is('deleted_at', null)
+      .order('name', { ascending: true })
+
+    products = result.data
+    productsError = result.error
+
+    if (productsError) {
+      console.error('❌ Errore caricamento prodotti:', productsError.message)
+    }
+    
+    if (products) {
+      // Ordina manualmente per sort_order e poi name
+      products.sort((a, b) => {
+        const sortA = a.sort_order ?? 999
+        const sortB = b.sort_order ?? 999
+        if (sortA !== sortB) return sortA - sortB
+        return (a.name || '').localeCompare(b.name || '')
+      })
+    }
+  } catch (err: any) {
+    productsError = err
+    console.error('❌ Eccezione caricamento prodotti:', err?.message)
+  }
 
   return (
     <StoreClient products={products ?? []} categories={categories ?? []} />

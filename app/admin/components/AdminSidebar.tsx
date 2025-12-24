@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Package, ShoppingCart, Layers, Menu, X } from 'lucide-react'
 import { useState } from 'react'
+import { Package, ShoppingCart, Layers, Menu, X, Truck } from 'lucide-react'
 
 export default function AdminSidebar() {
     const pathname = usePathname()
@@ -13,6 +13,10 @@ export default function AdminSidebar() {
         { href: '/admin/orders', label: 'Ordini', icon: ShoppingCart },
         { href: '/admin/products', label: 'Prodotti', icon: Package },
         { href: '/admin/categories', label: 'Categorie', icon: Layers },
+        { href: '/admin/settings/delivery', label: 'Consegna', icon: Truck },
+
+
+    
     ]
 
     return (
@@ -51,7 +55,7 @@ export default function AdminSidebar() {
                 <div className="p-4 text-center font-semibold text-lg 
                                 border-b border-gray-200 dark:border-gray-700 
                                 text-gray-900 dark:text-gray-100">
-                    Il Centro del Risparmio
+                    {process.env.NEXT_PUBLIC_STORE_NAME ?? 'Supermarket Template'}
                 </div>
 
                 <nav className="flex-1 p-4 space-y-1">

@@ -4,10 +4,11 @@ import Header from '@/components/Header'
 import ClientRefresher from '@/components/ClientRefresher'
 
 export const metadata: Metadata = {
-  title: 'Il Centro del Risparmio',
-  description: 'Il nuovo e-commerce locale',
+  title: 'Supermarket Template',
+  description: 'Template PWA per supermercati con pannello admin',
   manifest: '/manifest.json',
 }
+
 
 export const viewport: Viewport = {
   themeColor: '#22c55e',
@@ -23,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-title" content="Centro Risparmio" />
+        <meta name="apple-mobile-web-app-title" content="Supermarket Template" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
         {/* 🔹 Colori chiaro/scuro */}

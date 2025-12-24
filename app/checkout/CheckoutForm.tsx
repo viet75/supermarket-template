@@ -4,13 +4,20 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Skeleton from '@/components/Skeleton'
 import type { StoreSettings, PaymentMethod, OrderItem, OrderAddress, OrderPayload } from '@/lib/types'
-import { computeDeliveryFee, validateDelivery, allowedPaymentMethods } from '@/lib/delivery'
+import { validateDelivery, allowedPaymentMethods } from '@/lib/delivery'
 import { geocodeAddress, computeDistanceFromStore } from '@/lib/geo'
 import { useCartStore } from '@/stores/cartStore'
 
 type Props = { settings: StoreSettings }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
+
+// Mappa dei metodi di pagamento per rendering dinamico
+const PAYMENT_METHOD_CONFIG: Record<PaymentMethod, { icon: string; label: string }> = {
+    cash: { icon: '💵', label: 'Pagamento in contanti alla consegna' },
+    pos_on_delivery: { icon: '💳🏠', label: 'Pagamento con POS alla consegna' },
+    card_online: { icon: '💳', label: 'Pagamento con carta online' },
+}
 
 export default function CheckoutForm({ settings }: Props) {
     const router = useRouter()
@@ -40,11 +47,30 @@ export default function CheckoutForm({ settings }: Props) {
     const [distanceKm, setDistanceKm] = useState<number>(0)
     const [loadingDistance, setLoadingDistance] = useState(false)
     const [isAddressValid, setIsAddressValid] = useState(false)
-
+    const [distanceError, setDistanceError] = useState<string | null>(null)
 
     const [msg, setMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null)
 
-    // 🔧 Calcolo automatico della distanza con Nominatim
+    // Valori calcolati dal backend (disponibili solo dopo la creazione dell'ordine)
+    const [backendDeliveryFee, setBackendDeliveryFee] = useState<number | null>(null)
+    const [backendTotal, setBackendTotal] = useState<number | null>(null)
+    const [backendDistanceKm, setBackendDistanceKm] = useState<number | null>(null)
+
+    // Preview della consegna (calcolata prima della creazione dell'ordine)
+    const [previewDeliveryFee, setPreviewDeliveryFee] = useState<number | null>(null)
+    const [previewDistanceKm, setPreviewDistanceKm] = useState<number | null>(null)
+    const [loadingPreview, setLoadingPreview] = useState(false)
+
+    // Reset valori backend quando cambia l'indirizzo
+    useEffect(() => {
+        setBackendDeliveryFee(null)
+        setBackendTotal(null)
+        setBackendDistanceKm(null)
+        setPreviewDeliveryFee(null)
+        setPreviewDistanceKm(null)
+    }, [addr.line1, addr.city, addr.cap])
+
+    // 🔧 Calcolo automatico della distanza con Google Maps
     useEffect(() => {
         if (!addr.line1 || !addr.city || !addr.cap) return
 
@@ -62,19 +88,32 @@ export default function CheckoutForm({ settings }: Props) {
                     const validCache = Date.now() - timestamp < 7 * 24 * 60 * 60 * 1000
                     if (validCache) {
                         setDistanceKm(km)
-                        setIsAddressValid(km > 0 && km <= settings.delivery_max_km)
+                        const validation = validateDelivery(km, settings)
+                        if (km > settings.delivery_max_km) {
+                            setIsAddressValid(false)
+                            setDistanceError(`La consegna non è disponibile per questo indirizzo (${km.toFixed(1)} km, massimo ${settings.delivery_max_km} km).`)
+                        } else {
+                            setIsAddressValid(validation.ok)
+                            setDistanceError(null)
+                        }
                         setLoadingDistance(false)
                         return
                     }
                 }
 
-                // ✅ STEP 2.2 — Chiamata Nominatim solo se cache assente o scaduta
+                // ✅ STEP 2.2 — Chiamata Google Maps solo se cache assente o scaduta
                 const coords = await geocodeAddress(full)
                 if (coords) {
                     const km = computeDistanceFromStore(settings, coords)
                     setDistanceKm(km)
-                    setIsAddressValid(km > 0 && km <= settings.delivery_max_km)
-
+                    const validation = validateDelivery(km, settings)
+                    if (km > settings.delivery_max_km) {
+                        setIsAddressValid(false)
+                        setDistanceError(`La consegna non è disponibile per questo indirizzo (${km.toFixed(1)} km, massimo ${settings.delivery_max_km} km).`)
+                    } else {
+                        setIsAddressValid(validation.ok)
+                        setDistanceError(null)
+                    }
 
                     // ✅ STEP 2.3 — Salvataggio in cache
                     localStorage.setItem(full, JSON.stringify({
@@ -83,8 +122,9 @@ export default function CheckoutForm({ settings }: Props) {
                         timestamp: Date.now()
                     }))
                 } else {
-                    setDistanceKm(0)
                     setIsAddressValid(false)
+                    setDistanceError("Indirizzo non riconosciuto. Controlla via, numero civico e CAP.")
+                    setDistanceKm(0)
                 }
             } catch (err) {
                 console.error('Errore geocodifica:', err)
@@ -97,21 +137,74 @@ export default function CheckoutForm({ settings }: Props) {
         return () => clearTimeout(handler)
     }, [addr, settings])
 
+    // 🔧 Preview del delivery fee (calcolata lato server)
+    useEffect(() => {
+        if (!settings.delivery_enabled) return
+        if (!addr.line1 || !addr.city || !addr.cap) {
+            setPreviewDeliveryFee(null)
+            setPreviewDistanceKm(null)
+            return
+        }
 
-    const fee = useMemo(
-        () => computeDeliveryFee(distanceKm, settings),
-        [distanceKm, settings]
-    )
+        const handler = setTimeout(async () => {
+            setLoadingPreview(true)
+            try {
+                const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || ''
+                const res = await fetch(`${baseUrl}/api/delivery/preview`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        address: addr.line1,
+                        city: addr.city,
+                        cap: addr.cap,
+                    }),
+                })
 
-    const validation = useMemo(
-        () => validateDelivery(distanceKm, settings),
-        [distanceKm, settings, addr]
-    )
+                if (res.ok) {
+                    const data = await res.json()
+                    setPreviewDeliveryFee(data.delivery_fee ?? null)
+                    setPreviewDistanceKm(data.distance_km ?? null)
+                } else {
+                    // Se errore (es. indirizzo fuori zona), resetta la preview
+                    setPreviewDeliveryFee(null)
+                    setPreviewDistanceKm(null)
+                }
+            } catch (err) {
+                console.error('Errore preview consegna:', err)
+                setPreviewDeliveryFee(null)
+                setPreviewDistanceKm(null)
+            } finally {
+                setLoadingPreview(false)
+            }
+        }, 600) // debounce per evitare troppe chiamate
+
+        return () => clearTimeout(handler)
+    }, [addr.line1, addr.city, addr.cap, settings.delivery_enabled])
+
+    const validation = useMemo(() => {
+        // Se la consegna è disabilitata, l'indirizzo è sempre valido (non serve validare distanza)
+        if (!settings.delivery_enabled) {
+            return { ok: true }
+        }
+        // Se la consegna è abilitata ma l'indirizzo non è completo, non è ancora valido
+        if (!addr.line1 || !addr.city || !addr.cap) {
+            return { ok: false, reason: 'Compila tutti i campi dell\'indirizzo' }
+        }
+        // Se la distanza è ancora in calcolo, attendi prima di validare
+        if (loadingDistance) {
+            return { ok: false, reason: 'Calcolo distanza in corso...' }
+        }
+        // Se la distanza non è ancora stata calcolata (0 e non in loading), non è valido
+        if (distanceKm === 0) {
+            return { ok: false, reason: 'Indirizzo non riconosciuto' }
+        }
+        // Valida la distanza solo se è stata calcolata
+        return validateDelivery(distanceKm, settings)
+    }, [distanceKm, settings, addr, loadingDistance])
 
     const methods = allowedPaymentMethods(settings)
     const [pay, setPay] = useState<PaymentMethod>('cash')
-    const total = useMemo(() => round2(subtotal + fee), [subtotal, fee])
-    const emptyCart = items.length === 0
+    const emptyCart = hydrated && items.length === 0
 
     const [saving, setSaving] = useState(false)
 
@@ -137,6 +230,8 @@ export default function CheckoutForm({ settings }: Props) {
 
         const coords = await geocodeAddress(`${addr.line1}, ${addr.cap} ${addr.city}, Italia`)
         const dist = computeDistanceFromStore(settings, coords)
+        console.log('🧪 PAYMENT METHOD AL SUBMIT:', pay)
+        console.log('🧪 AVAILABLE METHODS:', methods)
 
         const payload: OrderPayload = {
             items: items.map((it) => ({
@@ -146,8 +241,8 @@ export default function CheckoutForm({ settings }: Props) {
                 qty: Number(it.qty) || 0,
             })) as OrderItem[],
             subtotal,
-            delivery_fee: fee,
-            total,
+            delivery_fee: 0, // Ignorato dal backend, calcolato lato server
+            total: 0, // Ignorato dal backend, calcolato lato server
             distance_km: dist,
             payment_method: pay,
             address: addr,
@@ -165,6 +260,9 @@ export default function CheckoutForm({ settings }: Props) {
             let data: any = null
             try { data = JSON.parse(text) } catch { }
 
+            // 🔍 Log temporaneo della response JSON
+            console.log('📦 Response da /api/orders:', JSON.stringify(data, null, 2))
+
             if (!res.ok) {
                 if (res.status === 409) {
                     setMsg({
@@ -174,17 +272,32 @@ export default function CheckoutForm({ settings }: Props) {
                 } else {
                     setMsg({ type: 'error', text: data?.error ?? `Errore API (${res.status})` })
                 }
+                setSaving(false)
                 return
             }
 
-            const orderId = data?.id ?? ''
+            // Salva i valori calcolati dal backend
+            if (data?.delivery_fee !== undefined) setBackendDeliveryFee(data.delivery_fee)
+            if (data?.total !== undefined) setBackendTotal(data.total)
+            if (data?.distance_km !== undefined) setBackendDistanceKm(data.distance_km)
+
+            // ✅ Allineato alla struttura reale della response: usa order_id invece di id
+            const orderId = data?.order_id ?? data?.id ?? ''
+
             if (pay === 'card_online') {
+                // ✅ Verifica che orderId non sia vuoto prima di chiamare /api/checkout
+                if (!orderId) {
+                    setMsg({ type: 'error', text: 'Errore: orderId mancante nella response' })
+                    setSaving(false)
+                    return
+                }
+
                 const res2 = await fetch(`${baseUrl}/api/checkout`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         orderId,
-                        total: data?.total ?? 0,
+                        total: backendTotal ?? data?.total ?? 0,
                         items: payload.items.map((it: any) => ({
                             id: it.id,
                             name: it.name,
@@ -218,10 +331,9 @@ export default function CheckoutForm({ settings }: Props) {
         } catch (e: any) {
             console.error(e)
             setMsg({ type: 'error', text: e?.message ?? 'Errore imprevisto' })
-        } finally {
             setSaving(false)
         }
-    }, [items, addr, subtotal, fee, pay, settings, validation, clearCart, router])
+    }, [items, addr, subtotal, pay, settings, validation, clearCart, router, backendTotal])
 
     if (!mounted) return <Skeleton />
     if (!hydrated && items.length === 0) return <Skeleton />
@@ -346,14 +458,10 @@ export default function CheckoutForm({ settings }: Props) {
                                         className="hidden"
                                     />
                                     <span className="text-lg">
-                                        {m === 'cash' && '💵'}
-                                        {m === 'card_online' && '💳'}
-                                        {m === 'card_on_delivery' && '🏠💳'}
+                                        {PAYMENT_METHOD_CONFIG[m]?.icon || '💳'}
                                     </span>
                                     <span className="text-sm font-medium">
-                                        {m === 'cash' && 'Pagamento in contanti alla consegna'}
-                                        {m === 'card_online' && 'Pagamento con carta online'}
-                                        {m === 'card_on_delivery' && 'Pagamento con carta al domicilio'}
+                                        {PAYMENT_METHOD_CONFIG[m]?.label || m}
                                     </span>
                                 </label>
                             ))}
@@ -383,26 +491,45 @@ export default function CheckoutForm({ settings }: Props) {
                         <div className="flex justify-between">
                             <span>Consegna</span>
                             <span>
-                                {loadingDistance
-                                    ? '...'
-                                    : distanceKm > 0
-                                        ? `€${fee.toFixed(2)} (${distanceKm} km)`
-                                        : '—'}
+                                {backendDeliveryFee !== null
+                                    ? backendDeliveryFee === 0
+                                        ? 'Consegna gratuita'
+                                        : `€${backendDeliveryFee.toFixed(2)} (${(backendDistanceKm ?? 0).toFixed(1)} km)`
+                                    : previewDeliveryFee !== null
+                                        ? previewDeliveryFee === 0
+                                            ? 'Consegna gratuita (stima)'
+                                            : `€${previewDeliveryFee.toFixed(2)} (stima)`
+                                        : loadingPreview || loadingDistance
+                                            ? '...'
+                                            : '—'}
                             </span>
                         </div>
                     )}
                     <div className="flex justify-between font-semibold text-lg">
                         <span>Totale</span>
-                        <span>€{total.toFixed(2)}</span>
+                        <span>
+                            {backendTotal !== null
+                                ? `€${backendTotal.toFixed(2)}`
+                                : previewDeliveryFee !== null
+                                    ? `€${(subtotal + previewDeliveryFee).toFixed(2)} (stima)`
+                                    : `€${subtotal.toFixed(2)}`}
+                        </span>
                     </div>
                 </div>
+
+                {distanceError && (
+                    <div className="p-3 mb-3 text-sm text-white bg-red-500 rounded-lg">
+                        {distanceError}
+                    </div>
+                )}
 
                 <button
                     type="button"
                     onClick={confirmOrder}
-                    disabled={saving || emptyCart || !isAddressValid || !addr.firstName || !addr.lastName}
+                    disabled={saving || !validation.ok}
+
                     className={`w-full rounded-xl font-semibold px-4 py-3 transition 
-    ${isAddressValid
+    ${validation.ok && addr.firstName && addr.lastName
                             ? 'bg-green-600 hover:bg-green-700 text-white'
                             : 'bg-gray-300 text-gray-600 cursor-not-allowed'}`}
                 >

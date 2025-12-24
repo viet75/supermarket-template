@@ -1,6 +1,6 @@
 -- ============================================================
 -- 🗄️  SUPERMARKET PWA TEMPLATE - SETUP DATABASE
--- Versione: 1.2 (con campo store_name)
+-- Versione: 1.3 (con tabella profiles)
 -- ============================================================
 
 -- ============================================================
@@ -21,6 +21,9 @@ BEGIN
     IF to_regclass('public.store_settings') IS NOT NULL THEN
         TRUNCATE TABLE store_settings RESTART IDENTITY CASCADE;
     END IF;
+    IF to_regclass('public.profiles') IS NOT NULL THEN
+        TRUNCATE TABLE profiles RESTART IDENTITY CASCADE;
+    END IF;
 END $$;
 
 -- ============================================================
@@ -30,7 +33,8 @@ END $$;
 -- Categorie prodotti
 CREATE TABLE IF NOT EXISTS categories (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    name text NOT NULL
+    name text NOT NULL,
+    deleted_at timestamp with time zone
 );
 
 -- Prodotti
@@ -40,8 +44,10 @@ CREATE TABLE IF NOT EXISTS products (
     price numeric(10,2) NOT NULL,
     category_id uuid REFERENCES categories(id) ON DELETE CASCADE,
     image text,
-    created_at timestamp DEFAULT now()
+    created_at timestamp DEFAULT now(),
+    deleted_at timestamp with time zone
 );
+
 
 -- Ordini
 CREATE TABLE IF NOT EXISTS orders (
@@ -66,6 +72,13 @@ CREATE TABLE IF NOT EXISTS store_settings (
     store_lng numeric(10,6)
 );
 
+-- Profili utenti (collegati a Supabase Auth)
+CREATE TABLE IF NOT EXISTS profiles (
+    id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    role text DEFAULT 'customer',
+    created_at timestamp with time zone DEFAULT now()
+);
+
 -- ============================================================
 -- 🧩  DATI DEMO (esempio prodotti e categorie)
 -- ============================================================
@@ -78,12 +91,21 @@ INSERT INTO categories (name) VALUES
     ('Forno')
 ON CONFLICT DO NOTHING;
 
--- Prodotti
+-- Prodotti demo
 INSERT INTO products (name, price, category_id, image) VALUES
-    ('Mele Golden', 1.50, (SELECT id FROM categories WHERE name = 'Frutta'), '/images/example-frutta.jpg'),
-    ('Pomodori', 2.00, (SELECT id FROM categories WHERE name = 'Verdura'), '/images/example-verdura.jpg'),
-    ('Pane Fresco', 1.00, (SELECT id FROM categories WHERE name = 'Forno'), '/images/example-pane.jpg'),
-    ('Acqua Naturale 1L', 0.80, (SELECT id FROM categories WHERE name = 'Bevande'), '/images/example-acqua.jpg')
+  ('Mele Golden 1kg',        1.50, (SELECT id FROM categories WHERE name = 'Frutta'),  '/images/example-frutta.jpg'),
+  ('Banane 1kg',             1.60, (SELECT id FROM categories WHERE name = 'Frutta'),  '/images/example-banane.jpg'),
+
+  ('Pomodori 1kg',           2.00, (SELECT id FROM categories WHERE name = 'Verdura'), '/images/example-verdura.jpg'),
+  ('Insalata mista 250g',    1.10, (SELECT id FROM categories WHERE name = 'Verdura'), '/images/example-insalata.jpg'),
+
+  ('Pane Fresco 500g',       1.00, (SELECT id FROM categories WHERE name = 'Forno'),   '/images/example-pane.jpg'),
+  ('Panini morbidi x6',      1.90, (SELECT id FROM categories WHERE name = 'Forno'),   '/images/example-panini.jpg'),
+
+  ('Acqua Naturale 1L',      0.80, (SELECT id FROM categories WHERE name = 'Bevande'), '/images/example-acqua.jpg'),
+  ('Bibita cola 1.5L',       1.50, (SELECT id FROM categories WHERE name = 'Bevande'), '/images/example-cola.jpg'),
+  ('Succo di frutta pesca',  1.20, (SELECT id FROM categories WHERE name = 'Bevande'), '/images/example-succo.jpg');
+
 ON CONFLICT DO NOTHING;
 
 -- Impostazioni negozio (demo)
@@ -105,22 +127,21 @@ ON CONFLICT DO NOTHING;
 -- ======================================
 
 -- Crea un utente fittizio in Supabase Auth
-insert into auth.users (id, email, encrypted_password)
-values (
+INSERT INTO auth.users (id, email, encrypted_password)
+VALUES (
   gen_random_uuid(),
   'admin@demo.com',
   crypt('admin123', gen_salt('bf'))
 );
 
 -- Crea il relativo profilo collegato con ruolo admin
-insert into public.profiles (id, role)
-select id, 'admin'
-from auth.users
-where email = 'admin@demo.com';
+INSERT INTO public.profiles (id, role)
+SELECT id, 'admin'
+FROM auth.users
+WHERE email = 'admin@demo.com';
 
 -- Conferma completata
-commit;
-
+COMMIT;
 
 -- ============================================================
 -- ✅  FINE SETUP

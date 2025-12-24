@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseService } from '@/lib/supabaseService'
 import type { OrderPayload, StoreSettings, PaymentMethod } from '@/lib/types'
 import { geocodeAddress, computeDistanceFromStore } from '@/lib/geo'
+import { calculateDeliveryFee } from '@/lib/delivery'
 
 
 
@@ -44,11 +45,12 @@ function normalizePaymentMethod(pm: string): PaymentMethod | null {
         case 'cash':
             return 'cash'
         case 'card':
-        case 'card_on_delivery':
-            return 'card_on_delivery'
+            return 'pos_on_delivery'
         case 'online':
         case 'card_online':
             return 'card_online'
+        case 'pos_on_delivery':
+            return 'pos_on_delivery'
         default:
             return null
     }
@@ -123,18 +125,41 @@ export async function POST(req: Request) {
     }
     const distanceKm = computeDistanceFromStore(settings, clientCoords)
 
-    // Validazione raggio massimo
-    if (settings.delivery_enabled && distanceKm > settings.delivery_max_km) {
-        return NextResponse.json({ error: '⚠️ Indirizzo fuori dal raggio di consegna' }, { status: 400 })
+    // Validazione raggio massimo da variabile d'ambiente
+    const MAX_RADIUS_KM = Number(process.env.NEXT_PUBLIC_DELIVERY_RADIUS_KM ?? 0)
+    if (MAX_RADIUS_KM > 0 && distanceKm > MAX_RADIUS_KM) {
+        return NextResponse.json(
+            { error: 'Indirizzo fuori dal raggio di consegna' },
+            { status: 400 }
+        )
     }
 
-    // Calcolo fee consegna
-    let fee = settings.delivery_enabled
-        ? round2(settings.delivery_fee_base + distanceKm * settings.delivery_fee_per_km)
-        : 0
+    // Calcolo delivery fee lato server (ignora qualsiasi delivery_fee dal frontend)
+    let deliveryFee = 0
+    if (settings.delivery_enabled) {
+        // Leggi i campi delivery dal database (possono non essere nel tipo TypeScript)
+        const settingsData = settings as any
+        const baseKm = Number(settingsData.delivery_base_km ?? 0)
+        const baseFee = Number(settingsData.delivery_base_fee ?? settings.delivery_fee_base ?? 0)
+        const extraFeePerKm = Number(settingsData.delivery_extra_fee_per_km ?? settings.delivery_fee_per_km ?? 0)
+        const maxKm = Number(settings.delivery_max_km ?? 0)
 
-    if (settings.delivery_enabled && settings.free_over > 0 && parseDec(body.subtotal, 'subtotal') >= settings.free_over) {
-        fee = 0
+        // Validazione raggio massimo (già gestita da calculateDeliveryFee, ma facciamo un check preventivo)
+        if (distanceKm > maxKm) {
+            return NextResponse.json({ error: '⚠️ Indirizzo fuori dal raggio di consegna' }, { status: 400 })
+        }
+
+        try {
+            deliveryFee = calculateDeliveryFee({
+                distanceKm,
+                baseKm,
+                baseFee,
+                extraFeePerKm,
+                maxKm,
+            })
+        } catch (error: any) {
+            return NextResponse.json({ error: error.message || 'Errore calcolo delivery fee' }, { status: 400 })
+        }
     }
 
     // Validazione metodo di pagamento con normalizzazione
@@ -144,16 +169,13 @@ export async function POST(req: Request) {
     }
 
 
-    // Ricostruisci gli items come JSON array con numeri puliti
-    let rpcItems: { id: string; name: string; price: number; quantity: number; unit?: string }[] = []
+    // Normalizza gli items
+    let items: { id: string; quantity: number; price: number }[] = []
     try {
-        rpcItems = body.items.map((it) => ({
+        items = body.items.map((it) => ({
             id: it.id,
-            name: it.name,
             price: parseDec(it.price ?? 0, 'price'),
             quantity: parseDec(it.qty ?? it.quantity ?? 1, 'qty'),
-            // 👈 qty dal frontend → quantity nel DB
-            unit: it.unit ?? undefined,              // 👈 fix TS: mai null
         }))
     } catch (e: any) {
         return NextResponse.json(
@@ -162,49 +184,73 @@ export async function POST(req: Request) {
         )
     }
 
-
-    for (const it of rpcItems) {
+    // Validazione items
+    for (const it of items) {
         if (!it.id || !Number.isFinite(it.quantity) || it.quantity <= 0) {
             return NextResponse.json({ error: 'Formato degli articoli non valido' }, { status: 400 })
         }
     }
 
-
-    // Salva ordine via funzione RPC in Supabase
+    // Calcola totali (ignora delivery_fee dal frontend, usa quello calcolato lato server)
     const safeSubtotal = parseDec(body.subtotal, 'subtotal')
-    const { data, error } = await supabaseService.rpc('fn_create_order', {
-        items_json: rpcItems,
-        subtotal: safeSubtotal,
-        delivery_fee: fee,
-        total: round2(safeSubtotal + fee),
-        address_json: body.address,
-        payment_method: pm,
-        distance_km: distanceKm,
-    })
+    const total = round2(safeSubtotal + deliveryFee)
 
-    if (error || !data) {
-        // 🔎 Log più dettagliato dell'errore
-        console.error('❌ Errore Supabase dettagliato:', JSON.stringify(error, null, 2))
+    // Crea l'ordine direttamente
+    const { data: orderData, error: orderError } = await supabaseService
+        .from('orders')
+        .insert({
+            subtotal: safeSubtotal,
+            delivery_fee: deliveryFee,
+            total: total,
+            address: body.address,
+            payment_method: pm,
+            payment_status: 'pending',
+            status: 'pending',
+            distance_km: round2(distanceKm),
+        })
+        .select('id')
+        .single()
 
-        const msg = (error as any)?.message || 'Errore durante la creazione ordine'
-        const insufficient = /Insufficient stock/i.test(msg)
+    if (orderError || !orderData) {
+        console.error('❌ Errore creazione ordine:', JSON.stringify(orderError, null, 2))
+        const msg = (orderError as any)?.message || 'Errore durante la creazione ordine'
         return NextResponse.json(
-            { error: insufficient ? '❌ Stock insufficiente per uno o più prodotti' : msg },
-            { status: insufficient ? 409 : 500 }
+            { error: msg },
+            { status: 500 }
         )
     }
 
+    const newOrderId = orderData.id
 
-    // ✅ Correzione: la funzione fn_create_order restituisce solo l'UUID
-    return NextResponse.json(
-        {
-            id: data, // l'UUID dell'ordine
-            total: round2(safeSubtotal + fee),
-            status: pm === 'card_online' ? 'pending' : 'confirmed',
-            created_at: new Date().toISOString(), // opzionale, per coerenza
-        },
-        { status: 201 }
-    )
+    // --- Inserimento degli order_items --- //
+    for (const item of items) {
+        const { id: productId, quantity, price } = item
+
+        const { error: itemError } = await supabaseService
+            .from('order_items')
+            .insert({
+                order_id: newOrderId,
+                product_id: productId,
+                quantity: quantity,
+                price: price,
+            })
+
+        if (itemError) {
+            console.error('Errore inserimento item:', itemError)
+            return NextResponse.json(
+                { error: 'Errore durante il salvataggio degli articoli' },
+                { status: 500 }
+            )
+        }
+    }
+
+    return NextResponse.json({ 
+        ok: true, 
+        order_id: newOrderId,
+        delivery_fee: deliveryFee,
+        total: total,
+        distance_km: round2(distanceKm)
+    })
 
 
 }

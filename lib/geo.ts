@@ -6,116 +6,15 @@ export type Coordinates = {
     lng: number
 }
 
-export async function geocodeAddress(address: string): Promise<Coordinates | null> {
-    function normalize(str: string) {
-        return str
-            .trim()
-            .replace(/\s+/g, " ")
-            .replace(/[^a-zA-Z0-9À-ÿ ,]/g, "")
-    }
+export async function geocodeAddress(q: string) {
+    const baseUrl =
+        typeof window === "undefined"
+            ? process.env.NEXT_PUBLIC_SITE_URL || ""
+            : ""
 
-    async function tryFetch(query: string): Promise<Coordinates | null> {
-        try {
-            // Se siamo in server-side (Node) serve URL assoluto
-            // ✅ Determina l'URL base per la chiamata API, anche su Vercel
-            const baseUrl =
-                typeof window === "undefined"
-                    ? process.env.NEXT_PUBLIC_SITE_URL ||
-                    "https://supermercato-pwa-six.vercel.app" // fallback automatico in produzione
-                    : ""
-
-
-            // 🔍 LOG per debug in console server Vercel
-            console.log("🌍 geocode baseUrl:", baseUrl)
-
-            const res = await fetch(`${baseUrl}/api/geocode?q=${encodeURIComponent(query)}`)
-
-            if (!res.ok) {
-                console.error("❌ Errore API geocode:", res.status)
-                return null
-            }
-
-            let data: any
-            try {
-                data = await res.json()
-            } catch (err) {
-                console.error("❌ Errore parse JSON:", err)
-                return null
-            }
-
-            if (!Array.isArray(data) || data.length === 0) {
-                console.warn("⚠️ Nessun risultato valido dal geocode:", data)
-                return null
-            }
-
-            const best = data[0]
-            console.log("📍 DEBUG geocode:", best.display_name, best.address)
-
-            // ✅ Verifica che sia in Puglia
-            const state = best.address?.state || ""
-            const region = best.address?.region || ""
-            const county = best.address?.county || ""
-
-            const validStates = ["Puglia"]
-            const validRegions = ["Puglia"]
-            const validCounties = [
-                "Taranto",
-                "Provincia di Taranto",
-                "Bari",
-                "Provincia di Bari",
-                "Brindisi",
-                "Provincia di Brindisi",
-                "Lecce",
-                "Provincia di Lecce",
-                "Foggia",
-                "Provincia di Foggia",
-                "Barletta-Andria-Trani",
-                "Provincia di Barletta-Andria-Trani",
-            ]
-
-
-            const isPuglia =
-                validStates.includes(state) ||
-                validRegions.includes(region) ||
-                validCounties.includes(county)
-
-            if (!isPuglia) {
-                console.warn("⚠️ Indirizzo trovato ma fuori dalla Puglia:", best.display_name)
-                return null
-            }
-
-            return {
-                lat: parseFloat(best.lat),
-                lng: parseFloat(best.lon),
-            }
-        } catch (err) {
-            console.error("❌ Errore fetch /api/geocode:", err)
-            return null
-        }
-    }
-
-    // 🔎 Tentativi multipli
-    const cleanAddress = normalize(address)
-    const attempts = [
-        `${cleanAddress}, Puglia, Italia`,
-        `${cleanAddress}, Italia`,
-        cleanAddress,
-    ]
-
-    for (const attempt of attempts) {
-        console.log("🔎 Tentativo geocoding:", attempt)
-        const coords = await tryFetch(attempt)
-        if (coords) {
-            console.log("✅ Indirizzo valido:", attempt, coords)
-            return coords
-        }
-        const delay = Number(process.env.GEOCODE_RATE_MS ?? 1200)
-        await new Promise((r) => setTimeout(r, delay)) // rispetto rate limit
-
-    }
-
-    console.error("❌ Geocoding fallito per:", address)
-    return null
+    const res = await fetch(`${baseUrl}/api/geocode?q=${encodeURIComponent(q)}`)
+    const json = await res.json()
+    return json.ok ? { lat: json.lat, lng: json.lng, formatted: json.formatted } : null
 }
 
 export function haversineDistance(a: Coordinates, b: Coordinates): number {
@@ -140,13 +39,26 @@ export function computeDistanceFromStore(
         console.warn("⚠️ computeDistanceFromStore: client null")
         return 0
     }
-    if (store.store_lat == null || store.store_lng == null) {
-        console.error("❌ computeDistanceFromStore: store_lat/store_lng mancanti")
+
+    // 🔥 FALLBACK AUTOMATICO dalle ENV
+    const envLat = process.env.NEXT_PUBLIC_STORE_LAT
+    const envLng = process.env.NEXT_PUBLIC_STORE_LNG
+
+    const storeLat =
+        store.store_lat ??
+        (envLat ? parseFloat(envLat) : null)
+
+    const storeLng =
+        store.store_lng ??
+        (envLng ? parseFloat(envLng) : null)
+
+    if (storeLat == null || storeLng == null) {
+        console.error("❌ computeDistanceFromStore: store_lat/store_lng mancanti (DB + ENV)")
         return 0
     }
 
     const dist = haversineDistance(
-        { lat: store.store_lat, lng: store.store_lng },
+        { lat: storeLat, lng: storeLng },
         client
     )
     const rounded = Math.round(dist * 100) / 100

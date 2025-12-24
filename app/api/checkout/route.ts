@@ -29,6 +29,19 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Dati ordine mancanti' }, { status: 400 })
         }
 
+        // Recupera l'ordine dal database per ottenere delivery_fee
+        const { data: order, error: orderError } = await supabaseService
+            .from('orders')
+            .select('delivery_fee, total')
+            .eq('id', orderId)
+            .single()
+
+        if (orderError || !order) {
+            return NextResponse.json({ error: 'Ordine non trovato' }, { status: 404 })
+        }
+
+        const deliveryFee = Number(order.delivery_fee ?? 0)
+
         const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
         if (!siteUrl) {
             return NextResponse.json({ error: 'NEXT_PUBLIC_SITE_URL mancante' }, { status: 500 })
@@ -70,6 +83,19 @@ export async function POST(req: NextRequest) {
             }
         })
 
+        // Aggiungi delivery fee come line item separato se > 0
+        if (deliveryFee > 0) {
+            line_items.push({
+                quantity: 1,
+                price_data: {
+                    currency: 'eur',
+                    unit_amount: Math.round(deliveryFee * 100),
+                    product_data: {
+                        name: 'Spese di consegna',
+                    },
+                },
+            })
+        }
 
         const stripe = getStripe()
 
@@ -80,7 +106,8 @@ export async function POST(req: NextRequest) {
             line_items,
             success_url: `${siteUrl}/order/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${siteUrl}/checkout?cancelled=1&id=${orderId}`,
-            metadata: { order_id: orderId },
+            metadata: { orderId },
+
         })
 
             // aggiorna lo stato in background (non blocca il redirect)
@@ -89,7 +116,6 @@ export async function POST(req: NextRequest) {
                     await supabaseService
                         .from('orders')
                         .update({
-                            payment_status: 'pending',
                             stripe_session_id: session.id,
                         })
                         .eq('id', orderId)

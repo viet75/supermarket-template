@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabaseServer'
+import { handleOrderPaid } from '@/lib/handleOrderPaid'
 import type { Order } from '@/lib/types'
 
 // ✅ (facoltativo, non usata ma lasciata per compatibilità futura)
@@ -48,13 +49,10 @@ export async function GET(req: NextRequest) {
           total,
           distance_km,
           address,
-          first_name,
-          last_name,
-          items,
-          order_items (
+          order_items:order_items (
             quantity,
             price,
-            product:products (id, name, unit_type)
+            products (id, name, unit_type)
           )
         `
 
@@ -69,133 +67,10 @@ export async function GET(req: NextRequest) {
 
         // 🔎 Ricerca combinata nome, cognome o ID
         if (search) {
-            const searchLower = search.toLowerCase()
-            const terms = searchLower.split(/\s+/).filter(Boolean)
-            let nameMatches: any[] = []
-
-            // 🔹 Ricerca per nome e cognome (multi-termine, OR + verifica completa)
-            if (terms.length > 0) {
-                let allResults: any[] = []
-
-                // Esegui una query per ogni termine e unisci i risultati
-                for (const term of terms) {
-                    const termLower = term.toLowerCase()
-                    let partialResults: any[] = []
-
-                    // 1️⃣ Ricerca su first_name e last_name
-                    const { data: baseData, error: baseErr } = await svc
-                        .from('orders')
-                        .select(orderSelect)
-                        .or(`first_name.ilike.%${termLower}%,last_name.ilike.%${termLower}%`)
-                        .order('created_at', { ascending: false })
-
-                    if (baseErr) console.error(`Errore ricerca base per "${term}":`, baseErr.message)
-                    partialResults.push(...(baseData ?? []))
-
-                    // 2️⃣ Ricerca su address (gestita con filtro SQL text)
-                    const { data: addressData, error: addrErr } = await svc
-                        .from('orders')
-                        .select(orderSelect)
-                        .filter('address', 'ilike', `%${termLower}%`)
-                        .order('created_at', { ascending: false })
-
-                    if (addrErr) console.error(`Errore ricerca address per "${term}":`, addrErr.message)
-                    partialResults.push(...(addressData ?? []))
-
-                    // 3️⃣ Unisci e deduplica
-                    allResults.push(...partialResults)
-                }
-
-
-                // Deduplica
-                nameMatches = Array.from(new Map(allResults.map((o: any) => [o.id, o])).values())
-
-                // Se l'utente ha scritto più parole (es. "gigi bianchi"),
-                // tieni solo chi contiene *tutti* i termini in nome, cognome o address
-                if (terms.length > 1) {
-                    nameMatches = nameMatches.filter((o: any) => {
-                        const fn = (o.first_name ?? '').toLowerCase()
-                        const ln = (o.last_name ?? '').toLowerCase()
-                        const addrObj =
-                            typeof o.address === 'string'
-                                ? JSON.parse(o.address)
-                                : o.address ?? {}
-                        const addrFn = (addrObj.firstName ?? '').toLowerCase()
-                        const addrLn = (addrObj.lastName ?? '').toLowerCase()
-
-                        return terms.every((t) =>
-                            fn.includes(t) || ln.includes(t) || addrFn.includes(t) || addrLn.includes(t)
-                        )
-                    })
-                }
-            }
-
-            // 🔹 Ricerca per ID parziale (tramite funzione RPC)
-            let idMatches: any[] = []
-            if (searchLower.length >= 3) {
-                const { data, error } = await svc.rpc('search_orders_by_id', {
-                    search_text: `%${searchLower}%`,
-                })
-
-                if (error) {
-                    console.error('Errore ricerca ID RPC:', error.message)
-                    idMatches = []
-                } else {
-                    idMatches = data ?? []
-                }
-            }
-
-
-            // 🔹 Merge e deduplica
-            const combined = [...(nameMatches ?? []), ...idMatches]
-            const unique = Array.from(new Map(combined.map((o: any) => [o.id, o])).values())
-
-            // 🔹 Normalizzazione per output
-            const orders: Order[] = unique.map((o: any) => {
-                const address =
-                    typeof o.address === 'string'
-                        ? JSON.parse(o.address)
-                        : (o.address ?? {})
-
-                const normalizedItems =
-                    Array.isArray(o.order_items) && o.order_items.length > 0
-                        ? o.order_items.map((it: any) => ({
-                            quantity: Number(it.quantity),
-                            price: Number(it.price),
-                            product: {
-                                id: it.product?.id ?? '',
-                                name: it.product?.name ?? '',
-                                unit_type: it.product?.unit_type ?? null,
-                            },
-                        }))
-                        : Array.isArray(o.items)
-                            ? o.items.map((it: any) => ({
-                                quantity: Number(it.qty ?? it.quantity ?? 1),
-                                price: Number(it.price ?? 0),
-                                product: {
-                                    id: String(it.id ?? ''),
-                                    name: String(it.name ?? ''),
-                                    unit_type: it.unit ?? null,
-                                },
-                            }))
-                            : []
-
-                return {
-                    ...o,
-                    address,
-                    subtotal: Number(o.subtotal),
-                    delivery_fee: Number(o.delivery_fee),
-                    total: Number(o.total),
-                    distance_km: Number(o.distance_km),
-                    order_items: normalizedItems,
-                }
-            })
-
-            return NextResponse.json({
-                orders,
-                page: 1,
-                totalPages: 1,
-            })
+            const term = `%${search}%`
+            q = q.or(
+                `address->>firstName.ilike.${term},address->>lastName.ilike.${term},address->>city.ilike.${term}`
+            )
         }
 
 
@@ -203,45 +78,58 @@ export async function GET(req: NextRequest) {
         const { data, count, error } = await q.range(fromIdx, toIdx)
         if (error) throw error
 
-        const orders: Order[] = (data ?? []).map((o: any) => {
+        const orders: Order[] = await Promise.all((data ?? []).map(async (o: any) => {
             const address =
                 typeof o.address === 'string'
                     ? JSON.parse(o.address)
                     : (o.address ?? {})
 
-            const normalizedItems =
-                Array.isArray(o.order_items) && o.order_items.length > 0
-                    ? o.order_items.map((it: any) => ({
-                        quantity: Number(it.quantity),
-                        price: Number(it.price),
-                        product: {
-                            id: it.product?.id ?? '',
-                            name: it.product?.name ?? '',
-                            unit_type: it.product?.unit_type ?? null,
-                        },
-                    }))
-                    : Array.isArray(o.items)
-                        ? o.items.map((it: any) => ({
-                            quantity: Number(it.qty ?? it.quantity ?? 1),
-                            price: Number(it.price ?? 0),
-                            product: {
-                                id: String(it.id ?? ''),
-                                name: String(it.name ?? ''),
-                                unit_type: it.unit ?? null,
-                            },
-                        }))
-                        : []
+            // Normalizzazione degli order_items usando i dati già inclusi dalla query
+            const normalizedItems: any[] = Array.isArray(o.order_items)
+                ? o.order_items.map((it: any) => {
+                        // Usa i dati del prodotto già inclusi dalla query principale
+                        // Supabase può restituire i dati come oggetto singolo o come array
+                        let productData = it.products || it.product || null
+                        if (Array.isArray(productData)) {
+                            productData = productData[0] || null
+                        }
+                        
+                        const quantity = Number(it.quantity)
+                        const unitPrice = Number(it.price ?? 0)
+                        
+                        const product = productData
+                            ? {
+                                id: productData.id,
+                                name: productData.name,
+                                unit_type: productData.unit_type,
+                            }
+                            : {
+                                id: '',
+                                name: 'Prodotto',
+                                unit_type: null,
+                            }
+
+                        return {
+                            quantity,
+                            price: unitPrice,
+                            product,
+                        }
+                    })
+                : []
 
             return {
                 ...o,
+                first_name: address.firstName ?? null,
+                last_name: address.lastName ?? null,
                 address,
                 subtotal: Number(o.subtotal),
                 delivery_fee: Number(o.delivery_fee),
                 total: Number(o.total),
                 distance_km: Number(o.distance_km),
                 order_items: normalizedItems,
+                items: [], // legacy
             }
-        })
+        }))
 
         return NextResponse.json({
             orders,
@@ -283,18 +171,98 @@ export async function DELETE(req: NextRequest) {
 }
 export async function PATCH(req: NextRequest) {
     try {
-        const { id, status } = await req.json()
-        if (!id || !status) {
-            return NextResponse.json({ error: 'id o status mancanti' }, { status: 400 })
+        const body = await req.json()
+        const { id, status, payment_status } = body
+        if (!id) {
+            return NextResponse.json({ error: 'id mancante' }, { status: 400 })
+        }
+        if (!status && payment_status == null) {
+            return NextResponse.json(
+                { error: 'status o payment_status richiesti' },
+                { status: 400 }
+            )
         }
 
+
         const svc = supabaseServer()
+
+        // Recupera l'ordine completo all'inizio
+        const { data: existingOrder, error: fetchExistingError } = await svc
+            .from('orders')
+            .select('status, payment_status')
+            .eq('id', id)
+            .single()
+
+        if (fetchExistingError) throw fetchExistingError
+
+        // Blocco ordine annullato
+        if (existingOrder.status === 'cancelled') {
+            return NextResponse.json(
+                { error: 'Ordine annullato: operazione non consentita' },
+                { status: 400 }
+            )
+        }
+
+        // Protezione contro consegna non pagata
+        if (status === 'delivered' && existingOrder.payment_status !== 'paid') {
+            return NextResponse.json(
+                { error: 'Impossibile consegnare un ordine non pagato' },
+                { status: 400 }
+            )
+        }
+
+        // Protezione contro annullamento ordine pagato
+        if (status === 'cancelled' && existingOrder.payment_status === 'paid') {
+            return NextResponse.json(
+                { error: 'Impossibile annullare un ordine già pagato' },
+                { status: 400 }
+            )
+        }
+
+        const updateData: any = {}
+
+        // Se arriva solo status, aggiorna solo quello
+        if (status) {
+            updateData.status = status
+        }
+
+        // Se arriva payment_status, aggiorna payment_status
+        if (payment_status !== undefined && payment_status !== null) {
+            updateData.payment_status = payment_status
+        }
+
+        // Se payment_status passa a 'paid', imposta status a confirmed per pagamenti offline
+        if (payment_status === 'paid' && existingOrder.payment_status !== 'paid') {
+            // Recupera payment_method per determinare se impostare status a confirmed
+            const { data: fetchedOrder, error: fetchFlagError } = await svc
+                .from('orders')
+                .select('payment_method')
+                .eq('id', id)
+                .single()
+
+            if (fetchFlagError) throw fetchFlagError
+
+            // Se è pagamento offline, imposta status a confirmed
+            if (fetchedOrder.payment_method !== 'card_online') {
+                updateData.status = 'confirmed'
+            }
+        }
+
+        // Aggiorna l'ordine solo se tutto è andato a buon fine
         const { error } = await svc
             .from('orders')
-            .update({ status })
+            .update(updateData)
             .eq('id', id)
 
         if (error) throw error
+
+        // Gestisce lo scalaggio stock SOLO DOPO l'update del database che imposta payment_status = 'paid'
+        if (payment_status === 'paid' && existingOrder.payment_status !== 'paid') {
+            const handleResult = await handleOrderPaid(id)
+            if (handleResult && !handleResult.ok) {
+                return NextResponse.json({ error: handleResult.error || 'Errore scalaggio stock' }, { status: 400 })
+            }
+        }
 
         return NextResponse.json({ ok: true })
     } catch (e: any) {

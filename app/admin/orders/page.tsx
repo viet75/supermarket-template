@@ -3,6 +3,76 @@
 import { useEffect, useState } from 'react'
 import type { Order } from '@/lib/types'
 
+function formatQuantity(q: number, unit?: string | null) {
+    if (!unit) return q.toString()
+    return `${q} ${unit}`
+}
+
+function formatPrice(value: number) {
+    return `€${value.toFixed(2)}`
+}
+
+function ProductListCell({ items }: { items: any[] }) {
+    const [showAll, setShowAll] = useState(false)
+    const itemsToShow = showAll ? items : items.slice(0, 3)
+
+    if (!items.length) {
+        return <span className="text-gray-500 dark:text-gray-400">Nessun prodotto</span>
+    }
+
+    function formatUnit(unit?: string | null): string {
+        if (unit === 'per_unit') return '(pz)'
+        if (unit === 'per_kg') return '(kg)'
+        return '(pz)'
+    }
+
+    return (
+        <ul className="space-y-1 md:space-y-1.5 text-gray-700 dark:text-gray-300 leading-tight">
+            {itemsToShow.map((item, i) => {
+                const name = item.product?.name ?? "Prodotto"
+                const quantity = Number(item.quantity)
+                const unit = item.product?.unit_type ?? null
+                const unitLabel = formatUnit(unit)
+
+                return (
+                    <li key={i} className="flex flex-row items-center">
+                        {/* Mobile: layout verticale - INVARIATO */}
+                        <div className="md:hidden text-sm flex flex-col gap-1">
+                            <span className="font-medium text-gray-900 dark:text-gray-100">{name}</span>
+                            <span className="text-gray-500 dark:text-gray-400 text-xs">
+                                {quantity} {unitLabel}
+                            </span>
+                        </div>
+                        {/* Desktop: layout compatto su una riga */}
+                        <div className="hidden md:flex md:flex-row md:items-center md:whitespace-nowrap">
+                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{name}</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">× {quantity} {unitLabel}</span>
+                        </div>
+                    </li>
+                )
+            })}
+
+            {items.length > 3 && !showAll && (
+                <button
+                    onClick={() => setShowAll(true)}
+                    className="text-blue-600 text-sm hover:underline"
+                >
+                    +{items.length - 3} altri…
+                </button>
+            )}
+
+            {showAll && items.length > 3 && (
+                <button
+                    onClick={() => setShowAll(false)}
+                    className="text-blue-600 text-sm hover:underline"
+                >
+                    Mostra meno
+                </button>
+            )}
+        </ul>
+    )
+}
+
 type OrderDrawerProps = {
     order: Order
     onClose: () => void
@@ -51,24 +121,41 @@ function OrderDrawer({ order, onClose }: OrderDrawerProps) {
         </div>
     )
 }
-function PaymentBadge({ status }: { status: 'pending' | 'paid' | 'failed' | 'refunded' }) {
-    const styles: Record<string, string> = {
-        pending: 'bg-yellow-100 text-yellow-800',
-        paid: 'bg-green-100 text-green-800',
-        failed: 'bg-red-100 text-red-800',
-        refunded: 'bg-blue-100 text-blue-800',
-    }
+function PaymentBadge({ status, payment_method }: { status: 'pending' | 'paid' | 'failed' | 'refunded' | null | undefined, payment_method?: string }) {
+    const normalizedStatus = status || 'pending'
+    
+    // Logica per determinare badge e stile
+    let badgeStyle: string
+    let badgeLabel: string
+    let tooltip: string | undefined
 
-    const labels: Record<string, string> = {
-        pending: 'In attesa',
-        paid: 'Pagato',
-        failed: 'Fallito',
-        refunded: 'Rimborsato',
+    if (normalizedStatus === 'paid') {
+        badgeStyle = 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+        badgeLabel = 'Pagato'
+    } else if (normalizedStatus === 'pending' && (payment_method === 'cash' || payment_method === 'pos_on_delivery')) {
+        badgeStyle = 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+        badgeLabel = 'Da incassare'
+        tooltip = 'Incassa prima di segnare come consegnato'
+    } else if (normalizedStatus === 'pending' && payment_method === 'card_online') {
+        badgeStyle = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+        badgeLabel = 'In attesa (Stripe)'
+    } else if (normalizedStatus === 'failed') {
+        badgeStyle = 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+        badgeLabel = 'Fallito'
+    } else if (normalizedStatus === 'refunded') {
+        badgeStyle = 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+        badgeLabel = 'Rimborsato'
+    } else {
+        badgeStyle = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+        badgeLabel = 'In attesa'
     }
 
     return (
-        <span className={`px-2 py-1 rounded text-xs font-medium ${styles[status] || ''}`}>
-            {labels[status] || status}
+        <span 
+            className={`px-2 py-1 rounded text-xs font-medium ${badgeStyle}`}
+            title={tooltip}
+        >
+            {badgeLabel}
         </span>
     )
 }
@@ -108,8 +195,8 @@ function formatPayment(pm: string) {
     switch (pm) {
         case 'cash':
             return '💵 Contanti'
-        case 'card_on_delivery':
-            return '💳 POS alla consegna'
+        case 'pos_on_delivery':
+            return '🏠💳 POS alla consegna'
         case 'card_online':
             return '🌐 Carta online'
         default:
@@ -167,6 +254,23 @@ export default function OrdersAdminPage() {
 
 
     async function updateStatus(id: string, status: Order['status']) {
+        const order = orders.find((o) => o.id === id)
+        if (!order) {
+            setUpdating(null)
+            return
+        }
+
+        // Verifica: impedisci di segnare come delivered un ordine offline non pagato
+        if (
+            order.payment_method !== 'card_online' &&
+            order.payment_status !== 'paid' &&
+            status === 'delivered'
+        ) {
+            alert('Segna prima l’ordine come pagato')
+            setUpdating(null)
+            return
+        }
+
         setUpdating(id)
         const res = await fetch('/api/admin/orders', {
             method: 'PATCH',
@@ -176,6 +280,25 @@ export default function OrdersAdminPage() {
         if (res.ok) {
             setOrders((prev) =>
                 prev.map((o) => (o.id === id ? { ...o, status } : o))
+            )
+        }
+        setUpdating(null)
+    }
+
+    async function updatePaymentStatus(id: string, payment_status: 'paid') {
+        setUpdating(id)
+        const res = await fetch('/api/admin/orders', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, payment_status }),
+        })
+        if (res.ok) {
+            setOrders((prev) =>
+                prev.map((o) =>
+                    o.id === id
+                        ? { ...o, payment_status, status: 'confirmed' }
+                        : o
+                )
             )
         }
         setUpdating(null)
@@ -244,10 +367,17 @@ export default function OrdersAdminPage() {
 
                 {/* Tabella desktop */}
                 <div className="hidden md:flex justify-center w-full">
-                    <div className="w-full max-w-7xl overflow-x-auto">
+                    <div className="relative w-full max-w-7xl">
+                        {/* Ombra indicatore scroll */}
+                        <div
+                            className="pointer-events-none absolute right-0 top-0 h-full w-8
+                                       bg-gradient-to-l from-gray-50 to-transparent
+                                       dark:from-gray-900 z-20"
+                        />
 
-
-                        <table className="w-full table-fixed border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 shadow-sm">
+                        {/* Scroll container */}
+                        <div className="overflow-x-auto">
+                            <table className="min-w-[900px] w-full table-auto border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 shadow-sm">
 
 
                             <thead className="bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 sticky top-0 z-10">
@@ -258,7 +388,7 @@ export default function OrdersAdminPage() {
                                     <th className="px-3 py-2 text-left text-xs font-semibold">Indirizzo</th>
                                     <th className="px-3 py-2 text-left text-xs font-semibold w-40">Cliente</th>
                                     <th className="px-3 py-2 text-left text-xs font-semibold">Prodotti</th>
-                                    <th className="px-3 py-2 text-right text-xs font-semibold w-24">Totale</th>
+                                    <th className="px-3 py-2 text-right text-xs font-semibold w-24 min-w-[90px]">Totale</th>
                                     <th className="px-3 py-2 text-center text-xs font-semibold w-36">Pagamento</th>
                                     <th className="px-3 py-2 text-center text-xs font-semibold w-28">Stato</th>
                                     <th className="px-3 py-2 text-center text-xs font-semibold w-40">Azioni</th>
@@ -272,17 +402,17 @@ export default function OrdersAdminPage() {
 
                                     >
                                         {/* ID */}
-                                        <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300">{o.id.slice(0, 6)}</td>
+                                        <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 align-top">{o.id.slice(0, 6)}</td>
 
 
                                         {/* Data */}
-                                        <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300">
+                                        <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 align-top">
                                             {formatDate(o.created_at)}
                                         </td>
 
                                         {/* Indirizzo */}
                                         <td
-                                            className="px-4 py-2 text-sm text-gray-600 max-w-xs truncate dark:text-gray-300"
+                                            className="px-4 py-2 text-sm text-gray-600 max-w-xs truncate dark:text-gray-300 align-top"
                                             title={`${o.address?.line1}, ${o.address?.cap} ${o.address?.city}`}
                                         >
                                             {o.address?.line1}, {o.address?.cap} {o.address?.city}
@@ -290,7 +420,7 @@ export default function OrdersAdminPage() {
 
                                         {/* Cliente */}
                                         <td
-                                            className="px-4 py-2 text-sm text-gray-700 font-medium truncate max-w-xs dark:text-gray-300"
+                                            className="px-4 py-2 text-sm text-gray-700 font-medium truncate max-w-xs dark:text-gray-300 align-top"
                                             title={`${(o.first_name || o.address?.firstName) ?? ''} ${(o.last_name || o.address?.lastName) ?? ''}`}
                                         >
                                             {(o.first_name || o.address?.firstName) ?? ''}{' '}
@@ -298,39 +428,21 @@ export default function OrdersAdminPage() {
                                         </td>
 
                                         {/* Prodotti */}
-                                        <td className="px-4 py-2 text-sm max-w-xs">
-                                            {o.order_items.slice(0, 2).map((it: any, idx: number) => (
-
-                                                <div
-                                                    key={idx}
-                                                    className="truncate text-gray-700 dark:text-gray-300"
-                                                    title={`${it.quantity} × ${it.product.name}${it.product.unit_type ? ` (${it.product.unit_type})` : ''}`}
-                                                >
-                                                    {it.quantity} × {it.product.name}{' '}
-                                                    {it.product.unit_type && `(${it.product.unit_type})`}
-                                                </div>
-                                            ))}
-                                            {o.order_items.length > 2 && (
-                                                <button
-                                                    onClick={() => setSelectedOrder(o)}
-                                                    className="text-blue-600 text-xs hover:underline"
-                                                >
-                                                    +{o.order_items.length - 2} altri
-                                                </button>
-                                            )}
+                                        <td className="px-4 py-2 text-sm max-w-xs align-top">
+                                            <ProductListCell items={o.order_items || []} />
                                         </td>
 
                                         {/* Totale */}
-                                        <td className="px-4 py-2 text-sm font-semibold text-right text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                                        <td className="px-4 py-2 text-sm font-semibold text-right text-gray-900 dark:text-gray-100 whitespace-nowrap min-w-[90px] w-24 align-top">
 
                                             € {o.total.toFixed(2)}
                                         </td>
 
                                         {/* Pagamento */}
-                                        <td className="px-4 py-2 text-center text-sm">
+                                        <td className="px-4 py-2 text-center text-sm align-top">
                                             <div className="flex flex-col items-center gap-1">
                                                 {/* ✅ Badge stato pagamento */}
-                                                <PaymentBadge status={o.payment_status} />
+                                                <PaymentBadge status={o.payment_status} payment_method={o.payment_method} />
 
                                                 {/* Metodo di pagamento */}
                                                 <span
@@ -347,40 +459,51 @@ export default function OrdersAdminPage() {
 
 
                                         {/* Stato */}
-                                        <td className="px-4 py-2 text-center">
+                                        <td className="px-4 py-2 text-center align-top">
                                             <StatusBadge status={o.status} />
                                         </td>
 
                                         {/* Azioni */}
-                                        <td className="px-4 py-2 whitespace-nowrap pr-5">
-                                            <div className="flex justify-center gap-2">
-                                                {o.status === 'pending' && (
-                                                    <button
-                                                        disabled={updating === o.id}
-                                                        onClick={() => updateStatus(o.id, 'confirmed')}
-                                                        className="flex items-center gap-1 px-3 py-1 rounded bg-blue-500 text-white text-sm hover:bg-blue-600 disabled:opacity-50 transition-colors"
-                                                    >
-                                                        Conferma
-                                                    </button>
-                                                )}
+                                        <td className="px-4 py-2 whitespace-nowrap pr-5 align-top">
+                                            <div className="flex flex-col items-center gap-2">
+                                                <div className="flex justify-center gap-2">
+                                                    {o.status === 'pending' && (
+                                                        <button
+                                                            disabled={updating === o.id}
+                                                            onClick={() => updateStatus(o.id, 'confirmed')}
+                                                            className="flex items-center gap-1 px-3 py-1 rounded bg-blue-500 text-white text-sm hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                                                        >
+                                                            Conferma
+                                                        </button>
+                                                    )}
 
-                                                {o.status === 'confirmed' && (
-                                                    <button
-                                                        disabled={updating === o.id}
-                                                        onClick={() => updateStatus(o.id, 'delivered')}
-                                                        className="flex items-center gap-1 px-3 py-1 rounded bg-green-500 text-white text-sm hover:bg-green-600 disabled:opacity-50 transition-colors"
-                                                    >
-                                                        Consegnato
-                                                    </button>
-                                                )}
+                                                    {o.status === 'confirmed' && (
+                                                        <button
+                                                            disabled={updating === o.id}
+                                                            onClick={() => updateStatus(o.id, 'delivered')}
+                                                            className="flex items-center gap-1 px-3 py-1 rounded bg-green-500 text-white text-sm hover:bg-green-600 disabled:opacity-50 transition-colors"
+                                                        >
+                                                            Consegnato
+                                                        </button>
+                                                    )}
 
-                                                {o.status !== 'cancelled' && o.status !== 'delivered' && (
+                                                    {o.status !== 'cancelled' && o.status !== 'delivered' && (
+                                                        <button
+                                                            disabled={updating === o.id}
+                                                            onClick={() => updateStatus(o.id, 'cancelled')}
+                                                            className="flex items-center gap-1 px-3 py-1 rounded bg-red-500 text-white text-sm hover:bg-red-600 disabled:opacity-50 transition-colors"
+                                                        >
+                                                            Annulla
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {o.payment_status === 'pending' && (o.payment_method === 'cash' || o.payment_method === 'pos_on_delivery') && (
                                                     <button
                                                         disabled={updating === o.id}
-                                                        onClick={() => updateStatus(o.id, 'cancelled')}
-                                                        className="flex items-center gap-1 px-3 py-1 rounded bg-red-500 text-white text-sm hover:bg-red-600 disabled:opacity-50 transition-colors"
+                                                        onClick={() => updatePaymentStatus(o.id, 'paid')}
+                                                        className="flex items-center gap-1 px-3 py-1 rounded bg-emerald-500 text-white text-sm hover:bg-emerald-600 disabled:opacity-50 transition-colors"
                                                     >
-                                                        Annulla
+                                                        Segna come pagato
                                                     </button>
                                                 )}
                                             </div>
@@ -389,6 +512,7 @@ export default function OrdersAdminPage() {
                                 ))}
                             </tbody>
                         </table>
+                        </div>
                     </div>
 
 
@@ -480,30 +604,7 @@ export default function OrdersAdminPage() {
 
                                 {/* Prodotti */}
                                 <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                                    {o.order_items.slice(0, 2).map((it: any, idx: number) => (
-                                        <div
-                                            key={idx}
-                                            className="flex justify-between py-1 text-sm min-w-0"
-                                        >
-                                            <span
-                                                className="truncate w-2/3 text-gray-700 dark:text-gray-200"
-                                                title={`${it.quantity} × ${it.product.name}`}
-                                            >
-                                                {it.quantity} × {it.product.name}
-                                            </span>
-                                            <span className="font-medium text-gray-900 dark:text-gray-100">
-                                                € {(it.price * it.quantity).toFixed(2)}
-                                            </span>
-                                        </div>
-                                    ))}
-                                    {o.order_items.length > 2 && (
-                                        <button
-                                            onClick={() => setSelectedOrder(o)}
-                                            className="text-blue-600 dark:text-blue-400 text-xs hover:underline mt-1"
-                                        >
-                                            +{o.order_items.length - 2} altri
-                                        </button>
-                                    )}
+                                    <ProductListCell items={o.order_items || []} />
                                 </div>
                             </div>
 
@@ -513,50 +614,65 @@ export default function OrdersAdminPage() {
                                 <span className="text-sm font-semibold whitespace-nowrap">
                                     Totale: € {o.total.toFixed(2)}
                                 </span>
-                                <PaymentBadge status={o.payment_status} />
+                                <PaymentBadge status={o.payment_status} payment_method={o.payment_method} />
                             </div>
 
                             {/* AZIONI */}
-                            <div className="px-4 py-3 flex gap-2">
-                                {o.status === 'pending' && (
-                                    <button
-                                        disabled={updating === o.id}
-                                        onClick={() => updateStatus(o.id, 'confirmed')}
-                                        className="flex-1 flex items-center justify-center gap-1 bg-blue-500 text-white rounded-lg py-2 text-sm hover:bg-blue-600 disabled:opacity-50 transition-colors"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4"
-                                            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                        </svg>
-                                        Conferma
-                                    </button>
-                                )}
+                            <div className="px-4 py-3 space-y-2">
+                                <div className="flex gap-2">
+                                    {o.status === 'pending' && (
+                                        <button
+                                            disabled={updating === o.id}
+                                            onClick={() => updateStatus(o.id, 'confirmed')}
+                                            className="flex-1 flex items-center justify-center gap-1 bg-blue-500 text-white rounded-lg py-2 text-sm hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4"
+                                                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            Conferma
+                                        </button>
+                                    )}
 
-                                {o.status === 'confirmed' && (
-                                    <button
-                                        disabled={updating === o.id}
-                                        onClick={() => updateStatus(o.id, 'delivered')}
-                                        className="flex-1 flex items-center justify-center gap-1 bg-green-500 text-white rounded-lg py-2 text-sm hover:bg-green-600 disabled:opacity-50 transition-colors"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4"
-                                            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-6h13v6M9 17l-4-4m0 0l-4 4m4-4v12" />
-                                        </svg>
-                                        Consegnato
-                                    </button>
-                                )}
+                                    {o.status === 'confirmed' && (
+                                        <button
+                                            disabled={updating === o.id}
+                                            onClick={() => updateStatus(o.id, 'delivered')}
+                                            className="flex-1 flex items-center justify-center gap-1 bg-green-500 text-white rounded-lg py-2 text-sm hover:bg-green-600 disabled:opacity-50 transition-colors"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4"
+                                                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-6h13v6M9 17l-4-4m0 0l-4 4m4-4v12" />
+                                            </svg>
+                                            Consegnato
+                                        </button>
+                                    )}
 
-                                {o.status !== 'cancelled' && o.status !== 'delivered' && (
+                                    {o.status !== 'cancelled' && o.status !== 'delivered' && (
+                                        <button
+                                            disabled={updating === o.id}
+                                            onClick={() => updateStatus(o.id, 'cancelled')}
+                                            className="flex-1 flex items-center justify-center gap-1 bg-red-500 text-white rounded-lg py-2 text-sm hover:bg-red-600 disabled:opacity-50 transition-colors"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4"
+                                                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                            Annulla
+                                        </button>
+                                    )}
+                                </div>
+                                {o.payment_status === 'pending' && (o.payment_method === 'cash' || o.payment_method === 'pos_on_delivery') && (
                                     <button
                                         disabled={updating === o.id}
-                                        onClick={() => updateStatus(o.id, 'cancelled')}
-                                        className="flex-1 flex items-center justify-center gap-1 bg-red-500 text-white rounded-lg py-2 text-sm hover:bg-red-600 disabled:opacity-50 transition-colors"
+                                        onClick={() => updatePaymentStatus(o.id, 'paid')}
+                                        className="w-full flex items-center justify-center gap-1 bg-emerald-500 text-white rounded-lg py-2 text-sm hover:bg-emerald-600 disabled:opacity-50 transition-colors"
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4"
                                             fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
-                                        Annulla
+                                        Segna come pagato
                                     </button>
                                 )}
                             </div>

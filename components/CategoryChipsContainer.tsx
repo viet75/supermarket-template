@@ -1,14 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseClient } from '@/lib/supabaseClient'
 import CategoryChips from './CategoryChips'
 import type { Category } from '@/lib/types'
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 export default function CategoryChipsContainer({
     activeId,
@@ -20,19 +15,26 @@ export default function CategoryChipsContainer({
     const [categories, setCategories] = useState<Category[]>([])
 
     useEffect(() => {
+        const supabase = supabaseClient()
+        
         const load = async () => {
-            const { data, error } = await supabase
-                .from('categories')
-                .select('*')
-                .is('deleted_at', null) // mostra solo categorie attive
-                .order('name')
+            try {
+                const { data, error } = await supabase
+                    .from('categories')
+                    .select('*')
+                    .is('deleted_at', null) // mostra solo categorie attive
+                    .order('name')
 
-            if (error) {
-                console.error('Errore caricamento categorie:', error.message)
-                return
+                if (error) {
+                    console.error('Errore caricamento categorie:', error.message)
+                    return
+                }
+
+                setCategories(data ?? [])
+            } catch (err) {
+                console.error('Errore caricamento categorie:', err)
+                setCategories([])
             }
-
-            setCategories(data ?? [])
         }
 
         // Prima chiamata

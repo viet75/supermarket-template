@@ -1,5 +1,5 @@
 // === Legacy (compatibilità con vecchi punti del codice, se ancora usati) ===
-export type PaymentMethodLegacy = 'cash' | 'card_on_delivery' | 'online'
+export type PaymentMethodLegacy = 'cash' | 'pos_on_delivery' | 'online'
 
 export type DeliverySettings = {
     base: number
@@ -10,7 +10,7 @@ export type DeliverySettings = {
 
 export type PaymentsSettings = {
     cash: boolean
-    card_on_delivery: boolean
+    pos_on_delivery: boolean
     card_online: boolean
 }
 

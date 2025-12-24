@@ -34,8 +34,9 @@ export default function Header() {
 
             {/* Logo / titolo */}
             <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
-                Il Centro del Risparmio
+                {process.env.NEXT_PUBLIC_STORE_NAME ?? 'Supermarket Template'}
             </h1>
+
 
             {/* Azioni a destra */}
             <div className="flex items-center gap-4">
@@ -108,6 +109,14 @@ export default function Header() {
                                     >
                                         Gestione Categorie
                                     </Link>
+                                    <Link
+                                        href="/admin/settings/delivery"
+                                        className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        onClick={() => setOpenMenu(false)}
+                                    >
+                                        Gestione Consegna
+                                    </Link>
+
 
                                 </>
                             )}

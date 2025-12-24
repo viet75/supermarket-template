@@ -38,10 +38,13 @@ export async function PUT(req: Request) {
     if (typeof body.delivery_fee_per_km === 'number') patch.delivery_fee_per_km = body.delivery_fee_per_km;
     if (typeof body.delivery_max_km === 'number') patch.delivery_max_km = body.delivery_max_km;
     if (Array.isArray(body.payment_methods)) {
-        // forziamo a PaymentMethod[] validi
-        const allowed: PaymentMethod[] = ['cash', 'card_on_delivery', 'card_online'];
-
-        patch.payment_methods = body.payment_methods.filter((m): m is PaymentMethod => allowed.includes(m as any));
+        // Validazione: payment_methods deve essere un array di stringhe
+        const isValidStringArray = body.payment_methods.every((m: any) => typeof m === 'string');
+        if (isValidStringArray) {
+            // Filtriamo solo i metodi validi
+            const allowed: PaymentMethod[] = ['cash', 'card_online', 'pos_on_delivery'];
+            patch.payment_methods = body.payment_methods.filter((m: any): m is PaymentMethod => allowed.includes(m as PaymentMethod));
+        }
     }
     patch.updated_at = new Date().toISOString() as unknown as any;
 
