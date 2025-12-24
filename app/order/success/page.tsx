@@ -21,7 +21,7 @@ export default async function OrderSuccessPage({
         try {
             const stripe = getStripe()
             const session = await stripe.checkout.sessions.retrieve(session_id)
-            orderId = session.metadata?.order_id || session.metadata?.orderId || null
+            orderId = session.metadata?.order_id || session.metadata?.orderId || undefined
 
             // Se abbiamo l'orderId, verifica se lo stock deve essere scalato
             if (orderId) {
