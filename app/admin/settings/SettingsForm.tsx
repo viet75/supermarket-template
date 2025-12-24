@@ -9,8 +9,12 @@ type Props = {
     action: (state: any, formData: FormData) => Promise<{ ok: boolean; message: string }>;
 };
 
-// ✅ Allineato con types.ts
-const ALL_PM: PaymentMethod[] = ['cash', 'card_on_delivery', 'card_online'];
+// Mappa dei metodi di pagamento gestibili dall'admin
+const PAYMENT_METHODS = [
+    { key: 'cash', label: 'Contanti alla consegna' },
+    { key: 'pos_on_delivery', label: 'POS alla consegna' },
+    { key: 'card_online', label: 'Carta online' },
+] as const
 
 export default function SettingsForm({ initial, action }: Props) {
     const [state, formAction] = useFormState(action, { ok: false, message: '' });
@@ -92,18 +96,18 @@ export default function SettingsForm({ initial, action }: Props) {
             <div>
                 <div className="font-medium mb-2">Metodi di pagamento</div>
                 <div className="flex flex-wrap gap-4">
-                    {ALL_PM.map((m) => {
-                        const checked = init.payment_methods.includes(m);
+                    {PAYMENT_METHODS.map((pm) => {
+                        const checked = init.payment_methods.includes(pm.key as PaymentMethod);
                         return (
-                            <label key={m} className="inline-flex items-center gap-2">
+                            <label key={pm.key} className="inline-flex items-center gap-2">
                                 <input
                                     type="checkbox"
                                     name="payment_methods"
-                                    value={m}
+                                    value={pm.key}
                                     defaultChecked={checked}
                                     className="h-5 w-5"
                                 />
-                                <span>{labelPM(m)}</span>
+                                <span>{pm.label}</span>
                             </label>
                         );
                     })}
@@ -130,16 +134,3 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     );
 }
 
-// ✅ Etichette aggiornate
-function labelPM(m: PaymentMethod) {
-    switch (m) {
-        case 'cash':
-            return 'Contanti';
-        case 'card_on_delivery':
-            return 'Carta alla consegna';
-        case 'card_online':
-            return 'Pagamento online';
-        default:
-            return m;
-    }
-}
