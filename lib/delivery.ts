@@ -8,6 +8,35 @@ function round2(n: number) {
 
 /**
  * Calcola il costo della consegna in base alla distanza e alle impostazioni del negozio
+ * Funzione pura per il calcolo della delivery fee
+ */
+export function calculateDeliveryFee({
+    distanceKm,
+    baseKm,
+    baseFee,
+    extraFeePerKm,
+    maxKm,
+}: {
+    distanceKm: number
+    baseKm: number
+    baseFee: number
+    extraFeePerKm: number
+    maxKm: number
+}): number {
+    if (distanceKm > maxKm) {
+        throw new Error('Fuori zona di consegna')
+    }
+
+    if (distanceKm <= baseKm) {
+        return round2(baseFee)
+    }
+
+    const extraKm = Math.ceil(distanceKm - baseKm)
+    return round2(baseFee + extraKm * extraFeePerKm)
+}
+
+/**
+ * Calcola il costo della consegna in base alla distanza e alle impostazioni del negozio
  */
 export function computeDeliveryFee(distanceKm: number, s: StoreSettings): number {
     if (!s.delivery_enabled) return 0

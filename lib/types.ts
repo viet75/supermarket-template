@@ -20,7 +20,7 @@ export type PublicSettings = {
 }
 
 // === Nuovi tipi per store_settings ===
-export type PaymentMethod = 'cash' | 'card_on_delivery' | 'card_online'
+export type PaymentMethod = 'cash' | 'card_online' | 'pos_on_delivery'
 
 export interface StoreSettings {
     id: string

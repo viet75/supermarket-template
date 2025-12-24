@@ -71,12 +71,12 @@ export async function PUT(req: Request) {
 
     if (Array.isArray(body.payment_methods)) {
       // Validazione: payment_methods deve essere un array di stringhe valide
-      const allowed: PaymentMethod[] = ['cash', 'card_on_delivery', 'card_online', 'pos_on_delivery']
-      const isValidStringArray = body.payment_methods.every((m) => typeof m === 'string')
+      const allowed: PaymentMethod[] = ['cash', 'card_online', 'pos_on_delivery']
+      const isValidStringArray = body.payment_methods.every((m: any) => typeof m === 'string')
       if (isValidStringArray) {
         // Filtriamo solo i metodi validi
-        update.payment_methods = body.payment_methods.filter((m): m is PaymentMethod =>
-          allowed.includes(m as any)
+        update.payment_methods = body.payment_methods.filter((m: any): m is PaymentMethod =>
+          allowed.includes(m as PaymentMethod)
         )
       }
     }
