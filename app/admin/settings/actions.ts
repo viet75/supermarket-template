@@ -11,7 +11,7 @@ export async function saveSettingsAction(_: any, formData: FormData) {
     const delivery_max_km = Number(formData.get('delivery_max_km') ?? 0);
 
     // ✅ valori coerenti con PaymentMethod
-    const allowed: PaymentMethod[] = ['cash', 'card_on_delivery', 'card_online'];
+    const allowed: PaymentMethod[] = ['cash', 'card_online', 'pos_on_delivery'];
     const selected = new Set<string>(formData.getAll('payment_methods') as string[]);
     const payment_methods = allowed.filter((m) => selected.has(m));
 
