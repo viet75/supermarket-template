@@ -5,6 +5,16 @@ import type { Product, Category } from '@/lib/types'
 import CategoryChipsContainer from '@/components/CategoryChipsContainer'
 import ProductsGrid from '@/components/ProductsGrid'
 
+// Type for Supabase Realtime postgres_changes payload
+type RealtimePostgresChangesPayload<T = Record<string, any>> = {
+    eventType: 'INSERT' | 'UPDATE' | 'DELETE'
+    new: T | null
+    old: T | null
+    schema: string
+    table: string
+    commit_timestamp?: string
+}
+
 // 👉 Usa il client singleton (NESSUN WARNING)
 import { supabaseClient } from '@/lib/supabaseClient'
 const supabase = supabaseClient()
@@ -54,20 +64,20 @@ export default function StoreClient({
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'products' },
-                (payload) => {
-                    if (payload.eventType === 'INSERT') {
+                (payload: RealtimePostgresChangesPayload<Product>) => {
+                    if (payload.eventType === 'INSERT' && payload.new) {
                         setProducts((prev) => {
-                            const updated = [...prev, normalizeProduct(payload.new)]
+                            const updated = [...prev, normalizeProduct(payload.new!)]
                             return updated.sort(
                                 (a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999)
                             )
                         })
                     }
 
-                    if (payload.eventType === 'UPDATE') {
+                    if (payload.eventType === 'UPDATE' && payload.new) {
                         setProducts((prev) => {
                             const updated = prev.map((p) =>
-                                p.id === payload.new.id ? normalizeProduct(payload.new) : p
+                                p.id === payload.new!.id ? normalizeProduct(payload.new!) : p
                             )
                             return updated.sort(
                                 (a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999)
@@ -75,9 +85,9 @@ export default function StoreClient({
                         })
                     }
 
-                    if (payload.eventType === 'DELETE') {
+                    if (payload.eventType === 'DELETE' && payload.old) {
                         setProducts((prev) =>
-                            prev.filter((p) => p.id !== payload.old.id)
+                            prev.filter((p) => p.id !== payload.old!.id)
                         )
                     }
                 }
