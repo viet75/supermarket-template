@@ -160,8 +160,8 @@ export default function CheckoutForm({ settings }: Props) {
                 })
 
                 if (!res.ok) {
-                    const raw = await res.text()
-                    console.error('❌ API RAW RESPONSE /api/delivery/preview:', raw)
+                    const text = await res.text()
+                    console.error('❌ API error /api/delivery/preview:', text)
                     // Se errore (es. indirizzo fuori zona), resetta la preview
                     setPreviewDeliveryFee(null)
                     setPreviewDistanceKm(null)
@@ -258,10 +258,10 @@ export default function CheckoutForm({ settings }: Props) {
             })
 
             if (!res.ok) {
-                const raw = await res.text()
-                console.error('❌ API RAW RESPONSE /api/orders:', raw)
+                const text = await res.text()
+                console.error('❌ API error /api/orders:', text)
                 let data: any = null
-                try { data = JSON.parse(raw) } catch { }
+                try { data = JSON.parse(text) } catch { }
                 
                 if (res.status === 409) {
                     setMsg({
@@ -269,7 +269,7 @@ export default function CheckoutForm({ settings }: Props) {
                         text: '⚠️ Alcuni prodotti non sono più disponibili nelle quantità richieste. Aggiorna il carrello.',
                     })
                 } else {
-                    setMsg({ type: 'error', text: data?.error ?? `Errore durante la creazione dell'ordine` })
+                    setMsg({ type: 'error', text: data?.error ?? `Errore API (${res.status})` })
                 }
                 setSaving(false)
                 return
@@ -313,13 +313,13 @@ export default function CheckoutForm({ settings }: Props) {
                 })
 
                 if (!res2.ok) {
-                    const raw = await res2.text()
-                    console.error('❌ API RAW RESPONSE /api/checkout:', raw)
+                    const text = await res2.text()
+                    console.error('❌ API error /api/checkout:', text)
                     let checkoutData: any = null
-                    try { checkoutData = JSON.parse(raw) } catch { }
+                    try { checkoutData = JSON.parse(text) } catch { }
                     setMsg({
                         type: 'error',
-                        text: checkoutData?.error ?? 'Errore creazione checkout online',
+                        text: checkoutData?.error ?? `Errore API (${res2.status})`,
                     })
                     setSaving(false)
                     return
