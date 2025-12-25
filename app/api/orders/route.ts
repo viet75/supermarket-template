@@ -173,7 +173,13 @@ export async function POST(req: Request) {
         // Normalizza gli items
         let items: { id: string; quantity: number; price: number }[] = []
         try {
-            items = body.items.map((it) => ({
+            items = body.items.map((it: {
+                id: string
+                price?: number | string
+                qty?: number
+                quantity?: number
+            }) => ({
+
                 id: it.id,
                 price: parseDec(it.price ?? 0, 'price'),
                 quantity: parseDec(it.qty ?? it.quantity ?? 1, 'qty'),
@@ -245,8 +251,8 @@ export async function POST(req: Request) {
             }
         }
 
-        return NextResponse.json({ 
-            ok: true, 
+        return NextResponse.json({
+            ok: true,
             order_id: newOrderId,
             delivery_fee: deliveryFee,
             total: total,
