@@ -115,9 +115,14 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Impossibile caricare le impostazioni del negozio' }, { status: 500 })
     }
 
+    // Costruisci baseUrl dal dominio della richiesta corrente (funziona sia in Preview che Production)
+    const url = new URL(req.url)
+    const baseUrl = `${url.protocol}//${url.host}`
+
     // Calcola distanza cliente ↔ negozio
     const clientCoords = await geocodeAddress(
-        `${body.address.line1}, ${body.address.cap} ${body.address.city}`
+        `${body.address.line1}, ${body.address.cap} ${body.address.city}`,
+        baseUrl
     )
 
     if (!clientCoords) {

@@ -30,8 +30,12 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: error.message }, { status: 500 })
         }
 
-        // ✅ RITORNIAMO SOLO IL PATH
-        return NextResponse.json({ path: filePath })
+        // ✅ Ottieni l'URL pubblico Supabase
+        const { data: urlData } = supabaseService.storage
+            .from('products')
+            .getPublicUrl(filePath)
+
+        return NextResponse.json({ url: urlData.publicUrl })
     } catch (e: any) {
         console.error('Errore upload:', e)
         return NextResponse.json({ error: e.message || 'Errore upload' }, { status: 500 })

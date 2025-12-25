@@ -149,8 +149,7 @@ export default function CheckoutForm({ settings }: Props) {
         const handler = setTimeout(async () => {
             setLoadingPreview(true)
             try {
-                const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || ''
-                const res = await fetch(`${baseUrl}/api/delivery/preview`, {
+                const res = await fetch('/api/delivery/preview', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -249,8 +248,7 @@ export default function CheckoutForm({ settings }: Props) {
         }
 
         try {
-            const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || ''
-            const res = await fetch(`${baseUrl}/api/orders`, {
+            const res = await fetch('/api/orders', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -292,7 +290,7 @@ export default function CheckoutForm({ settings }: Props) {
                     return
                 }
 
-                const res2 = await fetch(`${baseUrl}/api/checkout`, {
+                const res2 = await fetch('/api/checkout', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

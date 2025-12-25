@@ -6,13 +6,14 @@ export type Coordinates = {
     lng: number
 }
 
-export async function geocodeAddress(q: string) {
-    const baseUrl =
-        typeof window === "undefined"
-            ? process.env.NEXT_PUBLIC_SITE_URL || ""
-            : ""
-
-    const res = await fetch(`${baseUrl}/api/geocode?q=${encodeURIComponent(q)}`)
+export async function geocodeAddress(q: string, baseUrl?: string) {
+    // Lato client: usa sempre path relativo (funziona automaticamente con il dominio corrente)
+    // Lato server: se baseUrl è fornito, usalo; altrimenti usa path relativo (Next.js lo risolve automaticamente)
+    const url = baseUrl 
+        ? `${baseUrl}/api/geocode?q=${encodeURIComponent(q)}`
+        : `/api/geocode?q=${encodeURIComponent(q)}`
+    
+    const res = await fetch(url)
     const json = await res.json()
     return json.ok ? { lat: json.lat, lng: json.lng, formatted: json.formatted } : null
 }
