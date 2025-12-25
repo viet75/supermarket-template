@@ -159,15 +159,18 @@ export default function CheckoutForm({ settings }: Props) {
                     }),
                 })
 
-                if (res.ok) {
-                    const data = await res.json()
-                    setPreviewDeliveryFee(data.delivery_fee ?? null)
-                    setPreviewDistanceKm(data.distance_km ?? null)
-                } else {
+                if (!res.ok) {
+                    const raw = await res.text()
+                    console.error('❌ API RAW RESPONSE /api/delivery/preview:', raw)
                     // Se errore (es. indirizzo fuori zona), resetta la preview
                     setPreviewDeliveryFee(null)
                     setPreviewDistanceKm(null)
+                    return
                 }
+
+                const data = await res.json()
+                setPreviewDeliveryFee(data.delivery_fee ?? null)
+                setPreviewDistanceKm(data.distance_km ?? null)
             } catch (err) {
                 console.error('Errore preview consegna:', err)
                 setPreviewDeliveryFee(null)
@@ -254,25 +257,27 @@ export default function CheckoutForm({ settings }: Props) {
                 body: JSON.stringify(payload),
             })
 
-            const text = await res.text()
-            let data: any = null
-            try { data = JSON.parse(text) } catch { }
-
-            // 🔍 Log temporaneo della response JSON
-            console.log('📦 Response da /api/orders:', JSON.stringify(data, null, 2))
-
             if (!res.ok) {
+                const raw = await res.text()
+                console.error('❌ API RAW RESPONSE /api/orders:', raw)
+                let data: any = null
+                try { data = JSON.parse(raw) } catch { }
+                
                 if (res.status === 409) {
                     setMsg({
                         type: 'error',
                         text: '⚠️ Alcuni prodotti non sono più disponibili nelle quantità richieste. Aggiorna il carrello.',
                     })
                 } else {
-                    setMsg({ type: 'error', text: data?.error ?? `Errore API (${res.status})` })
+                    setMsg({ type: 'error', text: data?.error ?? `Errore durante la creazione dell'ordine` })
                 }
                 setSaving(false)
                 return
             }
+
+            const data = await res.json()
+            // 🔍 Log temporaneo della response JSON
+            console.log('📦 Response da /api/orders:', JSON.stringify(data, null, 2))
 
             // Salva i valori calcolati dal backend
             if (data?.delivery_fee !== undefined) setBackendDeliveryFee(data.delivery_fee)
@@ -307,10 +312,21 @@ export default function CheckoutForm({ settings }: Props) {
                     }),
                 })
 
+                if (!res2.ok) {
+                    const raw = await res2.text()
+                    console.error('❌ API RAW RESPONSE /api/checkout:', raw)
+                    let checkoutData: any = null
+                    try { checkoutData = JSON.parse(raw) } catch { }
+                    setMsg({
+                        type: 'error',
+                        text: checkoutData?.error ?? 'Errore creazione checkout online',
+                    })
+                    setSaving(false)
+                    return
+                }
 
                 const checkout = await res2.json()
-
-                if (res2.ok && checkout.url) {
+                if (checkout.url) {
                     clearCart()
                     window.location.href = checkout.url
                     return
@@ -319,6 +335,7 @@ export default function CheckoutForm({ settings }: Props) {
                         type: 'error',
                         text: checkout.error ?? 'Errore creazione checkout online',
                     })
+                    setSaving(false)
                     return
                 }
             }
