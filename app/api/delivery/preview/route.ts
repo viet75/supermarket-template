@@ -37,11 +37,20 @@ export async function POST(req: Request) {
         const url = new URL(req.url)
         const baseUrl = `${url.protocol}//${url.host}`
 
+        // Costruisci e valida query per geocodifica
+        const query = [body.address, body.cap, body.city]
+            .filter(Boolean)
+            .join(', ')
+
+        if (!query) {
+            return NextResponse.json(
+                { error: 'Indirizzo cliente incompleto' },
+                { status: 400 }
+            )
+        }
+
         // Calcola distanza cliente ↔ negozio
-        const clientCoords = await geocodeAddress(
-            `${body.address}, ${body.cap} ${body.city}`,
-            baseUrl
-        )
+        const clientCoords = await geocodeAddress(query, baseUrl)
 
         if (!clientCoords) {
             return NextResponse.json({ error: 'Impossibile geocodificare l\'indirizzo del cliente' }, { status: 400 })
