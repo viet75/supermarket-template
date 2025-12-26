@@ -7,23 +7,33 @@ export type Coordinates = {
 }
 
 export async function geocodeAddress(q: string, baseUrl?: string) {
+    // Validazione query
+    if (!q || typeof q !== 'string' || !q.trim()) {
+        console.error('❌ geocodeAddress: query vuota o non valida:', q)
+        return null
+    }
+
     // Lato client: usa sempre path relativo (funziona automaticamente con il dominio corrente)
     // Lato server: se baseUrl è fornito, usalo; altrimenti usa path relativo (Next.js lo risolve automaticamente)
     const url = baseUrl 
-        ? `${baseUrl}/api/geocode?q=${encodeURIComponent(q)}`
-        : `/api/geocode?q=${encodeURIComponent(q)}`
+        ? `${baseUrl}/api/geocode?q=${encodeURIComponent(q.trim())}`
+        : `/api/geocode?q=${encodeURIComponent(q.trim())}`
     
     try {
         const res = await fetch(url)
         if (!res.ok) {
             const text = await res.text()
-            console.error('❌ API error /api/geocode:', text)
+            console.error('❌ API error /api/geocode:', { status: res.status, url, text })
             return null
         }
         const json = await res.json()
-        return json.ok ? { lat: json.lat, lng: json.lng, formatted: json.formatted } : null
+        if (!json.ok) {
+            console.error('❌ geocodeAddress: API restituito ok=false:', json)
+            return null
+        }
+        return { lat: json.lat, lng: json.lng, formatted: json.formatted }
     } catch (err) {
-        console.error('Errore geocodifica:', err)
+        console.error('❌ Errore geocodifica:', { err, url, query: q })
         return null
     }
 }

@@ -40,9 +40,11 @@ export async function POST(req: Request) {
         // Costruisci e valida query per geocodifica
         const query = [body.address, body.cap, body.city]
             .filter(Boolean)
+            .map((s: any) => String(s).trim())
+            .filter((s: string) => s.length > 0)
             .join(', ')
 
-        if (!query) {
+        if (!query || query.trim().length === 0) {
             return NextResponse.json(
                 { error: 'Indirizzo cliente incompleto' },
                 { status: 400 }
@@ -50,9 +52,10 @@ export async function POST(req: Request) {
         }
 
         // Calcola distanza cliente ↔ negozio
-        const clientCoords = await geocodeAddress(query, baseUrl)
+        const clientCoords = await geocodeAddress(query.trim(), baseUrl)
 
         if (!clientCoords) {
+            console.error('❌ Geocodifica fallita per query:', query)
             return NextResponse.json({ error: 'Impossibile geocodificare l\'indirizzo del cliente' }, { status: 400 })
         }
         const distanceKm = computeDistanceFromStore(settings, clientCoords)
