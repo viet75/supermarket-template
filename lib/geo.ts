@@ -13,9 +13,19 @@ export async function geocodeAddress(q: string, baseUrl?: string) {
         ? `${baseUrl}/api/geocode?q=${encodeURIComponent(q)}`
         : `/api/geocode?q=${encodeURIComponent(q)}`
     
-    const res = await fetch(url)
-    const json = await res.json()
-    return json.ok ? { lat: json.lat, lng: json.lng, formatted: json.formatted } : null
+    try {
+        const res = await fetch(url)
+        if (!res.ok) {
+            const text = await res.text()
+            console.error('❌ API error /api/geocode:', text)
+            return null
+        }
+        const json = await res.json()
+        return json.ok ? { lat: json.lat, lng: json.lng, formatted: json.formatted } : null
+    } catch (err) {
+        console.error('Errore geocodifica:', err)
+        return null
+    }
 }
 
 export function haversineDistance(a: Coordinates, b: Coordinates): number {

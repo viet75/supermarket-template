@@ -6,8 +6,7 @@ import type { StoreSettings } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 
 async function loadSettings(): Promise<StoreSettings | null> {
-    const base = process.env.NEXT_PUBLIC_SITE_URL ?? '';
-    const res = await fetch(`${base}/api/admin/settings`, { cache: 'no-store' }).catch(() => null as any);
+    const res = await fetch('/api/admin/settings', { cache: 'no-store' }).catch(() => null as any);
     if (!res || !res.ok) return null;
     return (await res.json()) as StoreSettings | null;
 }

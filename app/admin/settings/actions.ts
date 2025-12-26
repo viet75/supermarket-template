@@ -27,8 +27,7 @@ export async function saveSettingsAction(_: any, formData: FormData) {
         payment_methods,
     };
 
-    const base = process.env.NEXT_PUBLIC_SITE_URL ?? '';
-    const res = await fetch(`${base}/api/admin/settings`, {
+    const res = await fetch('/api/admin/settings', {
         method: 'PUT',
         headers: {
             'content-type': 'application/json',

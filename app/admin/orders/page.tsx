@@ -229,14 +229,23 @@ export default function OrdersAdminPage() {
         if (paymentFilter !== 'all') params.set('payment_status', paymentFilter)
         if (searchTerm.trim()) params.set('search', searchTerm.trim())
 
-        const res = await fetch(`/api/admin/orders?${params.toString()}`)
-        const json = await res.json()
-        if (res.ok) {
+        try {
+            const res = await fetch(`/api/admin/orders?${params.toString()}`)
+            if (!res.ok) {
+                const text = await res.text()
+                console.error('❌ API error /api/admin/orders:', text)
+                setLoading(false)
+                return
+            }
+            const json = await res.json()
             setOrders(json.orders || [])
             setPage(json.page || p)
             setTotalPages(json.totalPages || 1)
+        } catch (err) {
+            console.error('Errore caricamento ordini:', err)
+        } finally {
+            setLoading(false)
         }
-        setLoading(false)
     }
 
 

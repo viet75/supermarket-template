@@ -16,6 +16,11 @@ export function useSettings() {
         (async () => {
             try {
                 const res = await fetch('/api/settings', { cache: 'no-store' });
+                if (!res.ok) {
+                    const text = await res.text();
+                    console.error('❌ API error /api/settings:', text);
+                    return;
+                }
                 const json = await res.json();
                 if (alive && json?.delivery) setData(json);
             } catch { }
