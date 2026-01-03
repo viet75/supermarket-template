@@ -9,7 +9,7 @@ export default async function CheckoutPage() {
 
     return (
         <main className="max-w-3xl mx-auto p-6">
-            <h1 className="text-2xl font-bold mb-6">Checkout</h1>
+            <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">Checkout</h1>
 
             {/* 🔹 Pulsante per tornare al negozio */}
             <Link
@@ -23,7 +23,7 @@ export default async function CheckoutPage() {
             </Link>
 
             {!settings ? (
-                <p className="text-sm text-red-600">
+                <p className="text-sm text-red-600 dark:text-red-400">
                     Non è stato possibile caricare le impostazioni del negozio.
                 </p>
             ) : (

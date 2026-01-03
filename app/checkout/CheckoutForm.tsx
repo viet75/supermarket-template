@@ -355,69 +355,69 @@ export default function CheckoutForm({ settings }: Props) {
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <section className="space-y-6 rounded-2xl border p-6 shadow-md bg-white dark:bg-gray-900">
+            <section className="space-y-6 rounded-2xl border border-gray-200 dark:border-zinc-800 p-6 shadow-md bg-white dark:bg-zinc-900">
                 {msg && (
                     <div
                         className={`rounded-md p-3 text-sm flex items-center justify-center ${msg.type === 'error'
-                            ? 'bg-red-100 text-red-700 border border-red-300'
-                            : 'bg-green-100 text-green-700 border border-green-300'
+                            ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-800'
+                            : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-800'
                             }`}
                     >
                         {msg.type === 'error' ? '⚠️' : '✅'} {msg.text}
                     </div>
                 )}
 
-                <h2 className="text-lg font-semibold">📍 Dati cliente</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">📍 Dati cliente</h2>
                 <div className="grid gap-4">
                     <div>
-                        <label className="block text-sm font-medium">Nome</label>
+                        <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">Nome</label>
                         <input
                             type="text"
                             required
-                            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                            className="mt-1 w-full rounded-lg border border-gray-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 px-3 py-2 text-sm"
                             value={addr.firstName}
                             onChange={(e) => setAddr({ ...addr, firstName: e.target.value })}
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium">Cognome</label>
+                        <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">Cognome</label>
                         <input
                             type="text"
                             required
-                            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                            className="mt-1 w-full rounded-lg border border-gray-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 px-3 py-2 text-sm"
                             value={addr.lastName}
                             onChange={(e) => setAddr({ ...addr, lastName: e.target.value })}
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium">Via e numero civico</label>
+                        <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">Via e numero civico</label>
                         <input
                             type="text"
                             required
-                            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                            className="mt-1 w-full rounded-lg border border-gray-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 px-3 py-2 text-sm"
                             value={addr.line1}
                             onChange={(e) => setAddr({ ...addr, line1: e.target.value })}
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium">Città</label>
+                        <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">Città</label>
                         <input
                             type="text"
                             required
-                            className="mt-1 w-full rounded-lg border px-3 py-2"
+                            className="mt-1 w-full rounded-lg border border-gray-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 px-3 py-2"
                             value={addr.city}
                             onChange={(e) => setAddr({ ...addr, city: e.target.value })}
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium">CAP</label>
+                        <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">CAP</label>
                         <input
                             type="text"
                             pattern="[0-9]{5}"
                             title="Inserisci un CAP valido a 5 cifre"
                             required
                             maxLength={5}
-                            className="mt-1 w-full rounded-lg border px-3 py-2"
+                            className="mt-1 w-full rounded-lg border border-gray-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 px-3 py-2"
                             value={addr.cap}
                             onChange={(e) => {
                                 const val = e.target.value.replace(/\D/g, "")
@@ -426,9 +426,9 @@ export default function CheckoutForm({ settings }: Props) {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium">Note per il corriere</label>
+                        <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">Note per il corriere</label>
                         <textarea
-                            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                            className="mt-1 w-full rounded-lg border border-gray-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 px-3 py-2 text-sm"
                             value={addr.note ?? ''}
                             onChange={(e) => setAddr({ ...addr, note: e.target.value })}
                         />
@@ -437,8 +437,8 @@ export default function CheckoutForm({ settings }: Props) {
 
                 {settings.delivery_enabled && (
                     <div className="mt-4">
-                        <h2 className="text-lg font-semibold mb-1">📏 Distanza</h2>
-                        <div className="w-full rounded-lg border px-3 py-2 text-sm bg-gray-50">
+                        <h2 className="text-lg font-semibold mb-1 text-gray-900 dark:text-gray-100">📏 Distanza</h2>
+                        <div className="w-full rounded-lg border border-gray-300 dark:border-zinc-800 px-3 py-2 text-sm bg-gray-50 dark:bg-zinc-900 text-gray-900 dark:text-gray-100">
                             {loadingDistance
                                 ? "Calcolo in corso..."
                                 : distanceKm > 0
@@ -446,7 +446,7 @@ export default function CheckoutForm({ settings }: Props) {
                                     : "Inserisci indirizzo per calcolare"}
                         </div>
                         {!validation.ok && (
-                            <p className="text-xs text-red-600 mt-1">
+                            <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                                 {validation.reason === "Indirizzo non valido"
                                     ? "Indirizzo non riconosciuto. Inserisci via, numero civico e CAP a 5 cifre."
                                     : validation.reason}
@@ -457,12 +457,12 @@ export default function CheckoutForm({ settings }: Props) {
 
                 {methods.length > 0 && (
                     <div className="mt-4">
-                        <h2 className="text-lg font-semibold mb-2">💳 Metodo di pagamento</h2>
+                        <h2 className="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">💳 Metodo di pagamento</h2>
                         <div className="space-y-2">
                             {methods.map((m) => (
                                 <label
                                     key={m}
-                                    className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition ${pay === m ? 'border-green-600 bg-green-50' : 'border-gray-200'
+                                    className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition ${pay === m ? 'border-green-600 dark:border-green-500 bg-green-50 dark:bg-green-900/30' : 'border-gray-200 dark:border-zinc-800'
                                         }`}
                                 >
                                     <input
@@ -475,7 +475,7 @@ export default function CheckoutForm({ settings }: Props) {
                                     <span className="text-lg">
                                         {PAYMENT_METHOD_CONFIG[m]?.icon || '💳'}
                                     </span>
-                                    <span className="text-sm font-medium">
+                                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
                                         {PAYMENT_METHOD_CONFIG[m]?.label || m}
                                     </span>
                                 </label>
@@ -485,25 +485,25 @@ export default function CheckoutForm({ settings }: Props) {
                 )}
             </section>
 
-            <aside className="space-y-6 rounded-2xl border p-6 shadow-md bg-white dark:bg-gray-900 h-fit">
-                <h2 className="text-lg font-semibold">🛒 Riepilogo ordine</h2>
+            <aside className="space-y-6 rounded-2xl border border-gray-200 dark:border-zinc-800 p-6 shadow-md bg-white dark:bg-zinc-900 h-fit">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">🛒 Riepilogo ordine</h2>
 
-                <ul className="divide-y text-sm">
+                <ul className="divide-y divide-gray-200 dark:divide-zinc-800 text-sm">
                     {items.map((it: any) => (
-                        <li key={it.id} className="flex justify-between py-2">
+                        <li key={it.id} className="flex justify-between py-2 text-gray-900 dark:text-gray-100">
                             <span>{it.name} × {it.qty}</span>
                             <span>€{(Number(it.price) * it.qty).toFixed(2)}</span>
                         </li>
                     ))}
                 </ul>
 
-                <div className="border-t pt-4 space-y-1 text-sm">
-                    <div className="flex justify-between">
+                <div className="border-t border-gray-200 dark:border-zinc-800 pt-4 space-y-1 text-sm">
+                    <div className="flex justify-between text-gray-900 dark:text-gray-100">
                         <span>Subtotale</span>
                         <span>€{subtotal.toFixed(2)}</span>
                     </div>
                     {settings.delivery_enabled && (
-                        <div className="flex justify-between">
+                        <div className="flex justify-between text-gray-900 dark:text-gray-100">
                             <span>Consegna</span>
                             <span>
                                 {backendDeliveryFee !== null
@@ -520,7 +520,7 @@ export default function CheckoutForm({ settings }: Props) {
                             </span>
                         </div>
                     )}
-                    <div className="flex justify-between font-semibold text-lg">
+                    <div className="flex justify-between font-semibold text-lg text-gray-900 dark:text-gray-100">
                         <span>Totale</span>
                         <span>
                             {backendTotal !== null
@@ -533,7 +533,7 @@ export default function CheckoutForm({ settings }: Props) {
                 </div>
 
                 {distanceError && (
-                    <div className="p-3 mb-3 text-sm text-white bg-red-500 rounded-lg">
+                    <div className="p-3 mb-3 text-sm text-white bg-red-500 dark:bg-red-600 rounded-lg">
                         {distanceError}
                     </div>
                 )}
@@ -546,7 +546,7 @@ export default function CheckoutForm({ settings }: Props) {
                     className={`w-full rounded-xl font-semibold px-4 py-3 transition 
     ${validation.ok && addr.firstName && addr.lastName
                             ? 'bg-green-600 hover:bg-green-700 text-white'
-                            : 'bg-gray-300 text-gray-600 cursor-not-allowed'}`}
+                            : 'bg-gray-300 dark:bg-zinc-700 text-gray-600 dark:text-gray-400 cursor-not-allowed'}`}
                 >
                     {saving ? '⏳ Elaborazione…' : 'Conferma ordine'}
                 </button>

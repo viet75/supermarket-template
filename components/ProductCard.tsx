@@ -86,7 +86,7 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
     if (!mounted) return null
 
     return (
-        <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm relative transition-transform hover:scale-[1.02] hover:shadow-md flex flex-col">
+        <div className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 shadow-sm relative transition-transform hover:scale-[1.02] hover:shadow-md flex flex-col">
             {/* Badge esaurito / offerta... */}
             {outOfStock && (
                 <span className="absolute right-3 top-3 rounded-full bg-red-500/90 px-3 py-1 text-xs font-medium text-white shadow">
@@ -100,7 +100,7 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
             )}
 
             {/* Immagine */}
-            <div className="aspect-square w-full overflow-hidden rounded-xl bg-gray-50">
+            <div className="aspect-square w-full overflow-hidden rounded-xl bg-gray-50 dark:bg-zinc-900">
                 {img ? (
                     <img
                         src={img}
@@ -109,7 +109,7 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
                         loading="lazy"
                     />
                 ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs text-gray-400">
+                    <div className="flex h-full w-full items-center justify-center text-xs text-gray-400 dark:text-gray-500">
                         Nessuna immagine
                     </div>
                 )}
@@ -117,17 +117,17 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
 
             {/* Contenuto testuale */}
             <div className="flex flex-col flex-grow mt-3">
-                <div className="line-clamp-2 text-sm font-medium text-gray-900 min-h-[2.5rem]">
+                <div className="line-clamp-2 text-sm font-medium text-gray-900 dark:text-gray-100 min-h-[2.5rem]">
                     {p.name}
                 </div>
 
                 {p.description && (
-                    <div className="text-xs text-gray-500 min-h-[2rem]">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 min-h-[2rem]">
                         {expanded ? (
                             <>
                                 <p>{p.description}</p>
                                 <button
-                                    className="mt-1 text-blue-600 underline"
+                                    className="mt-1 text-blue-600 dark:text-blue-400 underline"
                                     onClick={() => setExpanded(false)}
                                 >
                                     Mostra meno
@@ -138,7 +138,7 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
                                 <p className="line-clamp-2">{p.description}</p>
                                 {p.description.length > 60 && (
                                     <button
-                                        className="mt-1 text-blue-600 underline"
+                                        className="mt-1 text-blue-600 dark:text-blue-400 underline"
                                         onClick={() => setExpanded(true)}
                                     >
                                         Altro
@@ -152,11 +152,11 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
 
 
                 <div className="mt-1 flex items-baseline gap-2">
-                    <span className="text-base font-semibold text-gray-900">
+                    <span className="text-base font-semibold text-gray-900 dark:text-gray-100">
                         €{effective.toFixed(2)} / {getUnitLabel(p as any)}
                     </span>
                     {sale != null && sale > 0 && sale < base && (
-                        <span className="text-sm text-gray-500 line-through">
+                        <span className="text-sm text-gray-500 dark:text-gray-400 line-through">
                             €{base.toFixed(2)}
                         </span>
                     )}
@@ -165,26 +165,26 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
                 {/* CTA SEMPRE IN FONDO */}
                 <div className="mt-auto pt-3">
                     {qtyInCart > 0 ? (
-                        <div className="flex items-center justify-between rounded-xl border border-gray-200 p-1 bg-gray-50">
+                        <div className="flex items-center justify-between rounded-xl border border-gray-200 dark:border-zinc-800 p-1 bg-gray-50 dark:bg-zinc-900">
                             <button
-                                className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 text-gray-900 font-bold text-lg"
+                                className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-gray-200 dark:bg-zinc-700 hover:bg-gray-300 dark:hover:bg-zinc-600 text-gray-900 dark:text-gray-100 font-bold text-lg"
                                 onClick={handleRemove}
                                 aria-label="Rimuovi"
                             >
                                 −
                             </button>
 
-                            <div className="min-w-[3rem] text-center text-sm font-medium">
+                            <div className="min-w-[3rem] text-center text-sm font-medium text-gray-900 dark:text-gray-100">
                                 {p.unit_type === 'per_kg' ? qtyInCart.toFixed(1) : qtyInCart}
                                 {!isUnlimited && typeof stockNum === 'number' ? (
-                                    <span className="ml-1 text-xs text-gray-500">
+                                    <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
                                         / {stockNum} {getUnitLabel(p as any)}
                                     </span>
                                 ) : null}
                             </div>
 
                             <button
-                                className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:text-gray-600 text-white font-bold text-lg transition-colors"
+                                className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 dark:disabled:bg-zinc-700 disabled:text-gray-600 dark:disabled:text-gray-400 text-white font-bold text-lg transition-colors"
                                 onClick={handleAdd}
                                 disabled={outOfStock || atLimit}
                                 title={
@@ -204,7 +204,7 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
                             className="w-full md:w-auto rounded-xl bg-green-600 hover:bg-green-700 
              px-3 py-2 md:px-4 md:py-2.5 
              text-center text-sm md:text-base font-semibold text-white 
-             disabled:bg-gray-300 disabled:text-gray-600 transition-colors"
+             disabled:bg-gray-300 dark:disabled:bg-zinc-700 disabled:text-gray-600 dark:disabled:text-gray-400 transition-colors"
                             onClick={handleAdd}
                             disabled={outOfStock}
                             title={outOfStock ? 'Prodotto esaurito' : 'Aggiungi al carrello'}
