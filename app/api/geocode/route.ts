@@ -57,13 +57,87 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Risposta JSON deve includere lat/lng e postal_code quando valido
+    // Estrai città ufficiale da address_components (priorità: locality > postal_town > administrative_area_level_3)
+    let city: string | null = null;
+    if (result.address_components) {
+      for (const component of result.address_components) {
+        if (component.types.includes("locality")) {
+          city = component.long_name || component.short_name;
+          break;
+        }
+      }
+      if (!city) {
+        for (const component of result.address_components) {
+          if (component.types.includes("postal_town")) {
+            city = component.long_name || component.short_name;
+            break;
+          }
+        }
+      }
+      if (!city) {
+        for (const component of result.address_components) {
+          if (component.types.includes("administrative_area_level_3")) {
+            city = component.long_name || component.short_name;
+            break;
+          }
+        }
+      }
+    }
+
+    // Funzione helper per normalizzare stringhe (lowercase, trim, rimuovi accenti)
+    const normalizeString = (str: string): string => {
+      return str
+        .toLowerCase()
+        .trim()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // rimuovi accenti
+        .replace(/\s+/g, " "); // normalizza spazi
+    };
+
+    // Se la richiesta contiene una città, verifica che combaci
+    if (city) {
+      // Estrai potenziali nomi di città dal parametro q (prima del CAP se presente)
+      const qWithoutCap = q.replace(/\b\d{5}\b/g, "").trim();
+      const parts = qWithoutCap.split(",").map(p => p.trim()).filter(p => p.length > 0);
+      
+      // Cerca una città nel parametro q (di solito è l'ultima parte o una parte significativa)
+      let cityFromQuery: string | null = null;
+      if (parts.length > 0) {
+        // Prendi l'ultima parte (di solito è la città) o cerca una parte che non sia un numero
+        for (let i = parts.length - 1; i >= 0; i--) {
+          const part = parts[i];
+          // Se non è un numero e ha almeno 3 caratteri, potrebbe essere una città
+          if (!/^\d+$/.test(part) && part.length >= 3) {
+            cityFromQuery = part;
+            break;
+          }
+        }
+      }
+
+      if (cityFromQuery) {
+        const normalizedCity = normalizeString(city);
+        const normalizedCityFromQuery = normalizeString(cityFromQuery);
+        
+        // Verifica che la città inserita sia contenuta o combaci con quella di Google
+        const cityMatches = 
+          normalizedCity === normalizedCityFromQuery ||
+          normalizedCity.includes(normalizedCityFromQuery) ||
+          normalizedCityFromQuery.includes(normalizedCity);
+
+        if (!cityMatches) {
+          return NextResponse.json({ ok: false, error: "Città non coerente con indirizzo e CAP" }, { status: 400 });
+        }
+      }
+    }
+
+    // Risposta JSON deve includere lat/lng, postal_code e city quando valido
     return NextResponse.json({
       ok: true,
       lat: result.geometry.location.lat,
       lng: result.geometry.location.lng,
       formatted: result.formatted_address,
       postal_code: postal_code,
+      ...(city ? { city: city } : {}),
     });
   } catch (e) {
     return NextResponse.json({ ok: false, error: "Fetch error" }, { status: 500 });
