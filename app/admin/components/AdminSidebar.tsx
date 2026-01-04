@@ -21,21 +21,40 @@ export default function AdminSidebar() {
 
     return (
         <>
-            {/* Pulsante hamburger mobile */}
-            <button
-                className="fixed top-4 left-4 z-50 md:hidden p-2 rounded-md 
-                           bg-white dark:bg-gray-800 
-                           border border-gray-200 dark:border-gray-700 
-                           shadow-sm"
-                onClick={() => setOpen(!open)}
-                aria-label="Toggle menu"
-            >
-                {open ? (
-                    <X className="w-5 h-5 text-gray-700 dark:text-gray-200" />
-                ) : (
-                    <Menu className="w-5 h-5 text-gray-700 dark:text-gray-200" />
-                )}
-            </button>
+            {/* Header mobile con hamburger, titolo e spazio */}
+            <header className="fixed top-0 left-0 right-0 z-50 md:hidden 
+                              flex items-center justify-between 
+                              h-14 px-4 
+                              bg-white dark:bg-gray-900 
+                              border-b border-gray-200 dark:border-gray-700 
+                              shadow-sm">
+                {/* Hamburger a sinistra - larghezza fissa */}
+                <button
+                    className="w-10 h-10 flex items-center justify-center 
+                              rounded-md 
+                              hover:bg-gray-100 dark:hover:bg-gray-800 
+                              transition-colors"
+                    onClick={() => setOpen(!open)}
+                    aria-label="Toggle menu"
+                >
+                    {open ? (
+                        <X className="w-5 h-5 text-gray-700 dark:text-gray-200" />
+                    ) : (
+                        <Menu className="w-5 h-5 text-gray-700 dark:text-gray-200" />
+                    )}
+                </button>
+
+                {/* Titolo al centro - flex-1, centrato, truncate */}
+                <h1 className="flex-1 min-w-0 text-center 
+                              text-lg font-semibold 
+                              text-gray-900 dark:text-gray-100 
+                              truncate px-2">
+                    {process.env.NEXT_PUBLIC_STORE_NAME ?? 'Supermarket Template'}
+                </h1>
+
+                {/* Spazio a destra per bilanciamento - larghezza fissa */}
+                <div className="w-10" />
+            </header>
 
             {/* Overlay scuro animato su mobile */}
             <div

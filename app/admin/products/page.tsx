@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import AdminImageUploader from '@/components/AdminImageUploader'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { supabaseClient } from '@/lib/supabaseClient'
 import type { Product, Category } from '@/lib/types'
 import { toDisplayStock, getUnitLabel } from '@/lib/stock'
@@ -30,6 +29,11 @@ export default function ProductsAdminPage() {
     const [itemsPerPage, setItemsPerPage] = useState(20)
     // archivio
     const [showArchived, setShowArchived] = useState(false)
+    
+    // upload immagine
+    const [uploadingImage, setUploadingImage] = useState(false)
+    const [uploadError, setUploadError] = useState<string | null>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
 
 
 
@@ -784,28 +788,118 @@ export default function ProductsAdminPage() {
                                 {/* Immagine */}
                                 <fieldset className="rounded-xl border border-gray-200 p-3">
                                     <legend className="px-1 text-sm font-medium text-gray-700">Immagine</legend>
-                                    <AdminImageUploader
-                                        onUploaded={(url) => setEditing({ ...editing, image_url: url })}
+                                    
+                                    {/* Input file nascosto */}
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0]
+                                            if (!file) return
+
+                                            // Validazioni (stessa logica di AdminImageUploader)
+                                            if (!file.type.startsWith('image/')) {
+                                                setUploadError('Seleziona un file immagine')
+                                                return
+                                            }
+                                            if (file.size > 5 * 1024 * 1024) {
+                                                setUploadError('Immagine troppo grande (max 5MB)')
+                                                return
+                                            }
+                                            setUploadError(null)
+                                            setUploadingImage(true)
+
+                                            try {
+                                                const fd = new FormData()
+                                                fd.append('file', file)
+
+                                                const res = await fetch('/api/admin/upload', { method: 'POST', body: fd })
+                                                const json = await res.json()
+                                                if (!res.ok || !json?.url) throw new Error(json?.error || 'Upload fallito')
+
+                                                setEditing({ ...editing, image_url: json.url })
+                                            } catch (err: any) {
+                                                setUploadError(err?.message || 'Errore upload')
+                                            } finally {
+                                                setUploadingImage(false)
+                                            }
+                                        }}
+                                        disabled={uploadingImage}
                                     />
-                                    {editing.image_url ? (
-                                        <div className="flex items-center gap-3 mt-2">
-                                            <img
-                                                src={editing.image_url}
-                                                alt="Anteprima"
-                                                className="w-20 h-20 rounded-md object-cover border"
-                                            />
-                                            <button
-                                                type="button"
-                                                className="text-sm text-red-600 hover:underline"
-                                                onClick={() => setEditing({ ...editing, image_url: '' })}
-                                            >
-                                                Rimuovi immagine
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            Carica un’immagine JPG/PNG (max ~5MB).
-                                        </p>
+
+                                    {/* Dropzone cliccabile */}
+                                    <div
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className={`
+                                            relative mt-2 rounded-lg border-2 border-dashed
+                                            ${editing.image_url 
+                                                ? 'border-gray-300 dark:border-gray-600' 
+                                                : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800'
+                                            }
+                                            cursor-pointer transition-all hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20
+                                            ${uploadingImage ? 'opacity-50 cursor-not-allowed' : ''}
+                                        `}
+                                    >
+                                        {editing.image_url ? (
+                                            <>
+                                                {/* Preview immagine */}
+                                                <div className="relative aspect-video w-full overflow-hidden rounded-lg">
+                                                    <img
+                                                        src={editing.image_url}
+                                                        alt="Anteprima"
+                                                        className="h-full w-full object-cover"
+                                                    />
+                                                    {/* Overlay "Cambia immagine" */}
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity">
+                                                        <span className="text-white font-medium">Cambia immagine</span>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            /* Placeholder quando non c'è immagine */
+                                            <div className="flex flex-col items-center justify-center py-12 px-4">
+                                                <svg
+                                                    className="w-12 h-12 text-gray-400 mb-3"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        strokeWidth={2}
+                                                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                                    />
+                                                </svg>
+                                                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                    Clicca per caricare immagine
+                                                </p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                    JPG/PNG (max 5MB)
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Messaggi di stato */}
+                                    {uploadingImage && (
+                                        <p className="text-sm text-gray-500 mt-2">Caricamento…</p>
+                                    )}
+                                    {uploadError && (
+                                        <p className="text-sm text-red-600 mt-2">{uploadError}</p>
+                                    )}
+
+                                    {/* Pulsante rimuovi immagine */}
+                                    {editing.image_url && (
+                                        <button
+                                            type="button"
+                                            className="mt-3 text-sm text-red-600 hover:underline"
+                                            onClick={() => setEditing({ ...editing, image_url: '' })}
+                                        >
+                                            Rimuovi immagine
+                                        </button>
                                     )}
                                 </fieldset>
 

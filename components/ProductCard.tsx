@@ -38,21 +38,22 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
     const effective = sale != null && !Number.isNaN(sale) && sale > 0 ? sale : base
 
     const img = useMemo(() => {
-        // 1) immagine caricata dall’admin via Supabase Storage
-        if (p?.image_url) return p.image_url
+        // 1) immagine caricata dall'admin via Supabase Storage
+        if (p?.image_url?.trim()) return p.image_url.trim()
 
-        // 2) prima immagine dell’array (se usi images[])
+        // 2) prima immagine dell'array (se usi images[])
         const first = Array.isArray(p?.images) ? p.images[0] : null
-        if (typeof first === 'string') return first
+        if (typeof first === 'string' && first.trim()) return first.trim()
         if (typeof first === 'object' && first && 'url' in (first as any)) {
-            return (first as any).url ?? null
+            const url = (first as any).url
+            if (url?.trim()) return url.trim()
         }
 
         // 3) immagine demo statica dal campo "image"
-        if ((p as any).image) return (p as any).image
+        if ((p as any).image?.trim()) return (p as any).image.trim()
 
-        // 4) fallback
-        return null
+        // 4) fallback al placeholder locale
+        return '/placeholder-product.png'
     }, [p?.image_url, p?.images, (p as any)?.image])
 
 
@@ -101,18 +102,19 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
 
             {/* Immagine */}
             <div className="aspect-square w-full overflow-hidden rounded-xl bg-gray-50 dark:bg-zinc-900">
-                {img ? (
-                    <img
-                        src={img}
-                        alt={p.name}
-                        className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-                        loading="lazy"
-                    />
-                ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs text-gray-400 dark:text-gray-500">
-                        Nessuna immagine
-                    </div>
-                )}
+                <img
+                    src={img}
+                    alt={p.name}
+                    className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                    loading="lazy"
+                    onError={(e) => {
+                        // Fallback a placeholder se l'URL è rotto
+                        const target = e.target as HTMLImageElement
+                        if (target.src !== '/placeholder-product.png') {
+                            target.src = '/placeholder-product.png'
+                        }
+                    }}
+                />
             </div>
 
             {/* Contenuto testuale */}
