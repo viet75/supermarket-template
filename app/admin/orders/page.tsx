@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import type { Order } from '@/lib/types'
 
 function formatQuantity(q: number, unit?: string | null) {
@@ -204,6 +204,95 @@ function formatPayment(pm: string) {
     }
 }
 
+// Componente per scrollbar orizzontale superiore sincronizzata (solo desktop)
+function SyncedHorizontalScroll({ children }: { children: React.ReactNode }) {
+    const topScrollRef = useRef<HTMLDivElement>(null)
+    const bottomScrollRef = useRef<HTMLDivElement>(null)
+    const [showTopScroll, setShowTopScroll] = useState(false)
+
+    // Effetto per rilevare overflow e sincronizzare scroll
+    useEffect(() => {
+        const bottomEl = bottomScrollRef.current
+        if (!bottomEl) return
+
+        // ResizeObserver per rilevare overflow orizzontale
+        const resizeObserver = new ResizeObserver(() => {
+            if (bottomEl) {
+                const hasOverflow = bottomEl.scrollWidth > bottomEl.clientWidth
+                setShowTopScroll(hasOverflow)
+            }
+        })
+
+        resizeObserver.observe(bottomEl)
+
+        // Controllo iniziale
+        const hasOverflow = bottomEl.scrollWidth > bottomEl.clientWidth
+        setShowTopScroll(hasOverflow)
+
+        return () => {
+            resizeObserver.disconnect()
+        }
+    }, [])
+
+    // Effetto per sincronizzare scroll quando entrambi i ref sono disponibili
+    useEffect(() => {
+        const bottomEl = bottomScrollRef.current
+        const topEl = topScrollRef.current
+        if (!bottomEl || !topEl || !showTopScroll) return
+
+        // Sincronizza la larghezza del contenitore superiore
+        topEl.style.width = `${bottomEl.scrollWidth}px`
+
+        // Funzione per sincronizzare scroll
+        const syncScroll = (source: HTMLDivElement, target: HTMLDivElement) => {
+            if (target.scrollLeft !== source.scrollLeft) {
+                target.scrollLeft = source.scrollLeft
+            }
+        }
+
+        // Handler per scroll dal contenitore inferiore
+        const handleBottomScroll = () => {
+            if (bottomEl && topEl) {
+                syncScroll(bottomEl, topEl)
+            }
+        }
+
+        // Handler per scroll dal contenitore superiore
+        const handleTopScroll = () => {
+            if (topEl && bottomEl) {
+                syncScroll(topEl, bottomEl)
+            }
+        }
+
+        bottomEl.addEventListener('scroll', handleBottomScroll)
+        topEl.addEventListener('scroll', handleTopScroll)
+
+        return () => {
+            bottomEl.removeEventListener('scroll', handleBottomScroll)
+            topEl.removeEventListener('scroll', handleTopScroll)
+        }
+    }, [showTopScroll])
+
+    return (
+        <>
+            {/* Scrollbar superiore - solo desktop, sticky, visibile solo se c'è overflow */}
+            {showTopScroll && (
+                <div
+                    className="hidden md:block sticky top-0 z-30 overflow-x-auto overflow-y-hidden"
+                    style={{ height: '17px' }}
+                    ref={topScrollRef}
+                >
+                    <div style={{ height: '1px' }} />
+                </div>
+            )}
+            {/* Contenitore originale con ref */}
+            <div ref={bottomScrollRef}>
+                {children}
+            </div>
+        </>
+    )
+}
+
 export default function OrdersAdminPage() {
     const [orders, setOrders] = useState<any[]>([])
     const [searchTerm, setSearchTerm] = useState('');
@@ -384,9 +473,10 @@ export default function OrdersAdminPage() {
                                        dark:from-gray-900 z-20"
                         />
 
-                        {/* Scroll container */}
-                        <div className="overflow-x-auto">
-                            <table className="min-w-[900px] w-full table-auto border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 shadow-sm">
+                        {/* Scroll container con scrollbar superiore sincronizzata */}
+                        <SyncedHorizontalScroll>
+                            <div className="overflow-x-auto">
+                                <table className="min-w-[900px] w-full table-auto border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 shadow-sm">
 
 
                             <thead className="bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 sticky top-0 z-10">
@@ -521,7 +611,8 @@ export default function OrdersAdminPage() {
                                 ))}
                             </tbody>
                         </table>
-                        </div>
+                            </div>
+                        </SyncedHorizontalScroll>
                     </div>
 
 
