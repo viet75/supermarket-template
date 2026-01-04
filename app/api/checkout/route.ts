@@ -29,10 +29,10 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Dati ordine mancanti' }, { status: 400 })
         }
 
-        // Recupera l'ordine dal database per ottenere delivery_fee
+        // Recupera l'ordine dal database per ottenere delivery_fee e address
         const { data: order, error: orderError } = await supabaseService
             .from('orders')
-            .select('delivery_fee, total')
+            .select('delivery_fee, total, address')
             .eq('id', orderId)
             .single()
 
@@ -42,9 +42,67 @@ export async function POST(req: NextRequest) {
 
         const deliveryFee = Number(order.delivery_fee ?? 0)
 
-        const proto = req.headers.get('x-forwarded-proto') ?? 'http'
-        const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host')
-        const siteUrl = host ? `${proto}://${host}` : 'http://localhost:3000'
+        // Validazione CAP prima di creare la sessione Stripe
+        const address = order.address as { cap?: string; line1?: string; city?: string } | null
+        const cap = address?.cap ? String(address.cap).trim() : null
+
+        // Valida che l'ordine abbia un CAP valido (5 cifre e != 00000)
+        if (!cap || !/^\d{5}$/.test(cap) || cap === '00000') {
+            return NextResponse.json(
+                { error: 'CAP non valido o indirizzo non trovato' },
+                { status: 400 }
+            )
+        }
+
+        // Se i dati indirizzo sono disponibili, valida tramite geocode
+        if (address?.line1 && address?.city) {
+            try {
+                const query = [address.line1, cap, address.city]
+                    .filter(Boolean)
+                    .map((s: any) => String(s).trim())
+                    .filter((s: string) => s.length > 0)
+                    .join(', ')
+
+                if (query) {
+                    // Deriva baseUrl da req.url invece di usare localhost hardcoded
+                    const url = new URL(req.url)
+                    const baseUrl = `${url.protocol}//${url.host}`
+                    const geocodeUrl = `${baseUrl}/api/geocode?q=${encodeURIComponent(query)}`
+
+                    const geocodeRes = await fetch(geocodeUrl)
+                    
+                    // Gestione sicura del parsing JSON
+                    let geocodeData: any = null
+                    try {
+                        const text = await geocodeRes.text()
+                        geocodeData = JSON.parse(text)
+                    } catch (parseError) {
+                        // Se il parsing fallisce, blocca il pagamento
+                        return NextResponse.json(
+                            { error: 'CAP non valido o indirizzo non trovato' },
+                            { status: 400 }
+                        )
+                    }
+
+                    if (!geocodeData.ok || geocodeData.postal_code !== cap) {
+                        return NextResponse.json(
+                            { error: 'CAP non valido o indirizzo non trovato' },
+                            { status: 400 }
+                        )
+                    }
+                }
+            } catch (geocodeError) {
+                // Se il geocode fallisce, blocca comunque il pagamento
+                return NextResponse.json(
+                    { error: 'CAP non valido o indirizzo non trovato' },
+                    { status: 400 }
+                )
+            }
+        }
+
+        // Deriva siteUrl da req.url invece di usare localhost hardcoded
+        const url = new URL(req.url)
+        const siteUrl = `${url.protocol}//${url.host}`
 
         // genera line_items da items del frontend con conversione numerica sicura
         const line_items = items.map((it) => {

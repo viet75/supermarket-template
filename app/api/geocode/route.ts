@@ -20,15 +20,50 @@ export async function GET(req: NextRequest) {
     const res = await fetch(url);
     const json = await res.json();
 
-    if (json.status !== "OK")
-      return NextResponse.json({ ok: false, error: json.status }, { status: 400 });
+    // Se Google geocoding ritorna 0 risultati -> return 400
+    if (json.status !== "OK" || !json.results || json.results.length === 0) {
+      return NextResponse.json({ ok: false, error: "Indirizzo non trovato" }, { status: 400 });
+    }
 
     const result = json.results[0];
+    
+    // Estrai postal_code da address_components
+    let postal_code: string | null = null;
+    if (result.address_components) {
+      for (const component of result.address_components) {
+        if (component.types.includes("postal_code")) {
+          postal_code = component.long_name || component.short_name;
+          break;
+        }
+      }
+    }
+
+    // Se postal_code assente o non matcha /^\d{5}$/ -> return 400
+    if (!postal_code || !/^\d{5}$/.test(postal_code)) {
+      return NextResponse.json({ ok: false, error: "CAP non valido o non trovato" }, { status: 400 });
+    }
+
+    // Tratta "00000" come non valido -> return 400
+    if (postal_code === "00000") {
+      return NextResponse.json({ ok: false, error: "CAP non valido" }, { status: 400 });
+    }
+
+    // Se nel parametro q è presente un CAP 5 cifre, verifica che combaci con postal_code
+    const capMatch = q.match(/\b(\d{5})\b/);
+    if (capMatch) {
+      const capFromQuery = capMatch[1];
+      if (capFromQuery !== postal_code) {
+        return NextResponse.json({ ok: false, error: "CAP non corrisponde all'indirizzo" }, { status: 400 });
+      }
+    }
+
+    // Risposta JSON deve includere lat/lng e postal_code quando valido
     return NextResponse.json({
       ok: true,
       lat: result.geometry.location.lat,
       lng: result.geometry.location.lng,
       formatted: result.formatted_address,
+      postal_code: postal_code,
     });
   } catch (e) {
     return NextResponse.json({ ok: false, error: "Fetch error" }, { status: 500 });
