@@ -5,6 +5,8 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q");
+  const zip = searchParams.get("zip"); // CAP inserito dall'utente (opzionale)
+  const city = searchParams.get("city"); // Città inserita dall'utente (opzionale)
   if (!q) return NextResponse.json({ ok: false, error: "Missing q" }, { status: 400 });
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
@@ -13,6 +15,7 @@ export async function GET(req: NextRequest) {
   const url =
     "https://maps.googleapis.com/maps/api/geocode/json?address=" +
     encodeURIComponent(q) +
+    "&language=it&region=it" +
     "&key=" +
     apiKey;
 
@@ -48,36 +51,48 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "CAP non valido" }, { status: 400 });
     }
 
-    // Se nel parametro q è presente un CAP 5 cifre, verifica che combaci con postal_code
-    const capMatch = q.match(/\b(\d{5})\b/);
-    if (capMatch) {
-      const capFromQuery = capMatch[1];
-      if (capFromQuery !== postal_code) {
+    // Se zip è presente, valida formato e confronta con postal_code
+    if (zip) {
+      const zipTrimmed = String(zip).trim();
+      // Valida formato /^\d{5}$/ e zip !== "00000"
+      if (!/^\d{5}$/.test(zipTrimmed) || zipTrimmed === "00000") {
+        return NextResponse.json({ ok: false, error: "CAP non valido" }, { status: 400 });
+      }
+      // Confronta zip con postal_code
+      if (zipTrimmed !== postal_code) {
         return NextResponse.json({ ok: false, error: "CAP non corrisponde all'indirizzo" }, { status: 400 });
       }
     }
 
-    // Estrai città ufficiale da address_components (priorità: locality > postal_town > administrative_area_level_3)
-    let city: string | null = null;
+    // Estrai città ufficiale da address_components (priorità: locality > postal_town > administrative_area_level_3 > administrative_area_level_2)
+    let cityFromGoogle: string | null = null;
     if (result.address_components) {
       for (const component of result.address_components) {
         if (component.types.includes("locality")) {
-          city = component.long_name || component.short_name;
+          cityFromGoogle = component.long_name || component.short_name;
           break;
         }
       }
-      if (!city) {
+      if (!cityFromGoogle) {
         for (const component of result.address_components) {
           if (component.types.includes("postal_town")) {
-            city = component.long_name || component.short_name;
+            cityFromGoogle = component.long_name || component.short_name;
             break;
           }
         }
       }
-      if (!city) {
+      if (!cityFromGoogle) {
         for (const component of result.address_components) {
           if (component.types.includes("administrative_area_level_3")) {
-            city = component.long_name || component.short_name;
+            cityFromGoogle = component.long_name || component.short_name;
+            break;
+          }
+        }
+      }
+      if (!cityFromGoogle) {
+        for (const component of result.address_components) {
+          if (component.types.includes("administrative_area_level_2")) {
+            cityFromGoogle = component.long_name || component.short_name;
             break;
           }
         }
@@ -94,50 +109,36 @@ export async function GET(req: NextRequest) {
         .replace(/\s+/g, " "); // normalizza spazi
     };
 
-    // Se la richiesta contiene una città, verifica che combaci
+    // Se city è presente, la validazione città è OBBLIGATORIA
     if (city) {
-      // Estrai potenziali nomi di città dal parametro q (prima del CAP se presente)
-      const qWithoutCap = q.replace(/\b\d{5}\b/g, "").trim();
-      const parts = qWithoutCap.split(",").map(p => p.trim()).filter(p => p.length > 0);
-      
-      // Cerca una città nel parametro q (di solito è l'ultima parte o una parte significativa)
-      let cityFromQuery: string | null = null;
-      if (parts.length > 0) {
-        // Prendi l'ultima parte (di solito è la città) o cerca una parte che non sia un numero
-        for (let i = parts.length - 1; i >= 0; i--) {
-          const part = parts[i];
-          // Se non è un numero e ha almeno 3 caratteri, potrebbe essere una città
-          if (!/^\d+$/.test(part) && part.length >= 3) {
-            cityFromQuery = part;
-            break;
-          }
-        }
+      // Se cityFromGoogle è null -> return 400 "Città non verificabile per questo indirizzo"
+      if (!cityFromGoogle) {
+        return NextResponse.json({ ok: false, error: "Città non verificabile per questo indirizzo" }, { status: 400 });
       }
+      
+      // Altrimenti confronta con logica include/equal
+      const normalizedCity = normalizeString(cityFromGoogle);
+      const normalizedCityFromParam = normalizeString(city);
+      
+      // Verifica che la città inserita sia contenuta o combaci con quella di Google
+      const cityMatches = 
+        normalizedCity === normalizedCityFromParam ||
+        normalizedCity.includes(normalizedCityFromParam) ||
+        normalizedCityFromParam.includes(normalizedCity);
 
-      if (cityFromQuery) {
-        const normalizedCity = normalizeString(city);
-        const normalizedCityFromQuery = normalizeString(cityFromQuery);
-        
-        // Verifica che la città inserita sia contenuta o combaci con quella di Google
-        const cityMatches = 
-          normalizedCity === normalizedCityFromQuery ||
-          normalizedCity.includes(normalizedCityFromQuery) ||
-          normalizedCityFromQuery.includes(normalizedCity);
-
-        if (!cityMatches) {
-          return NextResponse.json({ ok: false, error: "Città non coerente con indirizzo e CAP" }, { status: 400 });
-        }
+      if (!cityMatches) {
+        return NextResponse.json({ ok: false, error: "Città non coerente con indirizzo e CAP" }, { status: 400 });
       }
     }
 
-    // Risposta JSON deve includere lat/lng, postal_code e city quando valido
+    // Risposta JSON deve includere lat/lng, postal_code e city_google quando valido
     return NextResponse.json({
       ok: true,
       lat: result.geometry.location.lat,
       lng: result.geometry.location.lng,
       formatted: result.formatted_address,
       postal_code: postal_code,
-      ...(city ? { city: city } : {}),
+      ...(cityFromGoogle ? { city_google: cityFromGoogle } : {}),
     });
   } catch (e) {
     return NextResponse.json({ ok: false, error: "Fetch error" }, { status: 500 });
