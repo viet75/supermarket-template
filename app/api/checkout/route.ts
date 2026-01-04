@@ -42,10 +42,9 @@ export async function POST(req: NextRequest) {
 
         const deliveryFee = Number(order.delivery_fee ?? 0)
 
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
-        if (!siteUrl) {
-            return NextResponse.json({ error: 'NEXT_PUBLIC_SITE_URL mancante' }, { status: 500 })
-        }
+        const proto = req.headers.get('x-forwarded-proto') ?? 'http'
+        const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host')
+        const siteUrl = host ? `${proto}://${host}` : 'http://localhost:3000'
 
         // genera line_items da items del frontend con conversione numerica sicura
         const line_items = items.map((it) => {
