@@ -18,6 +18,11 @@ export async function POST(req: NextRequest) {
                 unit?: string
                 image_url?: string
             }[]
+            address?: {
+                line1?: string
+                city?: string
+                cap?: string
+            }
         } | null
 
         if (!body) {
@@ -42,60 +47,109 @@ export async function POST(req: NextRequest) {
 
         const deliveryFee = Number(order.delivery_fee ?? 0)
 
-        // Validazione CAP prima di creare la sessione Stripe
-        const address = order.address as { cap?: string; line1?: string; city?: string } | null
-        const cap = address?.cap ? String(address.cap).trim() : null
+        // Determina i campi da validare: usa body.address se presente, altrimenti fallback su order.address
+        const orderAddress = order.address as { cap?: string; line1?: string; city?: string } | null
+        const bodyAddress = body.address
+        
+        // Se body.address contiene line1/city/cap non vuoti -> usa quelli, altrimenti fallback su order.address
+        const line1 = (bodyAddress?.line1 && bodyAddress.line1.trim()) 
+            ? String(bodyAddress.line1).trim() 
+            : (orderAddress?.line1 ? String(orderAddress.line1).trim() : null)
+        const city = (bodyAddress?.city && bodyAddress.city.trim()) 
+            ? String(bodyAddress.city).trim() 
+            : (orderAddress?.city ? String(orderAddress.city).trim() : null)
+        const zip = (bodyAddress?.cap && bodyAddress.cap.trim()) 
+            ? String(bodyAddress.cap).trim() 
+            : (orderAddress?.cap ? String(orderAddress.cap).trim() : null)
 
-        // Valida che l'ordine abbia un CAP valido (5 cifre e != 00000)
-        if (!cap || !/^\d{5}$/.test(cap) || cap === '00000') {
+        // Se city/zip mancanti -> 400 (non creare sessione Stripe)
+        if (!city || !zip) {
             return NextResponse.json(
                 { error: 'CAP non valido o indirizzo non trovato' },
                 { status: 400 }
             )
         }
 
-        // Se i dati indirizzo sono disponibili, valida tramite geocode
-        if (address?.line1 && address?.city) {
-            try {
-                const query = [address.line1, cap, address.city]
-                    .filter(Boolean)
-                    .map((s: any) => String(s).trim())
-                    .filter((s: string) => s.length > 0)
-                    .join(', ')
+        // Valida formato CAP
+        if (!/^\d{5}$/.test(zip) || zip === '00000') {
+            return NextResponse.json(
+                { error: 'CAP non valido o indirizzo non trovato' },
+                { status: 400 }
+            )
+        }
 
-                if (query) {
-                    // Deriva baseUrl da req.url invece di usare localhost hardcoded
-                    const url = new URL(req.url)
-                    const baseUrl = `${url.protocol}//${url.host}`
-                    const geocodeUrl = `${baseUrl}/api/geocode?q=${encodeURIComponent(query)}`
+        // Chiama geocode SEMPRE passando q, zip, city
+        try {
+            // Costruisci query indirizzo (solo line1 se disponibile, altrimenti usa zip+city)
+            const query = line1 
+                ? [line1, zip, city].filter(Boolean).join(', ')
+                : [zip, city].filter(Boolean).join(', ')
 
-                    const geocodeRes = await fetch(geocodeUrl)
-                    
-                    // Gestione sicura del parsing JSON
-                    let geocodeData: any = null
-                    try {
-                        const text = await geocodeRes.text()
-                        geocodeData = JSON.parse(text)
-                    } catch (parseError) {
-                        // Se il parsing fallisce, blocca il pagamento
-                        return NextResponse.json(
-                            { error: 'CAP non valido o indirizzo non trovato' },
-                            { status: 400 }
-                        )
-                    }
-
-                    if (!geocodeData.ok || geocodeData.postal_code !== cap) {
-                        return NextResponse.json(
-                            { error: 'CAP non valido o indirizzo non trovato' },
-                            { status: 400 }
-                        )
-                    }
-                }
-            } catch (geocodeError) {
-                // Se il geocode fallisce, blocca comunque il pagamento
+            if (!query) {
                 return NextResponse.json(
                     { error: 'CAP non valido o indirizzo non trovato' },
                     { status: 400 }
+                )
+            }
+
+            // Deriva baseUrl da req.url invece di usare localhost hardcoded
+            const url = new URL(req.url)
+            const baseUrl = `${url.protocol}//${url.host}`
+            const geocodeUrl = `${baseUrl}/api/geocode?q=${encodeURIComponent(query)}&zip=${encodeURIComponent(zip)}&city=${encodeURIComponent(city)}`
+
+            const geocodeRes = await fetch(geocodeUrl)
+            
+            // Gestione sicura del parsing JSON
+            let geocodeData: any = null
+            try {
+                const text = await geocodeRes.text()
+                geocodeData = JSON.parse(text)
+            } catch (parseError) {
+                // Se il parsing fallisce, blocca il pagamento
+                return NextResponse.json(
+                    { error: 'CAP non valido o indirizzo non trovato' },
+                    { status: 400 }
+                )
+            }
+
+            // Se geocode non ok o mismatch -> return 400 e NON creare sessione Stripe
+            if (!geocodeData.ok) {
+                return NextResponse.json(
+                    { error: 'CAP non valido o indirizzo non trovato' },
+                    { status: 400 }
+                )
+            }
+        } catch (geocodeError) {
+            // Se il geocode fallisce, blocca comunque il pagamento
+            return NextResponse.json(
+                { error: 'CAP non valido o indirizzo non trovato' },
+                { status: 400 }
+            )
+        }
+
+        // Se body.address è presente (almeno uno tra line1/city/cap), aggiorna Supabase PRIMA di creare la sessione Stripe
+        if (bodyAddress && (bodyAddress.line1 || bodyAddress.city || bodyAddress.cap)) {
+            try {
+                // Merge semplice: usa i valori finali determinati (line1, city, zip) che già hanno priorità body.address > order.address
+                const mergedAddress = {
+                    ...(orderAddress || {}),
+                    ...(line1 ? { line1 } : {}),
+                    ...(city ? { city } : {}),
+                    ...(zip ? { cap: zip } : {}),
+                }
+
+                await supabaseService
+                    .from('orders')
+                    .update({
+                        address: mergedAddress,
+                    })
+                    .eq('id', orderId)
+            } catch (updateError) {
+                // Se l'aggiornamento fallisce, blocca il pagamento per sicurezza
+                console.error('Errore aggiornamento indirizzo:', updateError)
+                return NextResponse.json(
+                    { error: 'Errore aggiornamento indirizzo' },
+                    { status: 500 }
                 )
             }
         }

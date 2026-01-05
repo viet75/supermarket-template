@@ -129,13 +129,32 @@ export async function POST(req: Request) {
             )
         }
 
-        // Calcola distanza cliente ↔ negozio
-        const clientCoords = await geocodeAddress(query.trim(), baseUrl)
+        // Valida CAP e città con geocode prima di creare l'ordine
+        const zip = body.address.cap ? String(body.address.cap).trim() : null
+        const city = body.address.city ? String(body.address.city).trim() : null
 
-        if (!clientCoords) {
-            console.error('❌ Geocodifica fallita per query:', query)
+        // Valida formato CAP
+        if (!zip || !/^\d{5}$/.test(zip) || zip === '00000') {
+            return NextResponse.json({ error: 'CAP non valido' }, { status: 400 })
+        }
+
+        // Chiama geocode con validazione CAP e città
+        const geocodeUrl = `${baseUrl}/api/geocode?q=${encodeURIComponent(query.trim())}&zip=${encodeURIComponent(zip)}&city=${encodeURIComponent(city || '')}`
+        let geocodeData: any = null
+        try {
+            const geocodeRes = await fetch(geocodeUrl)
+            const text = await geocodeRes.text()
+            geocodeData = JSON.parse(text)
+        } catch (err) {
+            console.error('❌ Errore geocodifica:', err)
             return NextResponse.json({ error: 'Impossibile geocodificare l\'indirizzo del cliente' }, { status: 400 })
         }
+
+        if (!geocodeData.ok) {
+            return NextResponse.json({ error: 'CAP non valido o indirizzo non trovato' }, { status: 400 })
+        }
+
+        const clientCoords = { lat: geocodeData.lat, lng: geocodeData.lng }
         const distanceKm = computeDistanceFromStore(settings, clientCoords)
 
         // Validazione raggio massimo da variabile d'ambiente

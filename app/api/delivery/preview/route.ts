@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getStoreSettings } from '@/lib/getStoreSettings'
-import { geocodeAddress, computeDistanceFromStore } from '@/lib/geo'
+import { computeDistanceFromStore } from '@/lib/geo'
 import { calculateDeliveryFee } from '@/lib/delivery'
 import type { StoreSettings } from '@/lib/types'
 
@@ -51,13 +51,30 @@ export async function POST(req: Request) {
             )
         }
 
-        // Calcola distanza cliente ↔ negozio
-        const clientCoords = await geocodeAddress(query.trim(), baseUrl)
+        // Chiama /api/geocode in modalità strict
+        const geocodeUrl = new URL(`${baseUrl}/api/geocode`)
+        geocodeUrl.searchParams.set('q', `${query.trim()}, Italia`)
+        if (body.cap) geocodeUrl.searchParams.set('zip', String(body.cap).trim())
+        if (body.city) geocodeUrl.searchParams.set('city', String(body.city).trim())
 
-        if (!clientCoords) {
-            console.error('❌ Geocodifica fallita per query:', query)
-            return NextResponse.json({ error: 'Impossibile geocodificare l\'indirizzo del cliente' }, { status: 400 })
+        const geocodeRes = await fetch(geocodeUrl.toString())
+        const geocodeText = await geocodeRes.text()
+        let geocodeJson: any
+        try {
+            geocodeJson = JSON.parse(geocodeText)
+        } catch (e) {
+            return NextResponse.json({ error: 'Indirizzo non valido' }, { status: 400 })
         }
+
+        if (!geocodeRes.ok || geocodeJson.ok !== true) {
+            return NextResponse.json(
+                { error: geocodeJson.error || 'Indirizzo non valido' },
+                { status: 400 }
+            )
+        }
+
+        // Calcola distanza cliente ↔ negozio
+        const clientCoords = { lat: geocodeJson.lat, lng: geocodeJson.lng }
         const distanceKm = computeDistanceFromStore(settings, clientCoords)
 
         // Validazione raggio massimo da variabile d'ambiente

@@ -12,12 +12,22 @@ export async function GET(req: NextRequest) {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) return NextResponse.json({ ok: false, error: "Missing API key" }, { status: 500 });
 
-  const url =
-    "https://maps.googleapis.com/maps/api/geocode/json?address=" +
-    encodeURIComponent(q) +
-    "&language=it&region=it" +
-    "&key=" +
-    apiKey;
+  // Costruisci la URL Google con URLSearchParams
+  const geocodeParams = new URLSearchParams();
+  geocodeParams.set("address", q);
+  geocodeParams.set("language", "it");
+  geocodeParams.set("region", "it");
+  
+  // Se è presente il parametro zip valido (5 cifre, != 00000), aggiungi components
+  if (zip) {
+    const zipTrimmed = String(zip).trim();
+    if (/^\d{5}$/.test(zipTrimmed) && zipTrimmed !== "00000") {
+      geocodeParams.set("components", `country:IT|postal_code:${zipTrimmed}`);
+    }
+  }
+  
+  geocodeParams.set("key", apiKey);
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?${geocodeParams.toString()}`;
 
   try {
     const res = await fetch(url);
@@ -54,12 +64,18 @@ export async function GET(req: NextRequest) {
     // Se zip è presente, valida formato e confronta con postal_code
     if (zip) {
       const zipTrimmed = String(zip).trim();
-      // Valida formato /^\d{5}$/ e zip !== "00000"
+      // Valida formato /^\d{5}$/ e zip !== "00000" (mantieni blocco per CAP non valido)
       if (!/^\d{5}$/.test(zipTrimmed) || zipTrimmed === "00000") {
         return NextResponse.json({ ok: false, error: "CAP non valido" }, { status: 400 });
       }
-      // Confronta zip con postal_code
-      if (zipTrimmed !== postal_code) {
+      
+      // Se Google restituisce location_type = ROOFTOP o RANGE_INTERPOLATED,
+      // accetta l'indirizzo anche se postal_code non matcha perfettamente
+      const locationType = result.geometry.location_type;
+      const isPreciseLocation = locationType === "ROOFTOP" || locationType === "RANGE_INTERPOLATED";
+      
+      // Confronta zip con postal_code solo se non è una location precisa
+      if (!isPreciseLocation && zipTrimmed !== postal_code) {
         return NextResponse.json({ ok: false, error: "CAP non corrisponde all'indirizzo" }, { status: 400 });
       }
     }

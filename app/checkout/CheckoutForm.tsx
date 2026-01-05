@@ -19,6 +19,8 @@ const PAYMENT_METHOD_CONFIG: Record<PaymentMethod, { icon: string; label: string
     card_online: { icon: '💳', label: 'Pagamento con carta online' },
 }
 
+const CAP_ERR = "CAP non valido. Inserisci 5 cifre (es: 74123)."
+
 export default function CheckoutForm({ settings }: Props) {
     const router = useRouter()
     const [mounted, setMounted] = useState(false)
@@ -48,6 +50,39 @@ export default function CheckoutForm({ settings }: Props) {
     const [loadingDistance, setLoadingDistance] = useState(false)
     const [isAddressValid, setIsAddressValid] = useState(false)
     const [distanceError, setDistanceError] = useState<string | null>(null)
+    const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+    // Helper per determinare il messaggio di errore con priorità
+    const updateErrorMessage = (newError: string | null) => {
+        if (!newError) {
+            setErrorMessage(null)
+            return
+        }
+        const errorLower = newError.toLowerCase()
+        // Priorità: se contiene "CAP non valido" o parole chiave CAP -> mostra solo quello
+        if (newError.includes("CAP non valido") || 
+            errorLower.includes("cap") || 
+            errorLower.includes("postal") || 
+            errorLower.includes("codice postale") || 
+            errorLower.includes("corrisponde")) {
+            setErrorMessage(newError)
+            return
+        }
+        // Priorità: se contiene "fuori dal raggio" o "non è disponibile" -> mostra solo quello
+        if (newError.includes("fuori dal raggio") || newError.includes("non è disponibile")) {
+            setErrorMessage(newError)
+        } else {
+            // Altrimenti mostra solo "indirizzo non riconosciuto, inserisci via completa..."
+            const geocodeError = "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma"
+            // Aggiorna solo se non c'è già un errore "fuori raggio"
+            setErrorMessage((prev) => {
+                if (prev && (prev.includes("fuori dal raggio") || prev.includes("non è disponibile"))) {
+                    return prev
+                }
+                return geocodeError
+            })
+        }
+    }
 
     const [msg, setMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null)
 
@@ -68,11 +103,33 @@ export default function CheckoutForm({ settings }: Props) {
         setBackendDistanceKm(null)
         setPreviewDeliveryFee(null)
         setPreviewDistanceKm(null)
+        
+        // Valida formato CAP prima di resettare errorMessage
+        const capTrimmed = addr.cap ? String(addr.cap).trim() : ''
+        const isCapValid = /^\d{5}$/.test(capTrimmed) && capTrimmed !== '00000'
+        
+        // Resetta errorMessage solo se il CAP è valido o vuoto (per permettere la validazione successiva)
+        // Se il CAP non è valido, la validazione nell'useEffect successivo imposterà l'errore
+        if (isCapValid || !addr.cap) {
+            setErrorMessage(null)
+            setDistanceError(null)
+        }
     }, [addr.line1, addr.city, addr.cap])
 
     // 🔧 Calcolo automatico della distanza con Google Maps
     useEffect(() => {
         if (!addr.line1 || !addr.city || !addr.cap) return
+
+        // Valida formato CAP prima di procedere
+        const capTrimmed = String(addr.cap).trim()
+        if (!/^\d{5}$/.test(capTrimmed) || capTrimmed === '00000') {
+            setIsAddressValid(false)
+            const capError = "CAP non valido. Inserisci un CAP a 5 cifre."
+            setDistanceError(capError)
+            updateErrorMessage(capError)
+            setDistanceKm(0)
+            return
+        }
 
         const handler = setTimeout(async () => {
             setLoadingDistance(true)
@@ -91,28 +148,61 @@ export default function CheckoutForm({ settings }: Props) {
                         const validation = validateDelivery(km, settings)
                         if (km > settings.delivery_max_km) {
                             setIsAddressValid(false)
-                            setDistanceError(`La consegna non è disponibile per questo indirizzo (${km.toFixed(1)} km, massimo ${settings.delivery_max_km} km).`)
+                            const radiusError = `La consegna non è disponibile per questo indirizzo (${km.toFixed(1)} km, massimo ${settings.delivery_max_km} km).`
+                            setDistanceError(radiusError)
+                            updateErrorMessage(radiusError)
                         } else {
                             setIsAddressValid(validation.ok)
                             setDistanceError(null)
+                            updateErrorMessage(null)
                         }
                         setLoadingDistance(false)
                         return
                     }
                 }
 
-                // ✅ STEP 2.2 — Chiamata Google Maps solo se cache assente o scaduta
-                const coords = await geocodeAddress(full)
-                if (coords) {
+                // ✅ STEP 2.2 — Chiamata geocode con validazione CAP e città
+                try {
+                    const geocodeUrl = `/api/geocode?q=${encodeURIComponent(full)}&zip=${encodeURIComponent(addr.cap)}&city=${encodeURIComponent(addr.city)}`
+                    const geocodeRes = await fetch(geocodeUrl)
+                    
+                    let geocodeData: any = null
+                    try {
+                        const text = await geocodeRes.text()
+                        geocodeData = JSON.parse(text)
+                    } catch {
+                        setIsAddressValid(false)
+                        const geocodeError = "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma"
+                        setDistanceError(geocodeError)
+                        updateErrorMessage(geocodeError)
+                        setDistanceKm(0)
+                        setLoadingDistance(false)
+                        return
+                    }
+
+                    if (!geocodeData.ok) {
+                        setIsAddressValid(false)
+                        const geocodeError = "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma"
+                        setDistanceError(geocodeError)
+                        updateErrorMessage(geocodeError)
+                        setDistanceKm(0)
+                        setLoadingDistance(false)
+                        return
+                    }
+
+                    const coords = { lat: geocodeData.lat, lng: geocodeData.lng }
                     const km = computeDistanceFromStore(settings, coords)
                     setDistanceKm(km)
                     const validation = validateDelivery(km, settings)
                     if (km > settings.delivery_max_km) {
                         setIsAddressValid(false)
-                        setDistanceError(`La consegna non è disponibile per questo indirizzo (${km.toFixed(1)} km, massimo ${settings.delivery_max_km} km).`)
+                        const radiusError = `La consegna non è disponibile per questo indirizzo (${km.toFixed(1)} km, massimo ${settings.delivery_max_km} km).`
+                        setDistanceError(radiusError)
+                        updateErrorMessage(radiusError)
                     } else {
                         setIsAddressValid(validation.ok)
                         setDistanceError(null)
+                        updateErrorMessage(null)
                     }
 
                     // ✅ STEP 2.3 — Salvataggio in cache
@@ -121,14 +211,20 @@ export default function CheckoutForm({ settings }: Props) {
                         km,
                         timestamp: Date.now()
                     }))
-                } else {
+                } catch (err) {
                     setIsAddressValid(false)
-                    setDistanceError("Indirizzo non riconosciuto. Controlla via, numero civico e CAP.")
+                    const geocodeError = "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma"
+                    setDistanceError(geocodeError)
+                    updateErrorMessage(geocodeError)
                     setDistanceKm(0)
                 }
             } catch (err) {
                 console.error('Errore geocodifica:', err)
                 setIsAddressValid(false)
+                const geocodeError = "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma"
+                setDistanceError(geocodeError)
+                updateErrorMessage(geocodeError)
+                setDistanceKm(0)
             } finally {
                 setLoadingDistance(false)
             }
@@ -140,6 +236,22 @@ export default function CheckoutForm({ settings }: Props) {
     // 🔧 Preview del delivery fee (calcolata lato server)
     useEffect(() => {
         if (!settings.delivery_enabled) return
+        
+        // Calcola capInvalid come prima cosa nell'effetto
+        const capTrimmed = addr.cap ? String(addr.cap).trim() : ''
+        const capInvalid = capTrimmed && (!/^\d{5}$/.test(capTrimmed) || capTrimmed === '00000')
+        
+        // Se capInvalid è true -> gestisci errore CAP e return immediato
+        if (capInvalid) {
+            setDistanceError(CAP_ERR)
+            updateErrorMessage(CAP_ERR)
+            setPreviewDistanceKm(null)
+            setPreviewDeliveryFee(null)
+            setIsAddressValid(false)
+            setLoadingPreview(false)
+            return // Non eseguire altri reset, non fare fetch
+        }
+        
         if (!addr.line1 || !addr.city || !addr.cap) {
             setPreviewDeliveryFee(null)
             setPreviewDistanceKm(null)
@@ -148,6 +260,11 @@ export default function CheckoutForm({ settings }: Props) {
 
         const handler = setTimeout(async () => {
             setLoadingPreview(true)
+            
+            // Se capInvalid è false -> pulisci SOLO l'errore CAP se era impostato
+            setDistanceError((prev) => (prev === CAP_ERR ? null : prev))
+            setErrorMessage((prev) => (prev === CAP_ERR ? null : prev))
+            
             try {
                 const res = await fetch('/api/delivery/preview', {
                     method: 'POST',
@@ -162,15 +279,62 @@ export default function CheckoutForm({ settings }: Props) {
                 if (!res.ok) {
                     const text = await res.text()
                     console.error('❌ API error /api/delivery/preview:', text)
-                    // Se errore (es. indirizzo fuori zona), resetta la preview
+                    // Se errore 400, mostra messaggio specifico
+                    if (res.status === 400) {
+                        try {
+                            const errorData = JSON.parse(text)
+                            const errorText = errorData.error || ''
+                            
+                            const errorTextLower = errorText.toLowerCase()
+                            
+                            // Se contiene "fuori dal raggio" mostra solo quello
+                            if (errorText.includes("fuori dal raggio") || errorText.includes("non è disponibile")) {
+                                setDistanceError(errorText)
+                                setIsAddressValid(false)
+                                updateErrorMessage(errorText)
+                            } else if (errorTextLower.includes("cap") || errorTextLower.includes("postal") || errorTextLower.includes("codice postale")) {
+                                // Se contiene errori CAP/postal, mostra serverErr direttamente
+                                setDistanceError(errorText)
+                                setIsAddressValid(false)
+                                updateErrorMessage(errorText)
+                            } else {
+                                // Altrimenti mostra solo "inserisci via completa..."
+                                const geocodeError = "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma"
+                                setDistanceError(geocodeError)
+                                setIsAddressValid(false)
+                                // Evita che "fuori raggio" venga sovrascritto
+                                updateErrorMessage(geocodeError)
+                            }
+                        } catch {
+                            const geocodeError = "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma"
+                            setDistanceError(geocodeError)
+                            setIsAddressValid(false)
+                            updateErrorMessage(geocodeError)
+                        }
+                    }
+                    // Resetta la preview
                     setPreviewDeliveryFee(null)
                     setPreviewDistanceKm(null)
                     return
                 }
 
                 const data = await res.json()
+                
+                // Se data.ok === false, gestisci errore e return
+                if (data.ok === false) {
+                    setDistanceError(data.error)
+                    updateErrorMessage(data.error)
+                    setPreviewDistanceKm(null)
+                    setPreviewDeliveryFee(null)
+                    setIsAddressValid(false)
+                    setLoadingPreview(false)
+                    return
+                }
+                
                 setPreviewDeliveryFee(data.delivery_fee ?? null)
                 setPreviewDistanceKm(data.distance_km ?? null)
+                // Se il delivery preview ha successo, resetta errorMessage (ma mantieni errori "fuori raggio" se presenti)
+                updateErrorMessage(null)
             } catch (err) {
                 console.error('Errore preview consegna:', err)
                 setPreviewDeliveryFee(null)
@@ -192,17 +356,21 @@ export default function CheckoutForm({ settings }: Props) {
         if (!addr.line1 || !addr.city || !addr.cap) {
             return { ok: false, reason: 'Compila tutti i campi dell\'indirizzo' }
         }
-        // Se la distanza è ancora in calcolo, attendi prima di validare
-        if (loadingDistance) {
+        // Se distanceError esiste -> validation.ok=false con reason=distanceError
+        if (distanceError) {
+            return { ok: false, reason: distanceError }
+        }
+        // Se la preview è ancora in calcolo, attendi prima di validare
+        if (loadingPreview) {
             return { ok: false, reason: 'Calcolo distanza in corso...' }
         }
-        // Se la distanza non è ancora stata calcolata (0 e non in loading), non è valido
-        if (distanceKm === 0) {
-            return { ok: false, reason: 'Indirizzo non riconosciuto' }
+        // Se previewDistanceKm è null -> validation.ok=false
+        if (previewDistanceKm === null) {
+            return { ok: false, reason: "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma" }
         }
-        // Valida la distanza solo se è stata calcolata
-        return validateDelivery(distanceKm, settings)
-    }, [distanceKm, settings, addr, loadingDistance])
+        // Valida la distanza usando previewDistanceKm (non distanceKm client-side)
+        return validateDelivery(previewDistanceKm, settings)
+    }, [loadingPreview, distanceError, previewDistanceKm, settings, addr])
 
     const methods = allowedPaymentMethods(settings)
     const [pay, setPay] = useState<PaymentMethod>('cash')
@@ -214,13 +382,22 @@ export default function CheckoutForm({ settings }: Props) {
         setMsg(null)
         setSaving(true) // 🔹 feedback immediato
 
+        // Se esiste errorMessage, blocca subito il submit e mostra l'errore
+        if (errorMessage) {
+            setMsg({ type: 'error', text: errorMessage })
+            setSaving(false)
+            return
+        }
+
         if (items.length === 0) {
             setMsg({ type: 'error', text: 'Carrello vuoto' })
             setSaving(false)
             return
         }
         if (!validation.ok) {
-            setMsg({ type: 'error', text: validation.reason ?? 'Indirizzo non valido' })
+            // Usa errorMessage se disponibile, altrimenti validation.reason
+            const errorText = errorMessage || validation.reason || 'Indirizzo non valido'
+            setMsg({ type: 'error', text: errorText })
             setSaving(false)
             return
         }
@@ -230,8 +407,7 @@ export default function CheckoutForm({ settings }: Props) {
             return
         }
 
-        const coords = await geocodeAddress(`${addr.line1}, ${addr.cap} ${addr.city}, Italia`)
-        const dist = computeDistanceFromStore(settings, coords)
+        // Usa previewDistanceKm dal server invece di distanceKm client-side
         console.log('🧪 PAYMENT METHOD AL SUBMIT:', pay)
         console.log('🧪 AVAILABLE METHODS:', methods)
 
@@ -245,7 +421,7 @@ export default function CheckoutForm({ settings }: Props) {
             subtotal,
             delivery_fee: 0, // Ignorato dal backend, calcolato lato server
             total: 0, // Ignorato dal backend, calcolato lato server
-            distance_km: dist,
+            distance_km: previewDistanceKm ?? 0,
             payment_method: pay,
             address: addr,
         }
@@ -309,6 +485,11 @@ export default function CheckoutForm({ settings }: Props) {
                             unit: it.unit ?? undefined,
                             image_url: it.image_url ?? null,
                         })),
+                        address: {
+                            line1: addr.line1,
+                            city: addr.city,
+                            cap: addr.cap,
+                        },
                     }),
                 })
 
@@ -348,7 +529,7 @@ export default function CheckoutForm({ settings }: Props) {
             setMsg({ type: 'error', text: e?.message ?? 'Errore imprevisto' })
             setSaving(false)
         }
-    }, [items, addr, subtotal, pay, settings, validation, clearCart, router, backendTotal])
+    }, [items, addr, subtotal, pay, settings, validation, clearCart, router, backendTotal, errorMessage, previewDistanceKm])
 
     if (!mounted) return <Skeleton />
     if (!hydrated && items.length === 0) return <Skeleton />
@@ -424,6 +605,11 @@ export default function CheckoutForm({ settings }: Props) {
                                 setAddr({ ...addr, cap: val })
                             }}
                         />
+                        {errorMessage && errorMessage.includes("CAP non valido") && (
+                            <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                                {errorMessage}
+                            </p>
+                        )}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">Note per il corriere</label>
@@ -435,6 +621,15 @@ export default function CheckoutForm({ settings }: Props) {
                     </div>
                 </div>
 
+                {/* Mostra errore CAP/indirizzo sempre visibile, anche se delivery è disabilitata */}
+                {errorMessage && !settings.delivery_enabled && (
+                    <div className="mt-4">
+                        <p className="text-sm text-red-600 dark:text-red-400 p-3 bg-red-50 dark:bg-red-900/30 rounded-lg border border-red-200 dark:border-red-800">
+                            {errorMessage}
+                        </p>
+                    </div>
+                )}
+
                 {settings.delivery_enabled && (
                     <div className="mt-4">
                         <h2 className="text-lg font-semibold mb-1 text-gray-900 dark:text-gray-100">📏 Distanza</h2>
@@ -445,11 +640,9 @@ export default function CheckoutForm({ settings }: Props) {
                                     ? `${distanceKm} km`
                                     : "Inserisci indirizzo per calcolare"}
                         </div>
-                        {!validation.ok && (
+                        {errorMessage && (
                             <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                                {validation.reason === "Indirizzo non valido"
-                                    ? "Indirizzo non riconosciuto. Inserisci via, numero civico e CAP a 5 cifre."
-                                    : validation.reason}
+                                {errorMessage}
                             </p>
                         )}
                     </div>
@@ -532,9 +725,9 @@ export default function CheckoutForm({ settings }: Props) {
                     </div>
                 </div>
 
-                {distanceError && (
+                {errorMessage && (
                     <div className="p-3 mb-3 text-sm text-white bg-red-500 dark:bg-red-600 rounded-lg">
-                        {distanceError}
+                        {errorMessage}
                     </div>
                 )}
 
