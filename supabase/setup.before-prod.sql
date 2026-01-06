@@ -149,8 +149,11 @@ ADD COLUMN IF NOT EXISTS stripe_session_id text,
 ADD COLUMN IF NOT EXISTS stock_scaled boolean NOT NULL DEFAULT false,
 ADD COLUMN IF NOT EXISTS public_id text,
 ADD COLUMN IF NOT EXISTS customer_first_name text,
-ADD COLUMN IF NOT EXISTS customer_last_name text,
-ADD COLUMN IF NOT EXISTS address jsonb;
+ADD COLUMN IF NOT EXISTS customer_last_name text;
+
+-- Order Items: price column (already has default in table definition, but ensure it exists)
+ALTER TABLE order_items
+ADD COLUMN IF NOT EXISTS price numeric(10,2) NOT NULL DEFAULT 0;
 
 -- ============================================================
 -- 📊  INDEXES AND CONSTRAINTS
@@ -180,7 +183,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_customer_last_name ON public.orders(custom
 
 -- Orders: backfill public_id from id
 UPDATE public.orders
-SET public_id = left(id::text, 12)
+SET public_id = left(id::text, 8)
 WHERE public_id IS NULL;
 
 -- Orders: backfill customer names from address JSON
@@ -207,7 +210,7 @@ CREATE OR REPLACE FUNCTION public.set_orders_public_id()
 RETURNS TRIGGER AS $$
 BEGIN
     IF NEW.public_id IS NULL THEN
-        NEW.public_id := left(NEW.id::text, 12);
+        NEW.public_id := left(NEW.id::text, 8);
     END IF;
     RETURN NEW;
 END;
