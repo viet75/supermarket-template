@@ -72,6 +72,7 @@ export type OrderItemDB = {
 
 export type Order = OrderPayload & {
     id: string
+    public_id: string
     status: 'pending' | 'confirmed' | 'delivered' | 'cancelled'
     created_at: string
 
