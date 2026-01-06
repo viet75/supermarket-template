@@ -3,19 +3,6 @@ import { supabaseServer } from '@/lib/supabaseServer'
 import { handleOrderPaid } from '@/lib/handleOrderPaid'
 import type { Order } from '@/lib/types'
 
-// ✅ (facoltativo, non usata ma lasciata per compatibilità futura)
-async function getIdsLike(svc: any, search: string): Promise<string> {
-    const { data, error } = await svc
-        .from('orders')
-        .select('id')
-        .filter('id::text', 'ilike', `%${search}%`)
-
-    if (error) {
-        console.error('Errore getIdsLike:', error.message)
-        return ''
-    }
-    return (data ?? []).map((r: { id: string }) => `'${r.id}'`).join(',') || "''"
-}
 
 
 export const runtime = 'nodejs'
@@ -40,6 +27,7 @@ export async function GET(req: NextRequest) {
         // 🔹 Selezione campi condivisa
         const orderSelect = `
           id,
+          public_id,
           created_at,
           status,
           payment_method,
@@ -65,12 +53,33 @@ export async function GET(req: NextRequest) {
         if (status !== 'all') q = q.eq('status', status)
         if (paymentStatus !== 'all') q = q.eq('payment_status', paymentStatus)
 
-        // 🔎 Ricerca combinata nome, cognome o ID
+        // 🔎 Ricerca: public_id o nome/cognome (strategia esclusiva)
         if (search) {
-            const term = `%${search}%`
-            q = q.or(
-                `address->>firstName.ilike.${term},address->>lastName.ilike.${term},address->>city.ilike.${term}`
-            )
+            const trimmedSearch = search.trim()
+            
+            // Pattern public_id: esattamente 8 caratteri esadecimali (UUID abbreviato)
+            const isPublicId = /^[0-9a-f]{8}$/i.test(trimmedSearch)
+            
+            if (isPublicId) {
+                // Ricerca per public_id: ricerca parziale su colonna text
+                q = q.ilike('public_id', `%${trimmedSearch}%`)
+            } else {
+                // Ricerca per nome/cognome: tokenizza per spazi
+                const tokens = trimmedSearch.split(/\s+/).filter(t => t.length > 0)
+                if (tokens.length > 0) {
+                    if (tokens.length === 1) {
+                        // Singolo token: cerca in firstName O lastName
+                        const term = tokens[0]
+                        q = q.or(`customer_first_name.ilike.%${term}%,customer_last_name.ilike.%${term}%`)
+                    } else {
+                        // Multipli token: ogni token deve matchare (AND logico)
+                        // Per ogni token, applica una q.or() separata
+                        for (const token of tokens) {
+                            q = q.or(`customer_first_name.ilike.%${token}%,customer_last_name.ilike.%${token}%`)
+                        }
+                    }
+                }
+            }
         }
 
 

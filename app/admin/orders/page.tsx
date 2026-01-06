@@ -88,7 +88,7 @@ function OrderDrawer({ order, onClose }: OrderDrawerProps) {
             <div className="w-full max-w-md bg-white shadow-xl h-full flex flex-col">
                 <div className="p-4 border-b flex justify-between items-center">
                     <h2 className="text-lg font-semibold">
-                        Ordine {order.id.slice(0, 6)}
+                        Ordine {order.public_id || order.id.slice(0, 8)}
                     </h2>
                     <button
                         onClick={onClose}
@@ -485,7 +485,8 @@ export default function OrdersAdminPage() {
                     <input
                         type="text"
                         autoFocus={typeof window !== 'undefined' && window.innerWidth > 768}
-                        placeholder="Cerca per nome cliente..."
+                        placeholder="Cerca per ID ordine o nome cliente…"
+
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
@@ -531,7 +532,7 @@ export default function OrdersAdminPage() {
 
                                     >
                                         {/* ID */}
-                                        <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 align-top">{o.id.slice(0, 6)}</td>
+                                        <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 align-top">{o.public_id || o.id.slice(0, 8)}</td>
 
 
                                         {/* Data */}
@@ -707,7 +708,7 @@ export default function OrdersAdminPage() {
                             {/* HEADER */}
                             <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 flex items-center justify-between">
                                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    Ordine #{o.id.slice(0, 6)}
+                                    Ordine #{o.public_id || o.id.slice(0, 8)}
                                 </p>
                                 <div className="shrink-0">
                                     <StatusBadge status={o.status} />
@@ -816,7 +817,7 @@ export default function OrdersAdminPage() {
 
                                 <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
 
-                                    Prodotti dell’ordine #{selectedOrder.id.slice(0, 6)}
+                                    Prodotti dell'ordine #{selectedOrder.public_id || selectedOrder.id.slice(0, 8)}
                                 </h2>
                                 <button
                                     onClick={() => setSelectedOrder(null)}
