@@ -1,3 +1,5 @@
+const path = require('path')
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     images: {
@@ -27,6 +29,14 @@ const nextConfig = {
                 pathname: '/**',
             },
         ],
+    },
+    webpack: (config) => {
+        // Configurazione esplicita degli alias per garantire risoluzione corretta in build
+        config.resolve.alias = {
+            ...config.resolve.alias,
+            '@': path.resolve(__dirname),
+        }
+        return config
     },
 }
 
