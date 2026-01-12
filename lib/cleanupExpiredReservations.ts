@@ -1,3 +1,5 @@
+// vercel: include helper in build
+
 import { supabaseService } from '@/lib/supabaseService'
 import { releaseOrderStock } from '@/lib/releaseOrderStock'
 
