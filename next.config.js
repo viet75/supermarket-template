@@ -1,3 +1,5 @@
+// vercel-build-fix
+
 const path = require("path");
 
 /** @type {import('next').NextConfig} */
