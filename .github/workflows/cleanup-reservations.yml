@@ -1,0 +1,26 @@
+name: Cleanup expired stock reservations
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # every 15 minutes (UTC)
+  workflow_dispatch: {}
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Call cleanup endpoint
+        env:
+          CLEANUP_URL: ${{ secrets.CLEANUP_URL }}
+        run: |
+          if [ -z "$CLEANUP_URL" ]; then
+            echo "Missing CLEANUP_URL secret"
+            exit 1
+          fi
+
+          curl -sS -X POST "$CLEANUP_URL" \
+            -H "Content-Type: application/json" \
+            --max-time 30 \
+            --fail
