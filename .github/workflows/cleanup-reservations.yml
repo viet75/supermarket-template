@@ -24,11 +24,15 @@ jobs:
             exit 1
           fi
 
-          CLEANUP_URL="${CLEANUP_BASE_URL%/}/api/orders/cleanup?secret=${CRON_SECRET}"
+          # Sanitize secrets (remove CR/LF and trim)
+          CLEANUP_BASE_URL_CLEAN="$(printf '%s' "$CLEANUP_BASE_URL" | tr -d '\r\n' | xargs)"
+          CRON_SECRET_CLEAN="$(printf '%s' "$CRON_SECRET" | tr -d '\r\n' | xargs)"
 
-          # Safe debug (no secret printed)
-          echo "base_url length: ${#CLEANUP_BASE_URL}"
-          echo "cron_secret length: ${#CRON_SECRET}"
+          CLEANUP_URL="${CLEANUP_BASE_URL_CLEAN%/}/api/orders/cleanup?secret=${CRON_SECRET_CLEAN}"
+
+          # Debug safe (no secrets printed)
+          echo "base_url length: ${#CLEANUP_BASE_URL_CLEAN}"
+          echo "cron_secret length: ${#CRON_SECRET_CLEAN}"
           echo "cleanup_url length: ${#CLEANUP_URL}"
 
           curl -sS -X POST "$CLEANUP_URL" \
