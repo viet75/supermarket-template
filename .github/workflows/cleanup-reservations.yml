@@ -1,8 +1,7 @@
 name: Cleanup expired stock reservations
 
 on:
- 
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   cleanup:
@@ -12,12 +11,25 @@ jobs:
     steps:
       - name: Call cleanup endpoint
         env:
-          CLEANUP_URL: ${{ secrets.CLEANUP_URL }}
+          CLEANUP_BASE_URL: ${{ secrets.CLEANUP_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          if [ -z "$CLEANUP_URL" ]; then
-            echo "Missing CLEANUP_URL secret"
+          if [ -z "$CLEANUP_BASE_URL" ]; then
+            echo "Missing CLEANUP_BASE_URL secret"
             exit 1
           fi
+
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Missing CRON_SECRET secret"
+            exit 1
+          fi
+
+          CLEANUP_URL="${CLEANUP_BASE_URL%/}/api/orders/cleanup?secret=${CRON_SECRET}"
+
+          # Safe debug (no secret printed)
+          echo "base_url length: ${#CLEANUP_BASE_URL}"
+          echo "cron_secret length: ${#CRON_SECRET}"
+          echo "cleanup_url length: ${#CLEANUP_URL}"
 
           curl -sS -X POST "$CLEANUP_URL" \
             -H "Content-Type: application/json" \
