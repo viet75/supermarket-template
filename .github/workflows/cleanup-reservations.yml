@@ -1,7 +1,10 @@
 name: Cleanup expired stock reservations
 
 on:
+  schedule:
+    - cron: "*/15 * * * *"
   workflow_dispatch:
+
 
 jobs:
   cleanup:
