@@ -8,6 +8,6 @@ if (!url || !key) {
     throw new Error('Missing Supabase service role env vars');
 }
 
-export const supabaseService = createClient(url, key, {
+export const supabaseServiceRole = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
 });

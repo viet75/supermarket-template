@@ -1,7 +1,7 @@
 // app/api/checkout/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getStripe } from '@/lib/stripe'
-import { supabaseService } from '@/lib/supabaseService'
+import { supabaseServiceRole } from '@/lib/supabaseService'
 
 export const runtime = 'nodejs'
 
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Recupera l'ordine dal database per ottenere delivery_fee e address
-        const { data: order, error: orderError } = await supabaseService
+        const { data: order, error: orderError } = await supabaseServiceRole
             .from('orders')
             .select('delivery_fee, total, address')
             .eq('id', orderId)
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
                     ...(zip ? { cap: zip } : {}),
                 }
 
-                await supabaseService
+                await supabaseServiceRole
                     .from('orders')
                     .update({
                         address: mergedAddress,
@@ -224,7 +224,7 @@ export async function POST(req: NextRequest) {
             // aggiorna lo stato in background (non blocca il redirect)
             ; (async () => {
                 try {
-                    await supabaseService
+                    await supabaseServiceRole
                         .from('orders')
                         .update({
                             stripe_session_id: session.id,

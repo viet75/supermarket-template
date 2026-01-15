@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabaseService } from '@/lib/supabaseService'
+import { supabaseServiceRole } from '@/lib/supabaseService'
 
 export const runtime = 'nodejs'
 
@@ -18,7 +18,7 @@ export async function POST(req: Request) {
 
         const buffer = Buffer.from(await file.arrayBuffer())
 
-        const { error } = await supabaseService.storage
+        const { error } = await supabaseServiceRole.storage
             .from('products')
             .upload(filePath, buffer, {
                 cacheControl: '3600',
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
         }
 
         // ✅ Ottieni l'URL pubblico Supabase
-        const { data: urlData } = supabaseService.storage
+        const { data: urlData } = supabaseServiceRole.storage
             .from('products')
             .getPublicUrl(filePath)
 

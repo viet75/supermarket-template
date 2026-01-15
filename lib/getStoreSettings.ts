@@ -1,10 +1,10 @@
 // lib/getStoreSettings.ts
 import 'server-only'
-import { supabaseService } from './supabaseService'  // ✅ usa questo file corretto
+import { supabaseServiceRole } from './supabaseService'
 import type { StoreSettings } from '@/lib/types'
 
 export async function getStoreSettings(): Promise<StoreSettings | null> {
-    const { data, error } = await supabaseService
+    const { data, error } = await supabaseServiceRole
         .from('store_settings')
         .select('*')
         .limit(1)

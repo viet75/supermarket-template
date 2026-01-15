@@ -463,64 +463,14 @@ export default function CheckoutForm({ settings }: Props) {
             // ✅ Allineato alla struttura reale della response: usa order_id invece di id
             const orderId = data?.order_id ?? data?.id ?? ''
 
-            if (pay === 'card_online') {
-                // ✅ Verifica che orderId non sia vuoto prima di chiamare /api/checkout
-                if (!orderId) {
-                    setMsg({ type: 'error', text: 'Errore: orderId mancante nella response' })
-                    setSaving(false)
-                    return
-                }
-
-                const res2 = await fetch('/api/checkout', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        orderId,
-                        total: backendTotal ?? data?.total ?? 0,
-                        items: payload.items.map((it: any) => ({
-                            id: it.id,
-                            name: it.name,
-                            price: it.price,
-                            quantity: it.qty ?? it.quantity ?? 1,
-                            unit: it.unit ?? undefined,
-                            image_url: it.image_url ?? null,
-                        })),
-                        address: {
-                            line1: addr.line1,
-                            city: addr.city,
-                            cap: addr.cap,
-                        },
-                    }),
-                })
-
-                if (!res2.ok) {
-                    const text = await res2.text()
-                    console.error('❌ API error /api/checkout:', text)
-                    let checkoutData: any = null
-                    try { checkoutData = JSON.parse(text) } catch { }
-                    setMsg({
-                        type: 'error',
-                        text: checkoutData?.error ?? `Errore API (${res2.status})`,
-                    })
-                    setSaving(false)
-                    return
-                }
-
-                const checkout = await res2.json()
-                if (checkout.url) {
-                    clearCart()
-                    window.location.href = checkout.url
-                    return
-                } else {
-                    setMsg({
-                        type: 'error',
-                        text: checkout.error ?? 'Errore creazione checkout online',
-                    })
-                    setSaving(false)
-                    return
-                }
+            // Se la response contiene checkoutUrl (per card_online), redirect a Stripe
+            if (data?.checkoutUrl) {
+                clearCart()
+                window.location.href = data.checkoutUrl
+                return
             }
 
+            // Per altri metodi di pagamento, redirect a success
             setMsg({ type: 'success', text: 'Ordine creato con successo!' })
             clearCart()
             router.push(`/order/success?id=${encodeURIComponent(orderId)}`)

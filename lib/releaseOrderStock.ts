@@ -1,4 +1,4 @@
-import { supabaseService } from '@/lib/supabaseService'
+import { supabaseServiceRole } from '@/lib/supabaseService'
 
 /**
  * Rilascia stock riservato per un ordine (incrementa products.stock).
@@ -12,7 +12,7 @@ export async function releaseOrderStock(
         return { ok: false, error: 'orderId mancante' }
     }
 
-    const svc = supabaseService
+    const svc = supabaseServiceRole
 
     // Verifica se già rilasciato (idempotenza)
     const { data: order, error: orderError } = await svc

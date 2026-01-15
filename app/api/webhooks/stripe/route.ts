@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getStripe } from '@/lib/stripe'
 import { createClient } from '@supabase/supabase-js'
-import { handleOrderPaid } from '../../../../lib/handleOrderPaid'
+import { releaseOrderStock } from '@/lib/releaseOrderStock'
 
 
 export const runtime = 'nodejs'
@@ -43,7 +43,40 @@ export async function POST(req: Request) {
         return NextResponse.json({ received: true }, { status: 200 })
       }
 
-      // ✅ Proteggi l'update Supabase: se errore, logga e ritorna 200
+      // ✅ IDEMPOTENZA: Verifica stato ordine prima di aggiornare
+      const { data: existingOrder, error: fetchError } = await supabase
+        .from('orders')
+        .select('payment_status, stock_reserved')
+        .eq('id', orderId)
+        .single()
+
+      if (fetchError || !existingOrder) {
+        console.error('❌ Errore lettura ordine nel webhook:', fetchError)
+        return NextResponse.json({ received: true }, { status: 200 })
+      }
+
+      // ✅ Se già pagato, ritorna 200 senza side-effects (idempotenza)
+      if (existingOrder.payment_status === 'paid') {
+        console.log(`✅ Ordine ${orderId} già pagato, webhook idempotente`)
+        return NextResponse.json({ received: true }, { status: 200 })
+      }
+
+      // ✅ Guard-rail: Se stock_reserved=false (caso anomalo), fallback con riserva
+      // Questo protegge da race conditions o errori nella creazione ordine
+      if (existingOrder.stock_reserved === false) {
+        console.warn(`⚠️ Ordine ${orderId} non ha stock riservato, tentativo fallback riserva`)
+        try {
+          const { reserveOrderStock } = await import('@/lib/reserveOrderStock')
+          await reserveOrderStock(orderId)
+          console.log(`✅ Fallback riserva stock riuscito per ordine ${orderId}`)
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto'
+          console.error(`❌ Fallback riserva stock fallito per ordine ${orderId}:`, errorMessage)
+          // Continua comunque con l'aggiornamento payment_status (non bloccare)
+        }
+      }
+
+      // ✅ Aggiorna solo payment_status e status (NON toccare stock)
       const { error } = await supabase
         .from('orders')
         .update({
@@ -53,7 +86,7 @@ export async function POST(req: Request) {
           stripe_session_id: session.id,
         })
         .eq('id', orderId)
-
+        .eq('payment_status', 'pending') // Guard aggiuntiva: aggiorna solo se ancora pending
 
       if (error) {
         console.error('❌ Errore aggiornamento ordine in Supabase:', {
@@ -65,15 +98,43 @@ export async function POST(req: Request) {
         return NextResponse.json({ received: true }, { status: 200 })
       }
 
-      // Gestisce lo scalaggio stock SUBITO DOPO l'update del database
-      const handleResult = await handleOrderPaid(orderId)
-      if (handleResult && !handleResult.ok) {
-        console.error('❌ Scalaggio stock fallito dopo checkout.completed:', {
-          orderId,
-          error: handleResult.error,
-        })
-      } else if (handleResult && handleResult.ok) {
-        console.log('✅ Stock gestito con successo per ordine:', orderId)
+      // NOTA: Non toccare stock qui - lo stock è già riservato alla creazione ordine
+      // Non rilasciare riserva - rimane riservato fino alla conferma/consegna
+    }
+
+    // Gestione checkout.session.expired, checkout.session.async_payment_failed, checkout.session.async_payment_succeeded
+    if (
+      event.type === 'checkout.session.expired' ||
+      event.type === 'checkout.session.async_payment_failed'
+    ) {
+      const session = event.data.object as any
+      const orderId = session.metadata?.orderId
+
+      if (!orderId) {
+        console.error('⚠️ orderId mancante nella metadata Stripe session:', session.id)
+        return NextResponse.json({ received: true }, { status: 200 })
+      }
+
+      // Verifica che l'ordine non sia già pagato e che lo stock sia riservato
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .select('payment_status, stock_reserved')
+        .eq('id', orderId)
+        .single()
+
+      if (orderError || !order) {
+        console.error('❌ Errore lettura ordine:', orderError)
+        return NextResponse.json({ received: true }, { status: 200 })
+      }
+
+      // Rilascia stock solo se non pagato e stock riservato
+      if (order.payment_status !== 'paid' && order.stock_reserved === true) {
+        const releaseResult = await releaseOrderStock(orderId)
+        if (releaseResult.ok) {
+          console.log('✅ Stock rilasciato per ordine scaduto/fallito:', orderId)
+        } else {
+          console.error('❌ Errore rilascio stock:', releaseResult.error)
+        }
       }
     }
 

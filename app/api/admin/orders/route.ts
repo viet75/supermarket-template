@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabaseServer'
 import { handleOrderPaid } from '@/lib/handleOrderPaid'
+import { releaseOrderStock } from '@/lib/releaseOrderStock'
 import type { Order } from '@/lib/types'
 
 
@@ -198,7 +199,7 @@ export async function PATCH(req: NextRequest) {
         // Recupera l'ordine completo all'inizio
         const { data: existingOrder, error: fetchExistingError } = await svc
             .from('orders')
-            .select('status, payment_status')
+            .select('status, payment_status, stock_reserved')
             .eq('id', id)
             .single()
 
@@ -265,11 +266,19 @@ export async function PATCH(req: NextRequest) {
 
         if (error) throw error
 
-        // Gestisce lo scalaggio stock SOLO DOPO l'update del database che imposta payment_status = 'paid'
+        // Gestisce il ripristino stock quando l'ordine viene annullato
+        if (status === 'cancelled') {
+            const result = await releaseOrderStock(id)
+            if (result.ok === false) {
+                return NextResponse.json({ error: result.error }, { status: 400 })
+            }
+        }
+
+        // Gestisce post-pagamento (stock già riservato alla creazione ordine, non qui)
         if (payment_status === 'paid' && existingOrder.payment_status !== 'paid') {
             const handleResult = await handleOrderPaid(id)
             if (handleResult && !handleResult.ok) {
-                return NextResponse.json({ error: handleResult.error || 'Errore scalaggio stock' }, { status: 400 })
+                return NextResponse.json({ error: handleResult.error || 'Errore gestione ordine pagato' }, { status: 400 })
             }
         }
 

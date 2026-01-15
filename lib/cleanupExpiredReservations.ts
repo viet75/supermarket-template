@@ -1,6 +1,6 @@
 // vercel: include helper in build
 
-import { supabaseService } from '@/lib/supabaseService'
+import { supabaseServiceRole } from '@/lib/supabaseService'
 import { releaseOrderStock } from '@/lib/releaseOrderStock'
 
 /**
@@ -10,7 +10,7 @@ import { releaseOrderStock } from '@/lib/releaseOrderStock'
  * @returns Numero di ordini per cui lo stock è stato rilasciato
  */
 export async function cleanupExpiredReservations(): Promise<number> {
-    const svc = supabaseService
+    const svc = supabaseServiceRole
 
     // Filtri durissimi: solo ordini card_online pending con stock_reserved=true e scaduti
     const { data: expiredOrders, error: queryError } = await svc

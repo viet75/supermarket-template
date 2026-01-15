@@ -1,7 +1,5 @@
 // app/order/success/page.tsx
 import Link from 'next/link'
-import { createClient } from '@supabase/supabase-js'
-import { scaleStockForOrder } from '@/lib/scaleStockForOrder'
 import { getStripe } from '@/lib/stripe'
 
 export const dynamic = 'force-dynamic'
@@ -14,39 +12,21 @@ export default async function OrderSuccessPage({
     const params = await searchParams
     const { id, session_id } = params
 
-    // Fallback: verifica e scala lo stock se necessario
-    // Questo assicura che lo stock venga scalato anche se il webhook non funziona
+    // Recupera orderId da parametri o da Stripe session (solo per visualizzazione)
     let orderId = id
     if (!orderId && session_id) {
         try {
             const stripe = getStripe()
             const session = await stripe.checkout.sessions.retrieve(session_id)
             orderId = session.metadata?.order_id || session.metadata?.orderId || undefined
-
-            // Se abbiamo l'orderId, verifica se lo stock deve essere scalato
-            if (orderId) {
-                const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-                const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-                if (supabaseUrl && supabaseServiceKey) {
-                    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-                    const { data: order } = await supabase
-                        .from('orders')
-                        .select('id, payment_status, stock_scaled')
-                        .eq('id', orderId)
-                        .single()
-
-                    // Se l'ordine è paid ma lo stock non è scalato, scalalo
-                    if (order && order.payment_status === 'paid' && !order.stock_scaled) {
-                        await scaleStockForOrder(orderId)
-                    }
-                }
-            }
         } catch (err) {
             // Ignora errori - non bloccare la visualizzazione della pagina
-            console.error('Errore verifica/scalaggio stock:', err)
+            console.error('Errore recupero session Stripe:', err)
         }
     }
+
+    // NOTA: Lo stock è già riservato alla creazione ordine (reserveOrderStock).
+    // Non serve più scalare stock qui - il webhook Stripe gestisce payment_status.
 
     return (
         <main className="max-w-2xl mx-auto p-8 flex flex-col items-center justify-center text-center">

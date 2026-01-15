@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseService } from '@/lib/supabaseServiceRole';
+import { supabaseServiceRole } from '@/lib/supabaseService';
 import type { StoreSettings, PaymentMethod } from '@/lib/types';
 
 // (Opzionale) semplice chiave header per abilitare PUT solo da server actions o strumenti interni
@@ -9,7 +9,7 @@ function isAuthorized(req: Request) {
 }
 
 export async function GET() {
-    const { data, error } = await supabaseService
+    const { data, error } = await supabaseServiceRole
         .from('store_settings')
         .select('*')
         .limit(1)
@@ -49,7 +49,7 @@ export async function PUT(req: Request) {
     patch.updated_at = new Date().toISOString() as unknown as any;
 
     // Upsert della riga singleton (vincolo gestito dall'indice ux_store_settings_singleton)
-    const { data, error } = await supabaseService
+    const { data, error } = await supabaseServiceRole
         .from('store_settings')
         .upsert(patch, { onConflict: 'ux_store_settings_singleton' })
         .select('*')

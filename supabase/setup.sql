@@ -3,32 +3,35 @@
 -- One-shot idempotent database setup script
 -- ============================================================
 
+-- Estensioni utili (gen_random_uuid)
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- ============================================================
 -- 📦  BASE TABLES
 -- ============================================================
 
 -- Categorie prodotti
-CREATE TABLE IF NOT EXISTS categories (
+CREATE TABLE IF NOT EXISTS public.categories (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name text NOT NULL,
-    deleted_at timestamp with time zone
+    deleted_at timestamptz
 );
 
 -- Prodotti
-CREATE TABLE IF NOT EXISTS products (
+CREATE TABLE IF NOT EXISTS public.products (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name text NOT NULL,
     price numeric(10,2) NOT NULL,
-    category_id uuid REFERENCES categories(id) ON DELETE CASCADE,
+    category_id uuid REFERENCES public.categories(id) ON DELETE CASCADE,
     image text,
-    created_at timestamp DEFAULT now(),
-    deleted_at timestamp with time zone
+    created_at timestamptz DEFAULT now(),
+    deleted_at timestamptz
 );
 
 -- Ordini
-CREATE TABLE IF NOT EXISTS orders (
+CREATE TABLE IF NOT EXISTS public.orders (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at timestamp DEFAULT now(),
+    created_at timestamptz DEFAULT now(),
     total numeric(10,2),
     status text DEFAULT 'pending',
     payment_method text,
@@ -36,17 +39,17 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 
 -- Order Items
-CREATE TABLE IF NOT EXISTS order_items (
+CREATE TABLE IF NOT EXISTS public.order_items (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_id uuid REFERENCES orders(id) ON DELETE CASCADE,
-    product_id uuid REFERENCES products(id) ON DELETE CASCADE,
+    order_id uuid REFERENCES public.orders(id) ON DELETE CASCADE,
+    product_id uuid REFERENCES public.products(id) ON DELETE CASCADE,
     quantity numeric(10,2) NOT NULL,
     price numeric(10,2) NOT NULL DEFAULT 0,
-    created_at timestamp DEFAULT now()
+    created_at timestamptz DEFAULT now()
 );
 
 -- Impostazioni negozio
-CREATE TABLE IF NOT EXISTS store_settings (
+CREATE TABLE IF NOT EXISTS public.store_settings (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     store_name text DEFAULT 'Supermarket Template',
     delivery_enabled boolean DEFAULT true,
@@ -59,10 +62,10 @@ CREATE TABLE IF NOT EXISTS store_settings (
 );
 
 -- Profili utenti (collegati a Supabase Auth)
-CREATE TABLE IF NOT EXISTS profiles (
+CREATE TABLE IF NOT EXISTS public.profiles (
     id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     role text DEFAULT 'customer',
-    created_at timestamp with time zone DEFAULT now()
+    created_at timestamptz DEFAULT now()
 );
 
 -- ============================================================
@@ -74,95 +77,120 @@ DO $$
 BEGIN
     -- description
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'products' AND column_name = 'description'
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='products' AND column_name='description'
     ) THEN
-        ALTER TABLE products ADD COLUMN description TEXT;
+        ALTER TABLE public.products ADD COLUMN description text;
     END IF;
 
     -- price_sale
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'products' AND column_name = 'price_sale'
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='products' AND column_name='price_sale'
     ) THEN
-        ALTER TABLE products ADD COLUMN price_sale NUMERIC(10,2);
+        ALTER TABLE public.products ADD COLUMN price_sale numeric(10,2);
     END IF;
 
     -- image_url
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'products' AND column_name = 'image_url'
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='products' AND column_name='image_url'
     ) THEN
-        ALTER TABLE products ADD COLUMN image_url TEXT;
+        ALTER TABLE public.products ADD COLUMN image_url text;
     END IF;
 
     -- images
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'products' AND column_name = 'images'
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='products' AND column_name='images'
     ) THEN
-        ALTER TABLE products ADD COLUMN images JSONB;
+        ALTER TABLE public.products ADD COLUMN images jsonb;
     END IF;
 
-    -- stock
+    -- stock (IMPORTANTE: NOT NULL + DEFAULT 0 per evitare falsi "insufficient_stock")
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'products' AND column_name = 'stock'
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='products' AND column_name='stock'
     ) THEN
-        ALTER TABLE products ADD COLUMN stock NUMERIC(10,2);
+        ALTER TABLE public.products ADD COLUMN stock numeric(10,2);
     END IF;
 
     -- is_active
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'products' AND column_name = 'is_active'
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='products' AND column_name='is_active'
     ) THEN
-        ALTER TABLE products ADD COLUMN is_active BOOLEAN DEFAULT true;
-        UPDATE products SET is_active = true WHERE is_active IS NULL;
+        ALTER TABLE public.products ADD COLUMN is_active boolean DEFAULT true;
     END IF;
 
     -- sort_order
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'products' AND column_name = 'sort_order'
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='products' AND column_name='sort_order'
     ) THEN
-        ALTER TABLE products ADD COLUMN sort_order INTEGER DEFAULT 100;
-        UPDATE products SET sort_order = 100 WHERE sort_order IS NULL;
+        ALTER TABLE public.products ADD COLUMN sort_order integer DEFAULT 100;
     END IF;
 
     -- unit_type
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'products' AND column_name = 'unit_type'
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='products' AND column_name='unit_type'
     ) THEN
-        ALTER TABLE products ADD COLUMN unit_type TEXT 
-        DEFAULT 'per_unit' 
-        CHECK (unit_type IN ('per_unit', 'per_kg') OR unit_type IS NULL);
-        UPDATE products SET unit_type = 'per_unit' WHERE unit_type IS NULL;
+        ALTER TABLE public.products
+            ADD COLUMN unit_type text
+            DEFAULT 'per_unit'
+            CHECK (unit_type IN ('per_unit', 'per_kg') OR unit_type IS NULL);
+    END IF;
+END $$;
+
+-- Backfill prodotti: valori null -> default coerenti
+UPDATE public.products SET is_active = true WHERE is_active IS NULL;
+UPDATE public.products SET sort_order = 100 WHERE sort_order IS NULL;
+UPDATE public.products SET unit_type = 'per_unit' WHERE unit_type IS NULL;
+
+-- Stock: rendilo robusto (null -> 0, poi NOT NULL DEFAULT 0)
+UPDATE public.products SET stock = 0 WHERE stock IS NULL;
+
+ALTER TABLE public.products
+    ALTER COLUMN stock SET DEFAULT 0;
+
+DO $$
+BEGIN
+    -- set NOT NULL solo se non lo è già
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='products' AND column_name='stock' AND is_nullable='YES'
+    ) THEN
+        ALTER TABLE public.products ALTER COLUMN stock SET NOT NULL;
     END IF;
 END $$;
 
 -- Orders: additional columns
-ALTER TABLE orders
+ALTER TABLE public.orders
 ADD COLUMN IF NOT EXISTS stripe_payment_intent_id text,
 ADD COLUMN IF NOT EXISTS stripe_session_id text,
 ADD COLUMN IF NOT EXISTS stock_scaled boolean NOT NULL DEFAULT false,
 ADD COLUMN IF NOT EXISTS public_id text,
 ADD COLUMN IF NOT EXISTS customer_first_name text,
 ADD COLUMN IF NOT EXISTS customer_last_name text,
-ADD COLUMN IF NOT EXISTS address jsonb;
+ADD COLUMN IF NOT EXISTS address jsonb,
+ADD COLUMN IF NOT EXISTS reserve_expires_at timestamptz;
+
+-- Stock reservation flag
+ALTER TABLE public.orders
+ADD COLUMN IF NOT EXISTS stock_reserved boolean NOT NULL DEFAULT false;
 
 -- ============================================================
 -- 📊  INDEXES AND CONSTRAINTS
 -- ============================================================
 
--- Orders: public_id index and unique constraint
 CREATE INDEX IF NOT EXISTS idx_orders_public_id ON public.orders(public_id);
 
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
+        SELECT 1 FROM pg_constraint
         WHERE conname = 'orders_public_id_unique'
     ) THEN
         ALTER TABLE public.orders
@@ -170,39 +198,31 @@ BEGIN
     END IF;
 END $$;
 
--- Orders: customer name indexes
 CREATE INDEX IF NOT EXISTS idx_orders_customer_first_name ON public.orders(customer_first_name);
 CREATE INDEX IF NOT EXISTS idx_orders_customer_last_name ON public.orders(customer_last_name);
+
+CREATE INDEX IF NOT EXISTS idx_orders_reserve_expires_at
+ON public.orders(reserve_expires_at)
+WHERE reserve_expires_at IS NOT NULL;
 
 -- ============================================================
 -- 🔄  BACKFILL DATA
 -- ============================================================
 
--- Orders: backfill public_id from id
 UPDATE public.orders
 SET public_id = left(id::text, 12)
 WHERE public_id IS NULL;
 
--- Orders: backfill customer names from address JSON
 UPDATE public.orders
-SET 
-    customer_first_name = COALESCE(
-        address->>'firstName',
-        address->>'first_name',
-        ''
-    ),
-    customer_last_name = COALESCE(
-        address->>'lastName',
-        address->>'last_name',
-        ''
-    )
+SET
+    customer_first_name = COALESCE(address->>'firstName', address->>'first_name', ''),
+    customer_last_name  = COALESCE(address->>'lastName',  address->>'last_name',  '')
 WHERE customer_first_name IS NULL OR customer_last_name IS NULL;
 
 -- ============================================================
 -- ⚙️  FUNCTIONS AND TRIGGERS
 -- ============================================================
 
--- Function: auto-generate public_id on INSERT
 CREATE OR REPLACE FUNCTION public.set_orders_public_id()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -213,36 +233,31 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Trigger: set public_id on INSERT
 DROP TRIGGER IF EXISTS trigger_set_orders_public_id ON public.orders;
 CREATE TRIGGER trigger_set_orders_public_id
     BEFORE INSERT ON public.orders
     FOR EACH ROW
     EXECUTE FUNCTION public.set_orders_public_id();
 
--- Function: sync customer names from address JSON
 CREATE OR REPLACE FUNCTION public.sync_customer_names_from_address()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Extract first_name from address JSON (support both camelCase and snake_case)
     NEW.customer_first_name := COALESCE(
         NEW.address->>'firstName',
         NEW.address->>'first_name',
         ''
     );
-    
-    -- Extract last_name from address JSON (support both camelCase and snake_case)
+
     NEW.customer_last_name := COALESCE(
         NEW.address->>'lastName',
         NEW.address->>'last_name',
         ''
     );
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- Trigger: sync customer names on INSERT/UPDATE of address
 DROP TRIGGER IF EXISTS trigger_sync_customer_names ON public.orders;
 CREATE TRIGGER trigger_sync_customer_names
     BEFORE INSERT OR UPDATE OF address ON public.orders
@@ -253,21 +268,143 @@ CREATE TRIGGER trigger_sync_customer_names
 -- 📦  STORAGE BUCKETS
 -- ============================================================
 
--- Create products bucket for image uploads
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
     'products',
     'products',
-    true,  -- bucket pubblico (le immagini devono essere accessibili pubblicamente)
-    5242880,  -- limite 5MB (5 * 1024 * 1024)
-    ARRAY['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']  -- solo immagini
+    true,
+    5242880,
+    ARRAY['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
 )
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
--- ✅  SETUP COMPLETE
+-- 📦 STOCK RESERVATION RPC (ATOMIC, DIAGNOSTIC)
 -- ============================================================
--- This script is idempotent and can be run multiple times safely.
--- All tables, columns, indexes, constraints, triggers, and storage
--- buckets are created with IF NOT EXISTS or equivalent checks.
+
+CREATE OR REPLACE FUNCTION public.rpc_decrement_stock(
+  p_product_id uuid,
+  p_qty numeric
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_stock numeric;
+BEGIN
+  IF p_qty IS NULL OR p_qty <= 0 THEN
+    RAISE EXCEPTION 'INVALID_QTY';
+  END IF;
+
+  SELECT stock INTO v_stock
+  FROM public.products
+  WHERE id = p_product_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'PRODUCT_NOT_FOUND';
+  END IF;
+
+  IF v_stock < p_qty THEN
+    RAISE EXCEPTION 'INSUFFICIENT_STOCK';
+  END IF;
+
+  UPDATE public.products
+  SET stock = stock - p_qty
+  WHERE id = p_product_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.rpc_decrement_stock_v2(
+  p_product_id uuid,
+  p_qty numeric
+)
+RETURNS numeric
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  new_stock numeric;
+BEGIN
+  IF p_qty IS NULL OR p_qty <= 0 THEN
+    RAISE EXCEPTION 'INVALID_QTY';
+  END IF;
+
+  UPDATE public.products
+  SET stock = stock - p_qty
+  WHERE id = p_product_id
+    AND stock >= p_qty
+  RETURNING stock INTO new_stock;
+
+  RETURN new_stock;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.rpc_decrement_stock_debug(
+  p_product_id uuid,
+  p_qty numeric
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  old_stock numeric;
+  new_stock numeric;
+  updated boolean;
+BEGIN
+  IF p_qty IS NULL OR p_qty <= 0 THEN
+    RAISE EXCEPTION 'INVALID_QTY';
+  END IF;
+
+  SELECT stock INTO old_stock
+  FROM public.products
+  WHERE id = p_product_id;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'old_stock', NULL,
+      'new_stock', NULL,
+      'updated', false
+    );
+  END IF;
+
+  UPDATE public.products
+  SET stock = stock - p_qty
+  WHERE id = p_product_id
+    AND stock >= p_qty
+  RETURNING stock INTO new_stock;
+
+  updated := (new_stock IS NOT NULL);
+
+  RETURN jsonb_build_object(
+    'old_stock', old_stock,
+    'new_stock', new_stock,
+    'updated', updated
+  );
+END;
+$$;
+
+NOTIFY pgrst, 'reload schema';
+
+CREATE OR REPLACE FUNCTION public.rpc_increment_stock(
+  p_product_id uuid,
+  p_qty numeric
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF p_qty IS NULL OR p_qty <= 0 THEN
+    RAISE EXCEPTION 'INVALID_QTY';
+  END IF;
+
+  UPDATE public.products
+  SET stock = stock + p_qty
+  WHERE id = p_product_id;
+END;
+$$;
+
+-- Reload PostgREST schema cache (evita "schema cache" dopo setup)
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================
+-- ✅  SETUP COMPLETE
 -- ============================================================

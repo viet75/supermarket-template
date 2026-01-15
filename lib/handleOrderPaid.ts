@@ -1,20 +1,19 @@
-import { supabaseService } from '@/lib/supabaseService'
-import { scaleStockForOrder } from '@/lib/scaleStockForOrder'
+import { supabaseServiceRole } from '@/lib/supabaseService'
 
 /**
- * Gestisce lo scalaggio stock per un ordine pagato.
+ * Gestisce le operazioni post-pagamento per un ordine pagato.
+ * NOTA: Lo stock viene ora riservato alla creazione ordine (reserveOrderStock),
+ * non più al pagamento. Questa funzione mantiene solo le altre logiche post-paid.
  * - Legge l'ordine dal database
  * - Esce se payment_status !== 'paid'
- * - Esce se stock_scaled === true
- * - Chiama scaleStockForOrder(orderId)
+ * - Mantiene flag stock_scaled per compatibilità (se necessario)
  */
 export async function handleOrderPaid(orderId: string): Promise<{ ok: boolean; error?: string }> {
     if (!orderId) {
         return { ok: false, error: 'orderId mancante' }
     }
 
-    const svc = supabaseService
-
+    const svc = supabaseServiceRole
 
     // Legge l'ordine dal database
     const { data: order, error: orderError } = await svc
@@ -29,19 +28,24 @@ export async function handleOrderPaid(orderId: string): Promise<{ ok: boolean; e
 
     // Esce se payment_status !== 'paid'
     if (order.payment_status !== 'paid') {
-        return { ok: true } // Non è un errore, semplicemente non serve scalare
+        return { ok: true } // Non è un errore, semplicemente non serve processare
     }
 
-    // Esce se stock_scaled === true
+    // Esce se stock_scaled === true (idempotenza per altre logiche post-paid)
     if (order.stock_scaled === true) {
-        return { ok: true } // Già scalato, idempotente
+        return { ok: true } // Già processato, idempotente
     }
 
-    // Chiama scaleStockForOrder(orderId)
-    const scaleResult = await scaleStockForOrder(orderId)
+    // NOTA: Lo stock è già stato riservato alla creazione ordine (reserveOrderStock).
+    // Non serve più scalare stock qui. Manteniamo solo altre logiche post-paid se necessario.
+    // Per ora, marcare come processato per idempotenza.
+    const { error: updateError } = await svc
+        .from('orders')
+        .update({ stock_scaled: true })
+        .eq('id', orderId)
 
-    if (scaleResult && !scaleResult.ok) {
-        return { ok: false, error: scaleResult.error || 'Errore scalaggio stock' }
+    if (updateError) {
+        return { ok: false, error: updateError.message }
     }
 
     return { ok: true }

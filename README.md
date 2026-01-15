@@ -1,120 +1,289 @@
-# 🛒 Supermarket PWA Template
+Modello PWA per supermercati
 
-Template completo e pronto all’uso per e-commerce locali con **pannello admin**, **gestione ordini**, **pagamenti online** e **database Supabase**.  
-Basato su **Next.js 15**, **Tailwind CSS 4**, **Supabase v2** e **Stripe v18**.
+Next.js · Supabase · Stripe · PWA
 
----
+Un modello di Progressive Web App pronto per la produzione, progettato per supermercati e negozi di alimentari locali , realizzato con Next.js App Router , Supabase e Stripe .
 
-## ⚙️ Installazione
+Questo modello fornisce sia una vetrina rivolta al cliente sia una potente dashboard di amministrazione , consentendo ai proprietari dei negozi di gestire prodotti, ordini, pagamenti e consegne senza interagire direttamente con Stripe, Supabase o strumenti di database .
 
-### 1️⃣ Clona o scarica il progetto
-```bash
-git clone https://github.com/yourusername/supermarket-pwa-template.git
-cd supermarket-pwa-template
+Progettato per sviluppatori, liberi professionisti e agenzie .
 
-2️⃣ Installa le dipendenze
-bash
-Copia codice
-npm install
+🚀 Dimostrazione
 
-3️⃣ Configura le variabili ambiente
-Copia il file di esempio e inserisci le tue chiavi:
+Demo dal vivo (produzione)
 
-bash
-Copia codice
-cp .env.example .env.local
-Aggiorna i campi con i tuoi dati:
+👉https://YOUR-VERCEL-DEMO.vercel.app
 
-env
-Copia codice
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_SUPABASE_URL.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY=YOUR_SUPABASE_SERVICE_ROLE_KEY
 
-STRIPE_SECRET_KEY=YOUR_STRIPE_SECRET_KEY
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=YOUR_STRIPE_PUBLIC_KEY
+Demo amministratore
 
-NEXT_PUBLIC_SITE_URL=https://YOUR_VERCEL_DEPLOY_URL
+E-mail:admin@demo.com
 
-4️⃣ Crea il database Supabase
-Accedi al dashboard Supabase.
+Password:demo123
 
-Crea un nuovo progetto.
+⚠️ La demo utilizza solo dati di prova . Non vengono elaborati pagamenti reali.
 
-Apri la sezione SQL Editor e incolla il contenuto del file:
 
-arduino
-Copia codice
-supabase/setup.sql
-Esegui lo script per generare le tabelle e i dati demo.
 
-5️⃣ Avvia il progetto in locale
-bash
-Copia codice
-npm run dev
-Apri http://localhost:3000 nel browser.
+🧱 Stack tecnologico
 
-🧱 Stack Tecnologico
-Next.js 15 (App Router)
+Next.js (router di applicazioni)
 
-Supabase (PostgreSQL + Auth)
+Supabase
 
-Stripe Payments
+database PostgreSQL
 
-Tailwind CSS 4
+Conservazione (immagini del prodotto)
 
-Framer Motion / Lucide Icons
+Stripe (pagamenti online)
 
-Zustand store management
+CSS di Tailwind
 
-📦 Funzionalità Principali
-✅ Gestione prodotti, categorie e ordini
+Applicazione Web progressiva (PWA)
 
-✅ Pannello admin responsive e dark mode
+Runtime Node.js (Edge Runtime intenzionalmente non utilizzato)
 
-✅ Checkout con Stripe o pagamento alla consegna
 
-✅ Calcolo consegna e distanza tramite Nominatim API
 
-✅ Interfaccia PWA installabile su smartphone
+✨ Caratteristiche
+Vetrina
 
-🗂️ Struttura Progetto
-vbnet
-Copia codice
-app/                → pagine Next.js
-components/         → componenti UI
-hooks/              → custom hooks
-lib/                → funzioni Supabase / Stripe
-stores/             → stato globale (Zustand)
-public/             → icone, immagini, manifest.json
-supabase/setup.sql  → script per il database
-🌐 Deploy su Vercel
-Crea un nuovo progetto su https://vercel.com.
+Catalogo prodotti
 
-Collega il repository GitHub.
+Categorie
 
-Imposta le Environment Variables come nel file .env.example.
+Carrello
 
-Deploy automatico in pochi minuti.
+Flusso di pagamento
 
-🧩 Personalizzazione
-Modifica il nome dell’app in /public/manifest.json
+Convalida dell'indirizzo
 
-Sostituisci le immagini in /public/images/
+Calcolo della distanza di consegna
 
-Aggiorna colori e stile in tailwind.config.js
+Calcolo delle spese di consegna
 
-Personalizza testi e logo secondo le tue necessità
+PWA installabile (mobile e desktop)
 
-🔑 Licenza
-Rilasciato sotto Licenza MIT.
-Puoi usare, modificare e distribuire liberamente mantenendo il credito originale.
+Pagamenti
 
-## Credenziali di accesso demo
-Email: admin@demo.com  
-Password: admin123
+Pagamenti con carta online (Stripe Checkout)
 
-👤 Autore
-Angelo
-Email: [petruzziangelo75@gmail.com]
-© 2025 Angelo – Tutti i diritti riservati.
+POS alla consegna
+
+Pagamento alla consegna
+
+Dashboard di amministrazione
+
+Gestione del prodotto
+
+Gestione delle categorie
+
+Gestione degli ordini
+
+Configurazione di consegna
+
+Caricamento delle immagini (Supabase Storage)
+
+Gestione manuale dello stato dei pagamenti per i pagamenti offline
+
+
+
+🏪 Panoramica del progetto
+
+Il modello PWA per supermercati è progettato principalmente per i supermercati locali che necessitano di una soluzione moderna e affidabile per la gestione degli ordini online e delle consegne locali .
+
+Il progetto comprende:
+
+una vetrina pubblica per i clienti
+
+una dashboard di amministrazione protetta per gli operatori del negozio
+
+Tutte le operazioni quotidiane possono essere gestite dal pannello di amministrazione, senza dover accedere direttamente a Stripe, Supabase o al database.
+
+
+
+💳 Logica di pagamento
+
+Il checkout supporta tre metodi di pagamento:
+
+Pagamento con carta online (Stripe)
+
+POS alla consegna
+
+Pagamento alla consegna
+
+La gestione dei pagamenti segue i flussi di lavoro reali dei supermercati:
+
+Pagamenti con carta online
+
+Elaborato tramite Stripe Checkout
+
+Contrassegnato automaticamente come paiduna volta che il pagamento è andato a buon fine
+
+POS / Pagamenti in contanti
+
+Gli ordini vengono creati come non pagati
+
+Lo stato del pagamento viene aggiornato manualmente dalla dashboard di amministrazione
+
+Ciò garantisce la massima flessibilità ai negozi che fanno ancora molto affidamento sui pagamenti offline.
+
+🧑‍💼 Dashboard di amministrazione
+
+Il pannello di amministrazione è protetto da credenziali e comprende le seguenti sezioni:
+
+📦 Gestione del prodotto
+
+Gli amministratori possono:
+
+Crea nuovi prodotti
+
+Modifica i dettagli del prodotto (prezzo, tipo di unità, sconti, disponibilità)
+
+Scegli l'unità di vendita:
+
+per pezzo
+
+per chilogrammo
+
+Carica le immagini del prodotto
+
+Eliminazione temporanea dei prodotti (i prodotti archiviati possono essere ripristinati)
+
+Ciò impedisce la perdita accidentale di dati e consente una gestione sicura del prodotto.
+
+📋 Gestione degli ordini
+
+Gli amministratori possono:
+
+Visualizza tutti gli ordini con un ID ordine pubblico
+
+Ispezionare gli articoli acquistati e le quantità
+
+Visualizza il metodo di pagamento e lo stato del pagamento
+
+Aggiorna lo stato dell'ordine:
+
+contrassegna come pagato (per pagamenti POS o in contanti)
+
+confermare gli ordini
+
+contrassegnare gli ordini come consegnati
+
+Non è richiesta alcuna interazione diretta con Stripe o con il database.
+
+🗂 Gestione delle categorie
+
+Gli amministratori possono:
+
+Crea categorie
+
+Elimina categorie
+
+Assegna i prodotti alle categorie utilizzate nella vetrina
+
+🚚 Gestione delle consegne
+
+Le regole di consegna sono completamente configurabili dal pannello di amministrazione:
+
+Abilita o disabilita la consegna
+
+Imposta il raggio massimo di consegna (km)
+
+Definisci la distanza di consegna di base
+
+Definisci il costo di consegna base
+
+Definisci il costo extra per chilometro aggiuntivo
+
+🌍 Geolocalizzazione e convalida della consegna
+
+Gli indirizzi dei clienti vengono convalidati utilizzando l'API di geocodifica di Google Maps
+
+La distanza di consegna viene calcolata utilizzando la formula di Haversine
+
+Gli ordini al di fuori del raggio di consegna vengono automaticamente bloccati
+
+Le spese di consegna vengono calcolate dinamicamente in base alla distanza
+
+📦 Cosa è incluso
+
+Codice sorgente completo
+
+Migrazioni supabase
+
+Dati dimostrativi
+
+Documentazione di configurazione di Supabase Storage
+
+Icone PWA e schermate iniziali
+
+Modello di variabili d'ambiente
+
+Guida all'installazione
+
+licenza commerciale
+
+⚙️ Requisiti
+
+Avrai bisogno di:
+
+Node.js ≥ 18
+
+Account Supabase
+
+Conto Stripe
+
+Chiave API di Google Maps
+
+⚠️ L'utilizzo dell'API di Google Maps potrebbe comportare dei costi a seconda del traffico e dell'utilizzo.
+
+🛠 Installazione
+
+Per una guida completa alla configurazione passo dopo passo, consultare INSTALL.md .
+
+🌍 Variabili d'ambiente
+
+Tutte le variabili di ambiente richieste sono documentate in .env.example .
+
+Nessun dominio hardcoded.
+Il progetto funziona automaticamente su localhost e Vercel Production .
+
+⚠️ Limitazioni note
+
+Supporto per un singolo negozio (nessun SaaS multi-tenant)
+
+Nessun sistema di autenticazione del cliente incluso
+
+Pagamenti PayPal non inclusi per impostazione predefinita
+
+Utilizzo dell'API di Google Maps fatturato separatamente da Google
+
+Queste scelte sono intenzionali per mantenere il modello pulito, mirato ed estensibile .
+
+📄 Licenza
+
+Questo progetto è concesso in licenza con una licenza modello commerciale .
+
+✔️ Puoi utilizzarlo per progetti personali e per i clienti
+❌ Non puoi rivenderlo, ridistribuirlo o pubblicarlo come modello concorrente o SaaS
+
+Per i termini completi, consultare la LICENZA .
+
+🧑‍💻 Supporto
+
+Supporto fornito tramite messaggi Gumroad
+
+Correzioni di bug incluse
+
+Sviluppo personalizzato non incluso
+
+✅ A chi è destinato questo modello
+
+✔ Sviluppatori
+✔ Liberi professionisti
+✔ Agenzie
+
+❌ Non destinato a utenti non tecnici
+
+🔚 Fine

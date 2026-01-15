@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server'
-import { supabaseService } from '@/lib/supabaseService'
+import { supabaseServiceRole } from '@/lib/supabaseService'
 import type { OrderPayload, StoreSettings, PaymentMethod } from '@/lib/types'
 import { geocodeAddress, computeDistanceFromStore } from '@/lib/geo'
 import { calculateDeliveryFee } from '@/lib/delivery'
+import { reserveOrderStock } from '@/lib/reserveOrderStock'
+import { releaseOrderStock } from '@/lib/releaseOrderStock'
+import { getStripe } from '@/lib/stripe'
+import { cleanupExpiredReservations } from '@/lib/cleanupExpiredReservations'
 
 
 
@@ -25,7 +29,7 @@ function parseDec(v: unknown, field: string): number {
 
 
 async function loadSettings(): Promise<StoreSettings | null> {
-    const { data, error } = await supabaseService
+    const { data, error } = await supabaseServiceRole
         .from('store_settings')
         .select('*')
         .limit(1)
@@ -63,12 +67,12 @@ export async function GET() {
         hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
     }
 
-    const ss = await supabaseService
+    const ss = await supabaseServiceRole
         .from('store_settings')
         .select('id, updated_at')
         .limit(1)
 
-    const ord = await supabaseService
+    const ord = await supabaseServiceRole
         .from('orders')
         .select(
             'id, items, subtotal, delivery_fee, total, address, distance_km, payment_method, status, created_at'
@@ -94,6 +98,10 @@ export async function POST(req: Request) {
                 { status: 500 }
             )
         }
+
+        // Lazy cleanup (backup): rilascia ordini scaduti prima di creare nuovo ordine
+        // Se il cron non gira, il primo utente che fa un ordine sblocca lo stock
+        await cleanupExpiredReservations()
 
         const body = await req.json()
 
@@ -234,7 +242,8 @@ export async function POST(req: Request) {
         const total = round2(safeSubtotal + deliveryFee)
 
         // Crea l'ordine direttamente
-        const { data: orderData, error: orderError } = await supabaseService
+        // IMPORTANTE: stock_reserved deve essere false all'insert, viene settato a true solo da reserveOrderStock
+        const { data: orderData, error: orderError } = await supabaseServiceRole
             .from('orders')
             .insert({
                 subtotal: safeSubtotal,
@@ -245,6 +254,7 @@ export async function POST(req: Request) {
                 payment_status: 'pending',
                 status: 'pending',
                 distance_km: round2(distanceKm),
+                stock_reserved: false, // Forzato a false: verrà settato a true solo da reserveOrderStock dopo decrement riuscito
             })
             .select('id')
             .single()
@@ -264,7 +274,7 @@ export async function POST(req: Request) {
         for (const item of items) {
             const { id: productId, quantity, price } = item
 
-            const { error: itemError } = await supabaseService
+            const { error: itemError } = await supabaseServiceRole
                 .from('order_items')
                 .insert({
                     order_id: newOrderId,
@@ -282,12 +292,162 @@ export async function POST(req: Request) {
             }
         }
 
+        // Riserva stock dopo l'inserimento di tutti gli order_items
+        try {
+            await reserveOrderStock(newOrderId)
+        } catch (error) {
+            // Cleanup: elimina order_items e ordine
+            await supabaseServiceRole.from('order_items').delete().eq('order_id', newOrderId)
+            await supabaseServiceRole.from('orders').delete().eq('id', newOrderId)
+            const errorMessage = error instanceof Error ? error.message : 'Stock non disponibile per uno o più prodotti'
+            return NextResponse.json(
+                { error: errorMessage },
+                { status: 400 }
+            )
+        }
+
+        // Imposta reserve_expires_at in base al metodo di pagamento
+        let reserveExpiresAt: string | null = null
+
+        if (pm === 'card_online') {
+          // TTL diverso per dev/prod
+          const TTL_MINUTES =
+            process.env.NODE_ENV === 'development' ? 1 : 15
+        
+          const expiresAt = new Date(Date.now() + TTL_MINUTES * 60 * 1000)
+          reserveExpiresAt = expiresAt.toISOString()
+        }
+        
+        // Per 'cash' o 'pos_on_delivery', reserveExpiresAt rimane null
+
+        // Aggiorna ordine con reserve_expires_at
+        await supabaseServiceRole
+            .from('orders')
+            .update({ reserve_expires_at: reserveExpiresAt })
+            .eq('id', newOrderId)
+
+        // Se payment_method è card_online, crea Stripe Checkout Session
+        let checkoutUrl: string | null = null
+        if (pm === 'card_online') {
+            try {
+                // Leggi order_items con join products per ottenere name, unit_type, image_url
+                const { data: orderItems, error: itemsError } = await supabaseServiceRole
+                    .from('order_items')
+                    .select('quantity, price, products(id, name, unit_type, image_url)')
+                    .eq('order_id', newOrderId)
+
+                if (itemsError || !orderItems || orderItems.length === 0) {
+                    // Errore: rilascia stock e cancella ordine
+                    await releaseOrderStock(newOrderId)
+                    await supabaseServiceRole.from('order_items').delete().eq('order_id', newOrderId)
+                    await supabaseServiceRole.from('orders').delete().eq('id', newOrderId)
+                    return NextResponse.json(
+                        { error: 'Errore caricamento articoli per checkout' },
+                        { status: 500 }
+                    )
+                }
+
+                // Costruisci line_items per Stripe
+                const line_items = orderItems.map((it: any) => {
+                    // Normalizza product data
+                    let productData = it.products
+                    if (Array.isArray(productData)) {
+                        productData = productData[0] || null
+                    }
+
+                    const productName = productData?.name || 'Prodotto'
+                    const unitType = productData?.unit_type || 'per_unit'
+                    const imageUrl = productData?.image_url || null
+                    const quantity = Number(it.quantity) || 1
+                    const price = Number(it.price) || 0
+
+                    // Stripe accetta solo quantità intere
+                    // Se il prodotto è "per_kg", ingloba la quantità nel prezzo
+                    if (unitType === 'per_kg') {
+                        return {
+                            quantity: 1, // sempre 1 per i prodotti a peso
+                            price_data: {
+                                currency: 'eur',
+                                unit_amount: Math.round(price * quantity * 100),
+                                product_data: {
+                                    name: `${productName} (${quantity} kg)`,
+                                    ...(imageUrl ? { images: [imageUrl] } : {}),
+                                },
+                            },
+                        }
+                    }
+
+                    // Prodotti venduti "a pezzo"
+                    return {
+                        quantity: Math.round(quantity),
+                        price_data: {
+                            currency: 'eur',
+                            unit_amount: Math.round(price * 100),
+                            product_data: {
+                                name: `${productName} (${quantity} pz)`,
+                                ...(imageUrl ? { images: [imageUrl] } : {}),
+                            },
+                        },
+                    }
+                })
+
+                // Aggiungi delivery fee come line item separato se > 0
+                if (deliveryFee > 0) {
+                    line_items.push({
+                        quantity: 1,
+                        price_data: {
+                            currency: 'eur',
+                            unit_amount: Math.round(deliveryFee * 100),
+                            product_data: {
+                                name: 'Spese di consegna',
+                            },
+                        },
+                    })
+                }
+
+                // Deriva siteUrl dal dominio della richiesta corrente
+                const url = new URL(req.url)
+                const siteUrl = `${url.protocol}//${url.host}`
+
+                const stripe = getStripe()
+
+                // Crea la sessione Stripe
+                const session = await stripe.checkout.sessions.create({
+                    mode: 'payment',
+                    payment_method_types: ['card'],
+                    line_items,
+                    success_url: `${siteUrl}/order/success?session_id={CHECKOUT_SESSION_ID}`,
+                    cancel_url: `${siteUrl}/checkout?cancelled=1&id=${newOrderId}`,
+                    metadata: { orderId: newOrderId },
+                })
+
+                checkoutUrl = session.url
+
+                // Aggiorna ordine con stripe_session_id (non bloccare se fallisce)
+                void supabaseServiceRole
+                    .from('orders')
+                    .update({ stripe_session_id: session.id })
+                    .eq('id', newOrderId)
+            } catch (stripeError: any) {
+                // Errore creazione Stripe Session: rilascia stock e cancella ordine
+                await releaseOrderStock(newOrderId)
+                await supabaseServiceRole.from('order_items').delete().eq('order_id', newOrderId)
+                await supabaseServiceRole.from('orders').delete().eq('id', newOrderId)
+                console.error('❌ Errore creazione Stripe Session:', stripeError)
+                return NextResponse.json(
+                    { error: stripeError?.message ?? 'Errore creazione sessione di pagamento' },
+                    { status: 500 }
+                )
+            }
+        }
+
         return NextResponse.json({
             ok: true,
             order_id: newOrderId,
             delivery_fee: deliveryFee,
             total: total,
-            distance_km: round2(distanceKm)
+            distance_km: round2(distanceKm),
+            ...(checkoutUrl ? { checkoutUrl } : {})
         })
     } catch (e: any) {
         console.error('❌ API ERROR /api/orders:', e)

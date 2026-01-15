@@ -1,18 +1,22 @@
-import { supabaseService } from '@/lib/supabaseService'
+import { supabaseServiceRole } from '@/lib/supabaseService'
 
 /**
  * Riserva stock per un ordine (scala products.stock immediatamente).
  * Idempotente: se stock_reserved=true, ritorna ok senza operazioni.
  * Atomicità: usa RPC functions per evitare race conditions.
+ * 
+ * Lancia errori (throw) se la riserva fallisce (fail-fast).
  */
 export async function reserveOrderStock(
     orderId: string
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<void> {
     if (!orderId) {
-        return { ok: false, error: 'orderId mancante' }
+        const error = 'orderId mancante'
+        console.error('❌ reserveOrderStock: orderId mancante')
+        throw new Error(error)
     }
 
-    const svc = supabaseService
+    const svc = supabaseServiceRole
 
     // Verifica se già riservato (idempotenza)
     const { data: order, error: orderError } = await svc
@@ -22,11 +26,13 @@ export async function reserveOrderStock(
         .single()
 
     if (orderError || !order) {
-        return { ok: false, error: orderError?.message || 'Ordine non trovato' }
+        const error = orderError?.message || 'Ordine non trovato'
+        console.error(`❌ reserveOrderStock: errore verifica ordine ${orderId}:`, error)
+        throw new Error(error)
     }
 
     if (order.stock_reserved === true) {
-        return { ok: true } // Già riservato, idempotente
+        return // Già riservato, idempotente
     }
 
     // Legge order_items con join products per ottenere name, stock, unit_type
@@ -36,7 +42,9 @@ export async function reserveOrderStock(
         .eq('order_id', orderId)
 
     if (itemsError) {
-        return { ok: false, error: `Errore caricamento order_items: ${itemsError.message}` }
+        const error = `Errore caricamento order_items: ${itemsError.message}`
+        console.error(`❌ reserveOrderStock: errore caricamento order_items per ordine ${orderId}:`, error)
+        throw new Error(error)
     }
 
     if (!items || items.length === 0) {
@@ -46,9 +54,11 @@ export async function reserveOrderStock(
             .update({ stock_reserved: true })
             .eq('id', orderId)
         if (updateError) {
-            return { ok: false, error: updateError.message }
+            const error = `Errore aggiornamento flag stock_reserved: ${updateError.message}`
+            console.error(`❌ reserveOrderStock: errore aggiornamento flag per ordine ${orderId}:`, error)
+            throw new Error(error)
         }
-        return { ok: true }
+        return
     }
 
     // Array per tracciare quali prodotti sono stati riservati (per rollback in caso di errore)
@@ -71,9 +81,11 @@ export async function reserveOrderStock(
         }
 
         if (!productData) {
-            // Prodotto non trovato: rilascia eventuali riserve già fatte prima di ritornare errore
+            // Prodotto non trovato: rilascia eventuali riserve già fatte prima di lanciare errore
             await rollbackReservations(reservedProducts)
-            return { ok: false, error: `Prodotto non trovato per product_id: ${productId}` }
+            const error = `Prodotto non trovato per product_id: ${productId}`
+            console.error(`❌ reserveOrderStock: prodotto non trovato per ordine ${orderId}:`, error)
+            throw new Error(error)
         }
 
         const productName = productData.name || 'Prodotto sconosciuto'
@@ -89,13 +101,17 @@ export async function reserveOrderStock(
         if (rpcError) {
             // Errore RPC: rilascia eventuali riserve già fatte
             await rollbackReservations(reservedProducts)
-            return { ok: false, error: `Errore riserva stock per ${productName}: ${rpcError.message}` }
+            const error = `Errore riserva stock per ${productName}: ${rpcError.message}`
+            console.error(`❌ reserveOrderStock: errore RPC per ordine ${orderId}, prodotto ${productName}:`, error)
+            throw new Error(error)
         }
 
         if (!dbg || dbg.updated !== true) {
             // Stock insufficiente: la RPC ritorna updated=false se non aggiorna righe
             await rollbackReservations(reservedProducts)
-            return { ok: false, error: `Stock insufficiente per ${productName}` }
+            const error = `Stock insufficiente per ${productName}`
+            console.error(`❌ reserveOrderStock: stock insufficiente per ordine ${orderId}, prodotto ${productName}`)
+            throw new Error(error)
         }
 
         // Traccia prodotto riservato per eventuale rollback
@@ -112,10 +128,10 @@ export async function reserveOrderStock(
     if (updateError) {
         // Errore aggiornamento flag: rilascia riserve (rollback)
         await rollbackReservations(reservedProducts)
-        return { ok: false, error: `Errore aggiornamento flag stock_reserved: ${updateError.message}` }
+        const error = `Errore aggiornamento flag stock_reserved: ${updateError.message}`
+        console.error(`❌ reserveOrderStock: errore aggiornamento flag per ordine ${orderId}:`, error)
+        throw new Error(error)
     }
-
-    return { ok: true }
 }
 
 /**
@@ -126,7 +142,7 @@ async function rollbackReservations(
 ): Promise<void> {
     if (reservedProducts.length === 0) return
 
-    const svc = supabaseService
+    const svc = supabaseServiceRole
 
     // Rilascia stock per ogni prodotto già riservato
     for (const { productId, qty } of reservedProducts) {
