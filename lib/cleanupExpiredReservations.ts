@@ -1,63 +1,45 @@
 // vercel: include helper in build
 
 import { supabaseServiceRole } from '@/lib/supabaseService'
-import { releaseOrderStock } from '@/lib/releaseOrderStock'
 
 /**
- * Rilascia stock per ordini card_online scaduti (reserve_expires_at < now).
- * Idempotente e sicuro: filtri durissimi per evitare rilasci errati.
+ * Rilascia stock per ordini card_online scaduti usando RPC DB-side.
+ * 
+ * La logica di selezione e cleanup è completamente delegata al database
+ * tramite la RPC cleanup_expired_reservations(), che usa now() di Postgres
+ * per confronti temporali affidabili e timezone-safe.
+ * 
+ * Questo garantisce:
+ * - Confronti temporali sempre corretti (DB-side con now() UTC)
+ * - Nessuna dipendenza da timezone del runtime o scheduler
+ * - Comportamento deterministico identico tra manual trigger e scheduler
+ * - Architettura robusta stile Amazon
  * 
  * @returns Numero di ordini per cui lo stock è stato rilasciato
  */
 export async function cleanupExpiredReservations(): Promise<number> {
     const svc = supabaseServiceRole
 
-    // Filtri durissimi: solo ordini card_online pending con stock_reserved=true e scaduti
-    const { data: expiredOrders, error: queryError } = await svc
-        .from('orders')
-        .select('id')
-        .eq('payment_method', 'card_online')
-        .eq('payment_status', 'pending')
-        .eq('status', 'pending')
-        .eq('stock_reserved', true)
-        .not('reserve_expires_at', 'is', null)
-        .lt('reserve_expires_at', new Date().toISOString())
+    try {
+        // Chiama RPC DB-side: tutta la logica è nel database
+        const { data, error } = await svc.rpc('cleanup_expired_reservations')
 
-    if (queryError) {
-        console.error('[cleanupExpiredReservations] Errore query ordini scaduti:', queryError)
-        return 0
-    }
-
-    if (!expiredOrders || expiredOrders.length === 0) {
-        return 0
-    }
-
-    let releasedCount = 0
-
-    for (const expiredOrder of expiredOrders) {
-        try {
-            // releaseOrderStock aggiorna già stock_reserved=false e reserve_expires_at=NULL
-            const releaseResult = await releaseOrderStock(expiredOrder.id)
-            
-            if (releaseResult.ok) {
-                // Update esplicito per sicurezza: stock_reserved=false, reserve_expires_at=NULL, status='cancelled'
-                await svc
-                    .from('orders')
-                    .update({ 
-                        stock_reserved: false, 
-                        reserve_expires_at: null,
-                        status: 'cancelled'
-                    })
-                    .eq('id', expiredOrder.id)
-                
-                releasedCount++
-            }
-        } catch (err) {
-            console.error(`[cleanupExpiredReservations] Errore rilascio ordine ${expiredOrder.id}:`, err)
-            // Continua con gli altri ordini
+        if (error) {
+            console.error('[cleanupExpiredReservations] Errore RPC cleanup:', error)
+            return 0
         }
-    }
 
-    return releasedCount
+        // La RPC ritorna il numero di ordini processati
+        const processedCount = typeof data === 'number' ? data : 0
+
+        if (processedCount > 0) {
+            console.log(`[cleanupExpiredReservations] ✅ Rilasciati ${processedCount} ordini scaduti`)
+        }
+
+        return processedCount
+    } catch (err) {
+        console.error('[cleanupExpiredReservations] Errore chiamata RPC:', err)
+        return 0
+    }
 }
 

@@ -316,15 +316,19 @@ export async function POST(req: Request) {
         
           const expiresAt = new Date(Date.now() + TTL_MINUTES * 60 * 1000)
           reserveExpiresAt = expiresAt.toISOString()
+          
+          // Per card_online: stock_reserved=true e reserve_expires_at settato (già impostato da reserveOrderStock)
+          await supabaseServiceRole
+              .from('orders')
+              .update({ reserve_expires_at: reserveExpiresAt })
+              .eq('id', newOrderId)
+        } else {
+          // Per cash/pos_on_delivery: non è una riserva temporanea, quindi stock_reserved=false
+          await supabaseServiceRole
+              .from('orders')
+              .update({ stock_reserved: false, reserve_expires_at: null })
+              .eq('id', newOrderId)
         }
-        
-        // Per 'cash' o 'pos_on_delivery', reserveExpiresAt rimane null
-
-        // Aggiorna ordine con reserve_expires_at
-        await supabaseServiceRole
-            .from('orders')
-            .update({ reserve_expires_at: reserveExpiresAt })
-            .eq('id', newOrderId)
 
         // Se payment_method è card_online, crea Stripe Checkout Session
         let checkoutUrl: string | null = null

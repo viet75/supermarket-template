@@ -76,7 +76,7 @@ export async function POST(req: Request) {
         }
       }
 
-      // ✅ Aggiorna solo payment_status e status (NON toccare stock)
+      // ✅ Aggiorna payment_status, status e stock_reserved/reserve_expires_at (NON toccare stock)
       const { error } = await supabase
         .from('orders')
         .update({
@@ -84,6 +84,8 @@ export async function POST(req: Request) {
           status: 'confirmed', 
           stripe_payment_intent_id: session.payment_intent ?? null,
           stripe_session_id: session.id,
+          stock_reserved: false,  // Riserva temporanea scaduta: ordine pagato
+          reserve_expires_at: null,  // Reset TTL
         })
         .eq('id', orderId)
         .eq('payment_status', 'pending') // Guard aggiuntiva: aggiorna solo se ancora pending
@@ -98,8 +100,8 @@ export async function POST(req: Request) {
         return NextResponse.json({ received: true }, { status: 200 })
       }
 
-      // NOTA: Non toccare stock qui - lo stock è già riservato alla creazione ordine
-      // Non rilasciare riserva - rimane riservato fino alla conferma/consegna
+      // NOTA: Non toccare stock qui - lo stock è già scalato alla creazione ordine
+      // Solo aggiorniamo i flag di riserva temporanea (ora completata)
     }
 
     // Gestione checkout.session.expired, checkout.session.async_payment_failed, checkout.session.async_payment_succeeded
