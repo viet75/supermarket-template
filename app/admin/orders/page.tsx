@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import type { Order } from '@/lib/types'
 
 function formatQuantity(q: number, unit?: string | null) {
@@ -382,7 +382,7 @@ export default function OrdersAdminPage() {
     }, [searchTerm])
 
 
-    async function updateStatus(id: string, status: Order['status']) {
+    const updateStatus = useCallback(async (id: string, status: Order['status']) => {
         const order = orders.find((o) => o.id === id)
         if (!order) {
             setUpdating(null)
@@ -395,43 +395,75 @@ export default function OrdersAdminPage() {
             order.payment_status !== 'paid' &&
             status === 'delivered'
         ) {
-            alert('Segna prima l’ordine come pagato')
+            alert('Segna prima l\'ordine come pagato')
             setUpdating(null)
             return
         }
 
         setUpdating(id)
-        const res = await fetch('/api/admin/orders', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, status }),
-        })
-        if (res.ok) {
-            setOrders((prev) =>
-                prev.map((o) => (o.id === id ? { ...o, status } : o))
-            )
-        }
-        setUpdating(null)
-    }
-
-    async function updatePaymentStatus(id: string, payment_status: 'paid') {
-        setUpdating(id)
-        const res = await fetch('/api/admin/orders', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, payment_status }),
-        })
-        if (res.ok) {
-            setOrders((prev) =>
-                prev.map((o) =>
-                    o.id === id
-                        ? { ...o, payment_status, status: 'confirmed' }
-                        : o
+        try {
+            const payload = { id, status }
+            const res = await fetch('/api/admin/orders', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            })
+            const text = await res.text()
+            if (res.ok) {
+                setOrders((prev) =>
+                    prev.map((o) => (o.id === id ? { ...o, status } : o))
                 )
-            )
+            } else {
+                let errorData = {}
+                try {
+                    errorData = JSON.parse(text)
+                } catch {
+                    errorData = {}
+                }
+                alert(errorData.error || 'Errore durante l\'aggiornamento dello stato')
+            }
+        } catch (error) {
+            console.error('Errore updateStatus:', error)
+            alert('Errore durante l\'aggiornamento dello stato')
+        } finally {
+            setUpdating(null)
         }
-        setUpdating(null)
-    }
+    }, [orders])
+
+    const updatePaymentStatus = useCallback(async (id: string, payment_status: 'paid') => {
+        setUpdating(id)
+        try {
+            const payload = { id, payment_status }
+            const res = await fetch('/api/admin/orders', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            })
+            const text = await res.text()
+            if (res.ok) {
+                setOrders((prev) =>
+                    prev.map((o) =>
+                        o.id === id
+                            ? { ...o, payment_status, status: 'confirmed' }
+                            : o
+                    )
+                )
+            } else {
+                let errorData = {}
+                try {
+                    errorData = JSON.parse(text)
+                } catch {
+                    errorData = {}
+                }
+                alert(errorData.error || 'Errore durante l\'aggiornamento del pagamento')
+            }
+        } catch (error) {
+            console.error('Errore updatePaymentStatus:', error)
+            alert('Errore durante l\'aggiornamento del pagamento')
+        } finally {
+            setUpdating(null)
+        }
+    }, [])
 
     if (loading) return <p>Caricamento ordini...</p>
 
@@ -599,6 +631,7 @@ export default function OrdersAdminPage() {
                                                 <div className="flex justify-center gap-2">
                                                     {o.status === 'pending' && (
                                                         <button
+                                                            type="button"
                                                             disabled={updating === o.id}
                                                             onClick={() => updateStatus(o.id, 'confirmed')}
                                                             className="flex items-center gap-1 px-3 py-1 rounded bg-blue-500 text-white text-sm hover:bg-blue-600 disabled:opacity-50 transition-colors"
@@ -609,6 +642,7 @@ export default function OrdersAdminPage() {
 
                                                     {o.status === 'confirmed' && (
                                                         <button
+                                                            type="button"
                                                             disabled={updating === o.id}
                                                             onClick={() => updateStatus(o.id, 'delivered')}
                                                             className="flex items-center gap-1 px-3 py-1 rounded bg-green-500 text-white text-sm hover:bg-green-600 disabled:opacity-50 transition-colors"
@@ -619,6 +653,7 @@ export default function OrdersAdminPage() {
 
                                                     {o.status !== 'cancelled' && o.status !== 'delivered' && (
                                                         <button
+                                                            type="button"
                                                             disabled={updating === o.id}
                                                             onClick={() => updateStatus(o.id, 'cancelled')}
                                                             className="flex items-center gap-1 px-3 py-1 rounded bg-red-500 text-white text-sm hover:bg-red-600 disabled:opacity-50 transition-colors"
@@ -629,6 +664,7 @@ export default function OrdersAdminPage() {
                                                 </div>
                                                 {o.payment_status === 'pending' && (o.payment_method === 'cash' || o.payment_method === 'pos_on_delivery') && (
                                                     <button
+                                                        type="button"
                                                         disabled={updating === o.id}
                                                         onClick={() => updatePaymentStatus(o.id, 'paid')}
                                                         className="flex items-center gap-1 px-3 py-1 rounded bg-emerald-500 text-white text-sm hover:bg-emerald-600 disabled:opacity-50 transition-colors"
@@ -752,6 +788,7 @@ export default function OrdersAdminPage() {
                                 <div className="flex gap-2">
                                     {o.status === 'pending' && (
                                         <button
+                                            type="button"
                                             disabled={updating === o.id}
                                             onClick={() => updateStatus(o.id, 'confirmed')}
                                             className="flex-1 flex items-center justify-center gap-1 bg-blue-500 text-white rounded-lg py-2 text-sm hover:bg-blue-600 disabled:opacity-50 transition-colors"
@@ -766,6 +803,7 @@ export default function OrdersAdminPage() {
 
                                     {o.status === 'confirmed' && (
                                         <button
+                                            type="button"
                                             disabled={updating === o.id}
                                             onClick={() => updateStatus(o.id, 'delivered')}
                                             className="flex-1 flex items-center justify-center gap-1 bg-green-500 text-white rounded-lg py-2 text-sm hover:bg-green-600 disabled:opacity-50 transition-colors"
@@ -780,6 +818,7 @@ export default function OrdersAdminPage() {
 
                                     {o.status !== 'cancelled' && o.status !== 'delivered' && (
                                         <button
+                                            type="button"
                                             disabled={updating === o.id}
                                             onClick={() => updateStatus(o.id, 'cancelled')}
                                             className="flex-1 flex items-center justify-center gap-1 bg-red-500 text-white rounded-lg py-2 text-sm hover:bg-red-600 disabled:opacity-50 transition-colors"
@@ -794,6 +833,7 @@ export default function OrdersAdminPage() {
                                 </div>
                                 {o.payment_status === 'pending' && (o.payment_method === 'cash' || o.payment_method === 'pos_on_delivery') && (
                                     <button
+                                        type="button"
                                         disabled={updating === o.id}
                                         onClick={() => updatePaymentStatus(o.id, 'paid')}
                                         className="w-full flex items-center justify-center gap-1 bg-emerald-500 text-white rounded-lg py-2 text-sm hover:bg-emerald-600 disabled:opacity-50 transition-colors"
@@ -817,7 +857,7 @@ export default function OrdersAdminPage() {
 
                                 <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
 
-                                    Prodotti dell'ordine #{selectedOrder.public_id || selectedOrder.id.slice(0, 8)}
+                                    Prodotti dell\'ordine #{selectedOrder.public_id || selectedOrder.id.slice(0, 8)}
                                 </h2>
                                 <button
                                     onClick={() => setSelectedOrder(null)}
