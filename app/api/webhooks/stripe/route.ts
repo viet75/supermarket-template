@@ -117,10 +117,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ received: true }, { status: 200 })
       }
 
-      // Verifica che l'ordine non sia già pagato e che lo stock sia riservato
+      // Verifica che l'ordine non sia già pagato e che lo stock sia committed
       const { data: order, error: orderError } = await supabase
         .from('orders')
-        .select('payment_status, stock_reserved')
+        .select('payment_status, stock_committed')
         .eq('id', orderId)
         .single()
 
@@ -129,8 +129,8 @@ export async function POST(req: Request) {
         return NextResponse.json({ received: true }, { status: 200 })
       }
 
-      // Rilascia stock solo se non pagato e stock riservato
-      if (order.payment_status !== 'paid' && order.stock_reserved === true) {
+      // Rilascia stock solo se non pagato e stock committed
+      if (order.payment_status !== 'paid' && order.stock_committed === true) {
         const releaseResult = await releaseOrderStock(orderId)
         if (releaseResult.ok) {
           console.log('✅ Stock rilasciato per ordine scaduto/fallito:', orderId)

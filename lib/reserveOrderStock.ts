@@ -147,8 +147,8 @@ async function rollbackReservations(
     // Rilascia stock per ogni prodotto già riservato
     for (const { productId, qty } of reservedProducts) {
         await svc.rpc('rpc_increment_stock', {
-            p_product_id: productId,
-            p_qty: qty,
+            product_id: productId,
+            amount: qty,
         })
         // Ignora errori di rollback (log ma non bloccare)
     }

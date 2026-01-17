@@ -306,8 +306,9 @@ export async function POST(req: Request) {
             )
         }
 
-        // Imposta reserve_expires_at in base al metodo di pagamento
+        // Imposta stock_committed=true e reserve_expires_at in base al metodo di pagamento
         let reserveExpiresAt: string | null = null
+        let stockReserved: boolean
 
         if (pm === 'card_online') {
           // TTL diverso per dev/prod
@@ -316,19 +317,21 @@ export async function POST(req: Request) {
         
           const expiresAt = new Date(Date.now() + TTL_MINUTES * 60 * 1000)
           reserveExpiresAt = expiresAt.toISOString()
-          
-          // Per card_online: stock_reserved=true e reserve_expires_at settato (già impostato da reserveOrderStock)
-          await supabaseServiceRole
-              .from('orders')
-              .update({ reserve_expires_at: reserveExpiresAt })
-              .eq('id', newOrderId)
+          stockReserved = true
         } else {
           // Per cash/pos_on_delivery: non è una riserva temporanea, quindi stock_reserved=false
-          await supabaseServiceRole
-              .from('orders')
-              .update({ stock_reserved: false, reserve_expires_at: null })
-              .eq('id', newOrderId)
+          stockReserved = false
         }
+
+        // Aggiorna ordine: stock_committed=true per tutti i metodi, stock_reserved e reserve_expires_at solo per card_online
+        await supabaseServiceRole
+            .from('orders')
+            .update({
+                stock_committed: true,
+                stock_reserved: stockReserved,
+                reserve_expires_at: reserveExpiresAt,
+            })
+            .eq('id', newOrderId)
 
         // Se payment_method è card_online, crea Stripe Checkout Session
         let checkoutUrl: string | null = null

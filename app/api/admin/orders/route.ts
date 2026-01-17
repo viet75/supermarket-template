@@ -182,107 +182,156 @@ export async function DELETE(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
     try {
         const body = await req.json()
-        const { id, status, payment_status } = body
-        if (!id) {
-            return NextResponse.json({ error: 'id mancante' }, { status: 400 })
-        }
-        if (!status && payment_status == null) {
-            return NextResponse.json(
-                { error: 'status o payment_status richiesti' },
-                { status: 400 }
-            )
-        }
 
+        // 1) Normalizzazione campi payload (retrocompatibilità)
+        const orderId = body.orderId || body.id || body.order_id
+        const action = body.action || body.type
+        const status = body.status
+        const paymentStatus = body.payment_status || body.paymentStatus
+
+        // Validazione orderId
+        if (!orderId) {
+            console.error('❌ PATCH /api/admin/orders: orderId mancante nel payload', body)
+            return NextResponse.json({ error: 'orderId mancante' }, { status: 400 })
+        }
 
         const svc = supabaseServer()
 
-        // Recupera l'ordine completo all'inizio
+        // Recupera l'ordine esistente
         const { data: existingOrder, error: fetchExistingError } = await svc
             .from('orders')
-            .select('status, payment_status, stock_reserved')
-            .eq('id', id)
+            .select('status, payment_status, payment_method, stock_reserved')
+            .eq('id', orderId)
             .single()
 
         if (fetchExistingError) throw fetchExistingError
 
         // Blocco ordine annullato
         if (existingOrder.status === 'cancelled') {
+            console.error('❌ PATCH /api/admin/orders: tentativo di modificare ordine già annullato', { orderId })
             return NextResponse.json(
                 { error: 'Ordine annullato: operazione non consentita' },
                 { status: 400 }
             )
         }
 
-        // Protezione contro consegna non pagata
-        if (status === 'delivered' && existingOrder.payment_status !== 'paid') {
+        // 2) Risoluzione azione (action-based o legacy)
+        let resolvedAction: 'cancel' | 'mark_paid' | 'confirm' | null = null
+
+        if (action) {
+            // Action-based: usa direttamente l'action se presente
+            if (action === 'cancel' || action === 'cancelled') {
+                resolvedAction = 'cancel'
+            } else if (action === 'mark_paid' || action === 'paid') {
+                resolvedAction = 'mark_paid'
+            } else if (action === 'confirm' || action === 'confirmed') {
+                resolvedAction = 'confirm'
+            }
+        } else {
+            // Legacy: risolvi da status/payment_status
+            if (status === 'cancelled') {
+                resolvedAction = 'cancel'
+            } else if (paymentStatus === 'paid') {
+                resolvedAction = 'mark_paid'
+            } else if (status === 'confirmed') {
+                resolvedAction = 'confirm'
+            }
+        }
+
+        // Validazione azione risolta
+        if (!resolvedAction) {
+            console.error('❌ PATCH /api/admin/orders: azione non valida o mancante', { orderId, body })
             return NextResponse.json(
-                { error: 'Impossibile consegnare un ordine non pagato' },
+                { error: 'Azione non valida: specificare action, status o payment_status' },
                 { status: 400 }
             )
         }
 
-        // Protezione contro annullamento ordine pagato
-        if (status === 'cancelled' && existingOrder.payment_status === 'paid') {
-            return NextResponse.json(
-                { error: 'Impossibile annullare un ordine già pagato' },
-                { status: 400 }
-            )
-        }
+        // 3) Esecuzione switch sull'azione risolta
+        switch (resolvedAction) {
+            case 'cancel': {
+                // Protezione contro annullamento ordine pagato
+                if (existingOrder.payment_status === 'paid') {
+                    console.error('❌ PATCH /api/admin/orders: tentativo di annullare ordine già pagato', { orderId })
+                    return NextResponse.json(
+                        { error: 'Impossibile annullare un ordine già pagato' },
+                        { status: 400 }
+                    )
+                }
 
-        const updateData: any = {}
+                // Rilascia stock (gestisce stock_committed, stock_reserved, reserve_expires_at)
+                const releaseResult = await releaseOrderStock(orderId)
+                if (releaseResult.ok === false) {
+                    console.error('❌ PATCH /api/admin/orders: errore releaseOrderStock', { orderId, error: releaseResult.error })
+                    return NextResponse.json({ error: releaseResult.error }, { status: 400 })
+                }
 
-        // Se arriva solo status, aggiorna solo quello
-        if (status) {
-            updateData.status = status
-        }
+                // Aggiorna status a cancelled
+                const { error: updateError } = await svc
+                    .from('orders')
+                    .update({ status: 'cancelled' })
+                    .eq('id', orderId)
 
-        // Se arriva payment_status, aggiorna payment_status
-        if (payment_status !== undefined && payment_status !== null) {
-            updateData.payment_status = payment_status
-        }
+                if (updateError) throw updateError
 
-        // Se payment_status passa a 'paid', imposta status a confirmed per pagamenti offline
-        if (payment_status === 'paid' && existingOrder.payment_status !== 'paid') {
-            // Recupera payment_method per determinare se impostare status a confirmed
-            const { data: fetchedOrder, error: fetchFlagError } = await svc
-                .from('orders')
-                .select('payment_method')
-                .eq('id', id)
-                .single()
-
-            if (fetchFlagError) throw fetchFlagError
-
-            // Se è pagamento offline, imposta status a confirmed
-            if (fetchedOrder.payment_method !== 'card_online') {
-                updateData.status = 'confirmed'
+                return NextResponse.json({ ok: true })
             }
-        }
 
-        // Aggiorna l'ordine solo se tutto è andato a buon fine
-        const { error } = await svc
-            .from('orders')
-            .update(updateData)
-            .eq('id', id)
+            case 'mark_paid': {
+                // Aggiorna payment_status e status
+                const updateData: any = {
+                    payment_status: 'paid',
+                    stock_reserved: false,
+                    reserve_expires_at: null,
+                }
 
-        if (error) throw error
+                // Se è pagamento offline, imposta status a confirmed
+                if (existingOrder.payment_method !== 'card_online') {
+                    updateData.status = 'confirmed'
+                }
 
-        // Gestisce il ripristino stock quando l'ordine viene annullato
-        if (status === 'cancelled') {
-            const result = await releaseOrderStock(id)
-            if (result.ok === false) {
-                return NextResponse.json({ error: result.error }, { status: 400 })
+                const { error: updateError } = await svc
+                    .from('orders')
+                    .update(updateData)
+                    .eq('id', orderId)
+
+                if (updateError) throw updateError
+
+                // Gestisce post-pagamento (mantiene compatibilità)
+                const handleResult = await handleOrderPaid(orderId)
+                if (handleResult && !handleResult.ok) {
+                    console.error('❌ PATCH /api/admin/orders: errore handleOrderPaid', { orderId, error: handleResult.error })
+                    return NextResponse.json(
+                        { error: handleResult.error || 'Errore gestione ordine pagato' },
+                        { status: 400 }
+                    )
+                }
+
+                return NextResponse.json({ ok: true })
             }
-        }
 
-        // Gestisce post-pagamento (stock già riservato alla creazione ordine, non qui)
-        if (payment_status === 'paid' && existingOrder.payment_status !== 'paid') {
-            const handleResult = await handleOrderPaid(id)
-            if (handleResult && !handleResult.ok) {
-                return NextResponse.json({ error: handleResult.error || 'Errore gestione ordine pagato' }, { status: 400 })
+            case 'confirm': {
+                // Protezione contro consegna non pagata (se si tenta di confermare un ordine non pagato)
+                // Nota: la conferma è permessa anche per ordini non pagati (es. pagamento alla consegna)
+                
+                // Aggiorna solo status
+                const { error: updateError } = await svc
+                    .from('orders')
+                    .update({ status: 'confirmed' })
+                    .eq('id', orderId)
+
+                if (updateError) throw updateError
+
+                return NextResponse.json({ ok: true })
             }
-        }
 
-        return NextResponse.json({ ok: true })
+            default:
+                console.error('❌ PATCH /api/admin/orders: azione non supportata nel switch', { orderId, resolvedAction })
+                return NextResponse.json(
+                    { error: 'Azione non supportata' },
+                    { status: 400 }
+                )
+        }
     } catch (e: any) {
         console.error('❌ PATCH /api/admin/orders error:', e.message)
         return NextResponse.json({ error: e.message }, { status: 500 })
