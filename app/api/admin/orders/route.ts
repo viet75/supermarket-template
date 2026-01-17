@@ -183,16 +183,22 @@ export async function PATCH(req: NextRequest) {
     try {
         const body = await req.json()
 
-        // 1) Normalizzazione campi payload (retrocompatibilità)
-        const orderId = body.orderId || body.id || body.order_id
-        const action = body.action || body.type
-        const status = body.status
-        const paymentStatus = body.payment_status || body.paymentStatus
+        // 1) Parsing JSON con normalizzazione
+        const id = body?.id ?? body?.orderId ?? body?.order_id
+        const status = body?.status
+        const payment_status = body?.payment_status ?? body?.paymentStatus
+        const action = body?.action ?? body?.type
 
-        // Validazione orderId
-        if (!orderId) {
-            console.error('❌ PATCH /api/admin/orders: orderId mancante nel payload', body)
-            return NextResponse.json({ error: 'orderId mancante' }, { status: 400 })
+        // 2) Validazione
+        if (!id) {
+            return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+        }
+
+        if (!status && !payment_status && !action) {
+            return NextResponse.json(
+                { error: 'Azione non valida: specificare action, status o payment_status' },
+                { status: 400 }
+            )
         }
 
         const svc = supabaseServer()
@@ -200,138 +206,111 @@ export async function PATCH(req: NextRequest) {
         // Recupera l'ordine esistente
         const { data: existingOrder, error: fetchExistingError } = await svc
             .from('orders')
-            .select('status, payment_status, payment_method, stock_reserved')
-            .eq('id', orderId)
+            .select('status, payment_status, payment_method, stock_reserved, stock_committed')
+            .eq('id', id)
             .single()
 
         if (fetchExistingError) throw fetchExistingError
 
         // Blocco ordine annullato
         if (existingOrder.status === 'cancelled') {
-            console.error('❌ PATCH /api/admin/orders: tentativo di modificare ordine già annullato', { orderId })
             return NextResponse.json(
                 { error: 'Ordine annullato: operazione non consentita' },
                 { status: 400 }
             )
         }
 
-        // 2) Risoluzione azione (action-based o legacy)
-        let resolvedAction: 'cancel' | 'mark_paid' | 'confirm' | null = null
+        // 3) Normalizzazione action (retrocompatibilità)
+        // Se status/payment_status sono già presenti, hanno precedenza rispetto ad action
+        let finalStatus = status
+        let finalPaymentStatus = payment_status
 
-        if (action) {
-            // Action-based: usa direttamente l'action se presente
-            if (action === 'cancel' || action === 'cancelled') {
-                resolvedAction = 'cancel'
-            } else if (action === 'mark_paid' || action === 'paid') {
-                resolvedAction = 'mark_paid'
-            } else if (action === 'confirm' || action === 'confirmed') {
-                resolvedAction = 'confirm'
-            }
-        } else {
-            // Legacy: risolvi da status/payment_status
-            if (status === 'cancelled') {
-                resolvedAction = 'cancel'
-            } else if (paymentStatus === 'paid') {
-                resolvedAction = 'mark_paid'
-            } else if (status === 'confirmed') {
-                resolvedAction = 'confirm'
+        if (action && !status && !payment_status) {
+            // Usa action solo se status/payment_status non sono presenti
+            switch (action) {
+                case 'cancel':
+                case 'cancelled':
+                    finalStatus = 'cancelled'
+                    break
+                case 'deliver':
+                case 'delivered':
+                    finalStatus = 'delivered'
+                    break
+                case 'confirm':
+                case 'confirmed':
+                    finalStatus = 'confirmed'
+                    break
+                case 'mark_paid':
+                case 'paid':
+                    finalPaymentStatus = 'paid'
+                    break
             }
         }
 
-        // Validazione azione risolta
-        if (!resolvedAction) {
-            console.error('❌ PATCH /api/admin/orders: azione non valida o mancante', { orderId, body })
-            return NextResponse.json(
-                { error: 'Azione non valida: specificare action, status o payment_status' },
-                { status: 400 }
-            )
-        }
+        // 4) Logica business
+        const updateData: any = {}
 
-        // 3) Esecuzione switch sull'azione risolta
-        switch (resolvedAction) {
-            case 'cancel': {
-                // Protezione contro annullamento ordine pagato
-                if (existingOrder.payment_status === 'paid') {
-                    console.error('❌ PATCH /api/admin/orders: tentativo di annullare ordine già pagato', { orderId })
-                    return NextResponse.json(
-                        { error: 'Impossibile annullare un ordine già pagato' },
-                        { status: 400 }
-                    )
-                }
+        // Gestione status
+        if (finalStatus) {
+            // Protezione contro annullamento ordine pagato
+            if (finalStatus === 'cancelled' && existingOrder.payment_status === 'paid') {
+                return NextResponse.json(
+                    { error: 'Impossibile annullare un ordine già pagato' },
+                    { status: 400 }
+                )
+            }
 
-                // Rilascia stock (gestisce stock_committed, stock_reserved, reserve_expires_at)
-                const releaseResult = await releaseOrderStock(orderId)
+            updateData.status = finalStatus
+
+            // Se status diventa 'cancelled', rilascia stock
+            if (finalStatus === 'cancelled') {
+                const releaseResult = await releaseOrderStock(id)
                 if (releaseResult.ok === false) {
-                    console.error('❌ PATCH /api/admin/orders: errore releaseOrderStock', { orderId, error: releaseResult.error })
                     return NextResponse.json({ error: releaseResult.error }, { status: 400 })
                 }
-
-                // Aggiorna status a cancelled
-                const { error: updateError } = await svc
-                    .from('orders')
-                    .update({ status: 'cancelled' })
-                    .eq('id', orderId)
-
-                if (updateError) throw updateError
-
-                return NextResponse.json({ ok: true })
             }
+        }
 
-            case 'mark_paid': {
-                // Aggiorna payment_status e status
-                const updateData: any = {
-                    payment_status: 'paid',
-                    stock_reserved: false,
-                    reserve_expires_at: null,
-                }
+        // Gestione payment_status
+        if (finalPaymentStatus) {
+            const wasPaid = existingOrder.payment_status === 'paid'
+            const willBePaid = finalPaymentStatus === 'paid'
 
-                // Se è pagamento offline, imposta status a confirmed
-                if (existingOrder.payment_method !== 'card_online') {
+            updateData.payment_status = finalPaymentStatus
+
+            // Se payment_status diventa 'paid' da non-paid
+            if (!wasPaid && willBePaid) {
+                // Per pagamenti OFFLINE, se non viene passato status, imposta status='confirmed'
+                if (existingOrder.payment_method !== 'card_online' && !finalStatus) {
                     updateData.status = 'confirmed'
                 }
 
-                const { error: updateError } = await svc
-                    .from('orders')
-                    .update(updateData)
-                    .eq('id', orderId)
+                // Reset stock_reserved e reserve_expires_at
+                updateData.stock_reserved = false
+                updateData.reserve_expires_at = null
 
-                if (updateError) throw updateError
-
-                // Gestisce post-pagamento (mantiene compatibilità)
-                const handleResult = await handleOrderPaid(orderId)
+                // Gestisce post-pagamento (senza scalare stock di nuovo)
+                const handleResult = await handleOrderPaid(id)
                 if (handleResult && !handleResult.ok) {
-                    console.error('❌ PATCH /api/admin/orders: errore handleOrderPaid', { orderId, error: handleResult.error })
                     return NextResponse.json(
                         { error: handleResult.error || 'Errore gestione ordine pagato' },
                         { status: 400 }
                     )
                 }
-
-                return NextResponse.json({ ok: true })
             }
-
-            case 'confirm': {
-                // Protezione contro consegna non pagata (se si tenta di confermare un ordine non pagato)
-                // Nota: la conferma è permessa anche per ordini non pagati (es. pagamento alla consegna)
-                
-                // Aggiorna solo status
-                const { error: updateError } = await svc
-                    .from('orders')
-                    .update({ status: 'confirmed' })
-                    .eq('id', orderId)
-
-                if (updateError) throw updateError
-
-                return NextResponse.json({ ok: true })
-            }
-
-            default:
-                console.error('❌ PATCH /api/admin/orders: azione non supportata nel switch', { orderId, resolvedAction })
-                return NextResponse.json(
-                    { error: 'Azione non supportata' },
-                    { status: 400 }
-                )
         }
+
+        // 5) Aggiornamento DB (solo se ci sono campi da aggiornare)
+        if (Object.keys(updateData).length > 0) {
+            const { error: updateError } = await svc
+                .from('orders')
+                .update(updateData)
+                .eq('id', id)
+
+            if (updateError) throw updateError
+        }
+
+        return NextResponse.json({ ok: true })
     } catch (e: any) {
         console.error('❌ PATCH /api/admin/orders error:', e.message)
         return NextResponse.json({ error: e.message }, { status: 500 })
