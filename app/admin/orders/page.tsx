@@ -414,13 +414,16 @@ export default function OrdersAdminPage() {
                     prev.map((o) => (o.id === id ? { ...o, status } : o))
                 )
             } else {
-                let errorData = {}
+                let errorData: unknown = {}
                 try {
                     errorData = JSON.parse(text)
                 } catch {
                     errorData = {}
                 }
-                alert(errorData.error || 'Errore durante l\'aggiornamento dello stato')
+                const errorMessage = (typeof errorData === 'object' && errorData !== null && 'error' in errorData && typeof errorData.error === 'string') 
+                    ? errorData.error 
+                    : 'Errore durante l\'aggiornamento dello stato'
+                alert(errorMessage)
             }
         } catch (error) {
             console.error('Errore updateStatus:', error)
@@ -449,13 +452,16 @@ export default function OrdersAdminPage() {
                     )
                 )
             } else {
-                let errorData = {}
+                let errorData: unknown = {}
                 try {
                     errorData = JSON.parse(text)
                 } catch {
                     errorData = {}
                 }
-                alert(errorData.error || 'Errore durante l\'aggiornamento del pagamento')
+                const errorMessage = (typeof errorData === 'object' && errorData !== null && 'error' in errorData && typeof errorData.error === 'string') 
+                    ? errorData.error 
+                    : 'Errore durante l\'aggiornamento del pagamento'
+                alert(errorMessage)
             }
         } catch (error) {
             console.error('Errore updatePaymentStatus:', error)
