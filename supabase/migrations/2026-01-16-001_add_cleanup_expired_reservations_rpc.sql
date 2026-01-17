@@ -38,6 +38,7 @@ BEGIN
           AND payment_status = 'pending'
           AND status = 'pending'
           AND stock_reserved = true
+          AND stock_committed = true
           AND reserve_expires_at IS NOT NULL
           AND reserve_expires_at <= now()  -- Confronto DB-side con now() UTC
         FOR UPDATE SKIP LOCKED  -- Evita deadlock con altre transazioni
@@ -62,9 +63,10 @@ BEGIN
                 END IF;
             END LOOP;
             
-            -- Aggiorna ordine: cancelled, stock_reserved=false, reserve_expires_at=NULL
+            -- Aggiorna ordine: cancelled, stock_committed=false, stock_reserved=false, reserve_expires_at=NULL
             UPDATE public.orders
             SET 
+                stock_committed = false,
                 stock_reserved = false,
                 reserve_expires_at = NULL,
                 status = 'cancelled'
