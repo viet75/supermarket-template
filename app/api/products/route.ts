@@ -21,6 +21,13 @@ function mustNumber(v: unknown, field = 'number'): number {
     }
     return n;
 }
+function normalizeUnitType(
+    value: unknown
+): 'per_unit' | 'per_kg' | null | undefined {
+    if (value === 'per_unit' || value === 'per_kg') return value;
+    if (value === null || typeof value === 'undefined') return value;
+    throw new Error('unit_type non valido');
+}
 
 /* ===========================
    GET /api/products
@@ -95,7 +102,8 @@ export async function POST(req: NextRequest) {
         let stockValue: number | null = null;
         if (typeof body.stock !== 'undefined') {
             try {
-                stockValue = normalizeStock(body.unit_type, body.stock);
+                const unitType = normalizeUnitType(body.unit_type);
+                stockValue = normalizeStock(unitType, body.stock);
             } catch (err: any) {
                 return NextResponse.json({ error: err.message }, { status: 400 });
             }
@@ -206,15 +214,21 @@ export async function PATCH(req: NextRequest) {
         // Normalizza stock (kg reali per per_kg, pezzi interi per per_unit)
         if (typeof rest.stock !== 'undefined') {
             // Recupera unit_type attuale se non viene modificato
-            let unitType = rest.unit_type;
-            if (unitType === undefined) {
+            let unitType: 'per_unit' | 'per_kg' | null | undefined;
+            if (rest.unit_type === undefined) {
                 const svc = supabaseServer();
                 const { data: current } = await svc
                     .from('products')
                     .select('unit_type')
                     .eq('id', id)
                     .single();
-                unitType = current?.unit_type ?? null;
+                unitType = normalizeUnitType(current?.unit_type ?? null);
+            } else {
+                try {
+                    unitType = normalizeUnitType(rest.unit_type);
+                } catch (err: any) {
+                    return NextResponse.json({ error: err.message }, { status: 400 });
+                }
             }
             try {
                 update.stock = normalizeStock(unitType, rest.stock);
