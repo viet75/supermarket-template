@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabaseServer'
+import { normalizeStock } from '@/lib/stock'
 
 export const runtime = 'nodejs'
 
@@ -59,7 +60,7 @@ export async function PUT(req: Request, context: any) {
         const svc = supabaseServer()
         const { data: current, error: currentError } = await svc
             .from('products')
-            .select('unit_type, stock_unit')
+            .select('unit_type')
             .eq('id', id)
             .single()
 
@@ -71,22 +72,9 @@ export async function PUT(req: Request, context: any) {
         const unitType = body.unit_type ?? current.unit_type
         update.unit_type = unitType
 
-        // stock_unit coerente
-        const stockUnit = unitType === 'per_kg' ? 100 : 1
-        update.stock_unit = stockUnit
-
-        // stock (convertito UNA SOLA VOLTA)
+        // Normalizza stock (kg reali per per_kg, pezzi interi per per_unit)
         if (typeof body.stock !== 'undefined') {
-            const inputStock = numOrNull(body.stock)
-            if (inputStock === null) {
-                update.stock = null
-            } else if (unitType === 'per_kg') {
-                // admin inserisce KG → DB salva unità minime
-                update.stock = Math.round(inputStock * (1000 / stockUnit))
-            } else {
-                // per_unit
-                update.stock = inputStock
-            }
+            update.stock = normalizeStock(unitType, body.stock)
         }
 
         if (Object.keys(update).length === 0) {

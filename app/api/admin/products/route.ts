@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabaseServer'
+import { normalizeStock } from '@/lib/stock'
 
 // CREATE prodotto
 export async function POST(req: NextRequest) {
@@ -7,20 +8,9 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json()
 
-        // Imposta stock_unit in base a unit_type
-        if (body.unit_type === 'per_kg') {
-            body.stock_unit = 100
-        } else {
-            body.stock_unit = body.stock_unit ?? 1
-        }
-
-        // Converti stock inserito dall'admin in unità intere
-        if (typeof body.stock === 'number' && body.stock !== null) {
-            if (body.unit_type === 'per_kg') {
-                // per_kg: converti kg in unità (1 kg = 10 unità da 100g)
-                body.stock = Math.round(body.stock * 10)
-            }
-            // per_unit: stock rimane invariato (già in pezzi)
+        // Normalizza stock (kg reali per per_kg, pezzi interi per per_unit)
+        if (typeof body.stock !== 'undefined') {
+            body.stock = normalizeStock(body.unit_type, body.stock)
         }
 
         const { data, error } = await supabase
@@ -49,46 +39,19 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ error: 'ID mancante' }, { status: 400 })
         }
 
-        // Imposta stock_unit in base a unit_type
-        if (payload.unit_type === 'per_kg') {
-            payload.stock_unit = 100
-        } else if (payload.unit_type === 'per_unit' || payload.unit_type === null || payload.unit_type === undefined) {
-            // Se unit_type non è per_kg, mantieni stock_unit esistente o imposta 1
-            if (payload.stock_unit === undefined) {
-                // Recupera unit_type attuale se non viene modificato
-                const { data: current } = await supabase
-                    .from('products')
-                    .select('unit_type, stock_unit')
-                    .eq('id', id)
-                    .single()
-                
-                if (current?.unit_type === 'per_kg') {
-                    payload.stock_unit = 100
-                } else {
-                    payload.stock_unit = 1
-                }
-            }
-        }
-
-        // Converti stock inserito dall'admin in unità intere
-        if (typeof payload.stock === 'number' && payload.stock !== null) {
-            const unitType = payload.unit_type
+        // Normalizza stock (kg reali per per_kg, pezzi interi per per_unit)
+        if (typeof payload.stock !== 'undefined') {
+            // Recupera unit_type attuale se non viene modificato
+            let unitType = payload.unit_type
             if (unitType === undefined) {
-                // Se unit_type non viene modificato, recuperalo dal DB
                 const { data: current } = await supabase
                     .from('products')
                     .select('unit_type')
                     .eq('id', id)
                     .single()
-                
-                if (current?.unit_type === 'per_kg') {
-                    payload.stock = Math.round(payload.stock * 10)
-                }
-            } else if (unitType === 'per_kg') {
-                // per_kg: converti kg in unità (1 kg = 10 unità da 100g)
-                payload.stock = Math.round(payload.stock * 10)
+                unitType = current?.unit_type ?? null
             }
-            // per_unit: stock rimane invariato (già in pezzi)
+            payload.stock = normalizeStock(unitType, payload.stock)
         }
 
         const { data, error } = await supabase

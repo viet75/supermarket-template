@@ -91,11 +91,9 @@ export async function reserveOrderStock(
         const productName = productData.name || 'Prodotto sconosciuto'
 
         // Chiama RPC atomica per decrementare stock
-        // Forza p_qty come stringa numeric "safe" per Supabase
-        const qtyStr = (Number.isFinite(qty) ? qty : 0).toString()
-        const { data: dbg, error: rpcError } = await svc.rpc('rpc_decrement_stock_debug', {
+        const { data, error: rpcError } = await svc.rpc('rpc_decrement_stock', {
             p_product_id: productId,
-            p_qty: qtyStr,
+            p_qty: item.quantity,
         })
 
         if (rpcError) {
@@ -106,8 +104,8 @@ export async function reserveOrderStock(
             throw new Error(error)
         }
 
-        if (!dbg || dbg.updated !== true) {
-            // Stock insufficiente: la RPC ritorna updated=false se non aggiorna righe
+        if (data !== true) {
+            // Stock insufficiente: la RPC ritorna false se non aggiorna righe
             await rollbackReservations(reservedProducts)
             const error = `Stock insufficiente per ${productName}`
             console.error(`❌ reserveOrderStock: stock insufficiente per ordine ${orderId}, prodotto ${productName}`)

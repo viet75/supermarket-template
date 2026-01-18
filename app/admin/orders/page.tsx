@@ -383,6 +383,12 @@ export default function OrdersAdminPage() {
 
 
     const updateStatus = useCallback(async (id: string, status: Order['status']) => {
+        // Validazione: status deve essere presente
+        if (!id || !status) {
+            alert('Errore: parametri mancanti per aggiornare lo stato')
+            return
+        }
+
         const order = orders.find((o) => o.id === id)
         if (!order) {
             setUpdating(null)
@@ -402,7 +408,13 @@ export default function OrdersAdminPage() {
 
         setUpdating(id)
         try {
-            const payload = { id, status }
+            const payload: { id: string; status: Order['status'] } = { id, status }
+            // Verifica finale: payload deve contenere almeno status
+            if (!payload.status) {
+                alert('Errore: stato non valido')
+                setUpdating(null)
+                return
+            }
             const res = await fetch('/api/admin/orders', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -434,9 +446,21 @@ export default function OrdersAdminPage() {
     }, [orders])
 
     const updatePaymentStatus = useCallback(async (id: string, payment_status: 'paid') => {
+        // Validazione: payment_status deve essere presente
+        if (!id || !payment_status) {
+            alert('Errore: parametri mancanti per aggiornare il pagamento')
+            return
+        }
+
         setUpdating(id)
         try {
-            const payload = { id, payment_status }
+            const payload: { id: string; payment_status: 'paid' } = { id, payment_status }
+            // Verifica finale: payload deve contenere almeno payment_status
+            if (!payload.payment_status) {
+                alert('Errore: stato pagamento non valido')
+                setUpdating(null)
+                return
+            }
             const res = await fetch('/api/admin/orders', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
