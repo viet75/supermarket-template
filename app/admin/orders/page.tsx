@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import type { Order } from '@/lib/types'
+import { useRefetchOnResume } from '@/hooks/useRefetchOnResume'
 
 function formatQuantity(q: number, unit?: string | null) {
     if (!unit) return q.toString()
@@ -339,7 +340,7 @@ export default function OrdersAdminPage() {
     const filteredOrders = orders
 
 
-    async function loadOrders(p = 1) {
+    const loadOrders = useCallback(async (p = 1) => {
         setLoading(true)
         const params = new URLSearchParams({
             page: String(p),
@@ -350,7 +351,9 @@ export default function OrdersAdminPage() {
         if (searchTerm.trim()) params.set('search', searchTerm.trim())
 
         try {
-            const res = await fetch(`/api/admin/orders?${params.toString()}`)
+            const res = await fetch(`/api/admin/orders?${params.toString()}`, {
+                cache: 'no-store'
+            })
             if (!res.ok) {
                 const text = await res.text()
                 console.error('❌ API error /api/admin/orders:', text)
@@ -366,8 +369,15 @@ export default function OrdersAdminPage() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [statusFilter, paymentFilter, searchTerm])
 
+    // Refetch wrapper che usa la pagina corrente
+    const refetchCurrentPage = useCallback(() => {
+        loadOrders(page)
+    }, [loadOrders, page])
+
+    // Hook per refetch automatico quando l'app torna in foreground
+    useRefetchOnResume(refetchCurrentPage)
 
     useEffect(() => {
         loadOrders(1)

@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { supabaseClient } from '@/lib/supabaseClient'
 import type { Product, Category } from '@/lib/types'
 import { toDisplayStock, getUnitLabel } from '@/lib/stock'
+import { useRefetchOnResume } from '@/hooks/useRefetchOnResume'
 
 
 export default function ProductsAdminPage() {
@@ -69,66 +70,77 @@ export default function ProductsAdminPage() {
 
 
 
-    // Carica categorie all’avvio
-    useEffect(() => {
-        (async () => {
-            try {
-                const { data, error } = await sb
-                    .from('categories')
-                    .select('id, name, deleted_at') // aggiunto deleted_at
-                    .is('deleted_at', null)         // mostra solo categorie attive
-                    .order('name')
+    // Funzione per caricare categorie
+    const loadCategories = useCallback(async () => {
+        try {
+            const { data, error } = await sb
+                .from('categories')
+                .select('id, name, deleted_at') // aggiunto deleted_at
+                .is('deleted_at', null)         // mostra solo categorie attive
+                .order('name')
 
-
-                if (error) throw error
-                setCategories(data || [])
-            } catch (e) {
-                console.error('Errore caricamento categorie:', e)
-            }
-        })()
+            if (error) throw error
+            setCategories(data || [])
+        } catch (e) {
+            console.error('Errore caricamento categorie:', e)
+        }
     }, [sb])
+
+    // Funzione per caricare prodotti
+    const loadProducts = useCallback(async () => {
+        setLoading(true)
+        try {
+            const base = sb
+                .from('products')
+                .select('id, name, description, price, price_sale, image_url, images, category_id, stock, stock_unit, unit_type, is_active, created_at, sort_order, deleted_at')
+                .order('created_at', { ascending: false })
+
+            const query = showArchived
+                ? base.not('deleted_at', 'is', null) // server-side: solo archiviati
+                : base.is('deleted_at', null)        // server-side: solo attivi
+
+            const { data, error } = await query
+            if (error) throw error
+
+            // doppia cintura: filtro anche client-side nel caso in cui il server filtrasse male
+            const filtered = (data ?? []).filter((p: Product) =>
+                showArchived ? p.deleted_at !== null : p.deleted_at === null
+            )
+
+            // diagnostica: vedi cosa sta arrivando
+            console.log('loadProducts', {
+                showArchived,
+                total: data?.length ?? 0,
+                archivedCount: (data ?? []).filter((p: Product) => p.deleted_at !== null).length
+            })
+
+            setItems(filtered)
+        } catch (e) {
+            console.error('Errore caricamento prodotti:', e)
+            setItems([])
+        } finally {
+            setLoading(false)
+        }
+    }, [sb, showArchived])
+
+    // Funzione di refetch completa (categorie + prodotti)
+    const refetchAll = useCallback(() => {
+        loadCategories()
+        loadProducts()
+    }, [loadCategories, loadProducts])
+
+    // Hook per refetch automatico quando l'app torna in foreground
+    useRefetchOnResume(refetchAll)
+
+    // Carica categorie all'avvio
+    useEffect(() => {
+        loadCategories()
+    }, [loadCategories])
 
     // Carica prodotti (attivi o archivio)
     useEffect(() => {
-        let cancelled = false
-            ; (async () => {
-                setLoading(true)
-                try {
-                    const base = sb
-                    .from('products')
-                    .select('id, name, description, price, price_sale, image_url, images, category_id, stock, stock_unit, unit_type, is_active, created_at, sort_order, deleted_at')
-                    
-                        .order('created_at', { ascending: false })
-
-                    const query = showArchived
-                        ? base.not('deleted_at', 'is', null) // server-side: solo archiviati
-                        : base.is('deleted_at', null)        // server-side: solo attivi
-
-                    const { data, error } = await query
-                    if (error) throw error
-
-                    // doppia cintura: filtro anche client-side nel caso in cui il server filtrasse male
-                    const filtered = (data ?? []).filter((p: Product) =>
-                        showArchived ? p.deleted_at !== null : p.deleted_at === null
-                    )
-
-                    // diagnostica: vedi cosa sta arrivando
-                    console.log('loadProducts', {
-                        showArchived,
-                        total: data?.length ?? 0,
-                        archivedCount: (data ?? []).filter((p: Product) => p.deleted_at !== null).length
-                    })
-
-                    if (!cancelled) setItems(filtered)
-                } catch (e) {
-                    console.error('Errore caricamento prodotti:', e)
-                    if (!cancelled) setItems([])
-                } finally {
-                    if (!cancelled) setLoading(false)
-                }
-            })()
-        return () => { cancelled = true }
-    }, [sb, showArchived])
+        loadProducts()
+    }, [loadProducts])
 
 
 

@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabaseClient } from '@/lib/supabaseClient'
 import type { Category } from '@/lib/types'
+import { useRefetchOnResume } from '@/hooks/useRefetchOnResume'
 
 export default function CategoriesAdminPage() {
     const [categories, setCategories] = useState<Category[]>([])
@@ -11,11 +12,7 @@ export default function CategoriesAdminPage() {
     const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
     const [showArchived, setShowArchived] = useState(false)
 
-    useEffect(() => {
-        loadCategories()
-    }, [showArchived])
-
-    async function loadCategories() {
+    const loadCategories = useCallback(async () => {
         setLoading(true)
         const sb = supabaseClient()
         const query = sb.from('categories').select('*').order('name')
@@ -28,7 +25,14 @@ export default function CategoriesAdminPage() {
         if (error) console.error(error)
         setCategories(data || [])
         setLoading(false)
-    }
+    }, [showArchived])
+
+    // Hook per refetch automatico quando l'app torna in foreground
+    useRefetchOnResume(loadCategories)
+
+    useEffect(() => {
+        loadCategories()
+    }, [loadCategories])
 
     async function addCategory() {
         if (!newName.trim()) return
