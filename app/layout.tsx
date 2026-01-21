@@ -27,6 +27,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-title" content="Supermarket Template" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
+        {/* 🔹 Theme color per Android */}
+        <meta name="theme-color" content="#10C157" />
+
         {/* 🔹 Colori chiaro/scuro */}
         <meta name="theme-color" content="#22c55e" media="(prefers-color-scheme: light)" />
         <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
