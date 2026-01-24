@@ -1,6 +1,5 @@
 import './globals.css'
 import type { Metadata, Viewport } from 'next'
-import Header from '@/components/Header'
 import ClientRefresher from '@/components/ClientRefresher'
 
 export const metadata: Metadata = {
@@ -8,7 +7,6 @@ export const metadata: Metadata = {
   description: 'Template PWA per supermercati con pannello admin',
   manifest: '/manifest.json',
 }
-
 
 export const viewport: Viewport = {
   themeColor: '#22c55e',
@@ -118,10 +116,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
       <body>
         <ClientRefresher />
-        <Header />
-        <main className="min-h-screen w-full mx-auto px-3 md:px-4 lg:px-6 pb-24 bg-white dark:bg-gray-900 transition-colors">
-          {children}
-        </main>
+        {children}
       </body>
     </html>
   )

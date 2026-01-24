@@ -1,5 +1,5 @@
 import { supabaseServer } from '@/lib/supabaseServer'
-import StoreClient from './StoreClient'
+import StoreClient from '@/app/(public)/StoreClient'
 import type { Metadata } from 'next' // 👈 rimesso come nel tuo originale
 
 export const revalidate = 0
