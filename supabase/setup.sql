@@ -408,3 +408,283 @@ NOTIFY pgrst, 'reload schema';
 -- ============================================================
 -- ✅  SETUP COMPLETE
 -- ============================================================
+-- ============================================================
+-- ============================================================
+-- ============================================================
+-- 🧩 SAFE ALTER / RLS PATCHES (schema drift protection)
+-- Keep setup.sql compatible with code expectations
+-- ============================================================
+
+-- ============================================================
+-- 👤 Helper: admin check (profiles.role = 'admin')
+-- ============================================================
+create or replace function public.is_admin(uid uuid)
+returns boolean
+language sql
+stable
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = uid
+      and role = 'admin'
+  );
+$$;
+
+-- ============================================================
+-- ORDERS (admin/orders API expects these columns)
+-- ============================================================
+
+alter table public.orders
+add column if not exists public_id text;
+
+alter table public.orders
+add column if not exists customer_first_name text;
+
+alter table public.orders
+add column if not exists customer_last_name text;
+
+alter table public.orders
+add column if not exists address text;
+
+alter table public.orders
+add column if not exists stock_reserved boolean not null default false;
+
+alter table public.orders
+add column if not exists reserve_expires_at timestamptz;
+
+alter table public.orders
+add column if not exists stock_committed boolean not null default false;
+
+alter table public.orders
+add column if not exists subtotal numeric(10,2);
+
+alter table public.orders
+add column if not exists delivery_fee numeric(10,2) not null default 0;
+
+alter table public.orders
+add column if not exists distance_km numeric(10,2);
+
+-- Backfill (safe on existing rows)
+update public.orders
+set
+  subtotal = coalesce(subtotal, total),
+  delivery_fee = coalesce(delivery_fee, 0),
+  distance_km = coalesce(distance_km, 0)
+where subtotal is null
+   or delivery_fee is null
+   or distance_km is null;
+
+-- ============================================================
+-- PRODUCTS (admin/products expects these columns)
+-- ============================================================
+
+alter table public.products
+add column if not exists unit_type text;
+
+alter table public.products
+add column if not exists stock numeric(10,2);
+
+alter table public.products
+add column if not exists stock_unit text;
+
+alter table public.products
+add column if not exists is_active boolean;
+
+-- Backfill coherent with Soluzione A (kg reali / unità)
+update public.products
+set stock_unit =
+  case
+    when unit_type = 'per_kg' then 'kg'
+    else 'unit'
+  end
+where stock_unit is null;
+
+-- ============================================================
+-- STORE SETTINGS (admin/settings/delivery expects these columns)
+-- ============================================================
+
+alter table public.store_settings
+add column if not exists delivery_base_km numeric(10,2) not null default 3;
+
+alter table public.store_settings
+add column if not exists delivery_base_fee numeric(10,2) not null default 0;
+
+alter table public.store_settings
+add column if not exists delivery_extra_fee_per_km numeric(10,2) not null default 0;
+
+alter table public.store_settings
+add column if not exists payment_methods jsonb not null
+default jsonb_build_object(
+  'cash', true,
+  'pos_on_delivery', true,
+  'card_online', true
+);
+
+-- Backfill (safe on existing singleton row)
+update public.store_settings
+set
+  delivery_base_km = coalesce(delivery_base_km, 3),
+  delivery_base_fee = coalesce(delivery_base_fee, delivery_fee_base, 0),
+  delivery_extra_fee_per_km = coalesce(delivery_extra_fee_per_km, delivery_fee_per_km, 0),
+  payment_methods = coalesce(
+    payment_methods,
+    jsonb_build_object(
+      'cash', true,
+      'pos_on_delivery', true,
+      'card_online', true
+    )
+  );
+
+-- ============================================================
+-- STORE SETTINGS: updated_at (required by admin UI updates)
+-- ============================================================
+
+alter table public.store_settings
+add column if not exists updated_at timestamptz not null default now();
+
+create or replace function public.set_store_settings_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_store_settings_updated_at on public.store_settings;
+create trigger trg_store_settings_updated_at
+before update on public.store_settings
+for each row
+execute function public.set_store_settings_updated_at();
+
+-- ============================================================
+-- 🔐 RLS / POLICIES
+-- ============================================================
+
+-- CATEGORIES (public read + admin CRUD; soft delete/restore via UPDATE)
+alter table public.categories enable row level security;
+
+drop policy if exists "public_select_categories" on public.categories;
+create policy "public_select_categories"
+on public.categories
+for select
+to anon
+using (deleted_at is null);
+
+drop policy if exists "admin_select_categories" on public.categories;
+create policy "admin_select_categories"
+on public.categories
+for select
+to authenticated
+using (public.is_admin(auth.uid()));
+
+drop policy if exists "admin_insert_categories" on public.categories;
+create policy "admin_insert_categories"
+on public.categories
+for insert
+to authenticated
+with check (public.is_admin(auth.uid()));
+
+drop policy if exists "admin_update_categories" on public.categories;
+create policy "admin_update_categories"
+on public.categories
+for update
+to authenticated
+using (public.is_admin(auth.uid()))
+with check (public.is_admin(auth.uid()));
+
+drop policy if exists "admin_delete_categories" on public.categories;
+create policy "admin_delete_categories"
+on public.categories
+for delete
+to authenticated
+using (public.is_admin(auth.uid()));
+
+-- STORE SETTINGS (public read; admin update)
+alter table public.store_settings enable row level security;
+
+drop policy if exists "public_select_store_settings" on public.store_settings;
+create policy "public_select_store_settings"
+on public.store_settings
+for select
+to anon
+using (true);
+
+drop policy if exists "admin_select_store_settings" on public.store_settings;
+create policy "admin_select_store_settings"
+on public.store_settings
+for select
+to authenticated
+using (public.is_admin(auth.uid()));
+
+drop policy if exists "admin_update_store_settings" on public.store_settings;
+create policy "admin_update_store_settings"
+on public.store_settings
+for update
+to authenticated
+using (public.is_admin(auth.uid()))
+with check (public.is_admin(auth.uid()));
+
+-- PRODUCTS (public catalog can read active, non-deleted products; admin CRUD)
+alter table public.products enable row level security;
+
+drop policy if exists "public_select_products" on public.products;
+create policy "public_select_products"
+on public.products
+for select
+to anon
+using (coalesce(is_active, true) = true and deleted_at is null);
+
+drop policy if exists "admin_select_products" on public.products;
+create policy "admin_select_products"
+on public.products
+for select
+to authenticated
+using (public.is_admin(auth.uid()));
+
+drop policy if exists "admin_insert_products" on public.products;
+create policy "admin_insert_products"
+on public.products
+for insert
+to authenticated
+with check (public.is_admin(auth.uid()));
+
+drop policy if exists "admin_update_products" on public.products;
+create policy "admin_update_products"
+on public.products
+for update
+to authenticated
+using (public.is_admin(auth.uid()))
+with check (public.is_admin(auth.uid()));
+
+drop policy if exists "admin_delete_products" on public.products;
+create policy "admin_delete_products"
+on public.products
+for delete
+to authenticated
+using (public.is_admin(auth.uid()));
+
+-- ============================================================
+-- 🔓 GRANTS (required for PostgREST access)
+-- ============================================================
+
+grant usage on schema public to anon, authenticated;
+
+-- Public read
+grant select on table public.products, public.categories, public.store_settings to anon;
+
+-- Authenticated read
+grant select on table public.products, public.categories, public.store_settings, public.orders, public.order_items, public.profiles to authenticated;
+
+-- Customer checkout flow
+grant insert on table public.orders, public.order_items to authenticated;
+
+-- Admin mutations (RLS will gate actual access)
+grant insert, update, delete on table public.products, public.categories to authenticated;
+grant update on table public.store_settings, public.orders to authenticated;
+
+-- ============================================================
+-- ✅ END
+-- ============================================================

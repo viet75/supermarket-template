@@ -1,49 +1,44 @@
-Modello PWA per supermercati
+Supermarket PWA Template
 
 Next.js · Supabase · Stripe · PWA
 
-Un modello di Progressive Web App pronto per la produzione, progettato per supermercati e negozi di alimentari locali , realizzato con Next.js App Router , Supabase e Stripe .
+Un modello di Progressive Web App pronto per la produzione, progettato per supermercati e negozi di alimentari locali, realizzato con Next.js App Router, Supabase e Stripe.
 
-Questo modello fornisce sia una vetrina rivolta al cliente sia una potente dashboard di amministrazione , consentendo ai proprietari dei negozi di gestire prodotti, ordini, pagamenti e consegne senza interagire direttamente con Stripe, Supabase o strumenti di database .
+Questo modello fornisce sia una vetrina rivolta al cliente sia una potente dashboard di amministrazione, consentendo ai proprietari dei negozi di gestire prodotti, ordini, pagamenti e consegne senza interagire direttamente con Stripe, Supabase o strumenti di database.
 
-Progettato per sviluppatori, liberi professionisti e agenzie .
+Progettato per sviluppatori, liberi professionisti e agenzie.
 
-🚀 Dimostrazione
+🚀 Demo
 
 Demo dal vivo (produzione)
-
-👉https://YOUR-VERCEL-DEMO.vercel.app
-
+👉 https://YOUR-VERCEL-DEMO.vercel.app
 
 Demo amministratore
+Email: admin@demo.com
 
-E-mail:admin@demo.com
+Password: demo123
 
-Password:demo123
-
-⚠️ La demo utilizza solo dati di prova . Non vengono elaborati pagamenti reali.
-
-
+⚠️ La demo utilizza solo dati di prova. Non vengono elaborati pagamenti reali.
 
 🧱 Stack tecnologico
 
-Next.js (router di applicazioni)
+Next.js (App Router)
 
 Supabase
 
-database PostgreSQL
+PostgreSQL
 
-Conservazione (immagini del prodotto)
+Auth
+
+Storage
 
 Stripe (pagamenti online)
 
-CSS di Tailwind
+Tailwind CSS
 
-Applicazione Web progressiva (PWA)
+Progressive Web App (PWA)
 
 Runtime Node.js (Edge Runtime intenzionalmente non utilizzato)
-
-
 
 ✨ Caratteristiche
 Vetrina
@@ -54,19 +49,19 @@ Categorie
 
 Carrello
 
-Flusso di pagamento
+Checkout
 
-Convalida dell'indirizzo
+Validazione indirizzo
 
-Calcolo della distanza di consegna
+Calcolo distanza consegna
 
-Calcolo delle spese di consegna
+Calcolo spese di consegna
 
 PWA installabile (mobile e desktop)
 
 Pagamenti
 
-Pagamenti con carta online (Stripe Checkout)
+Pagamento con carta online (Stripe Checkout)
 
 POS alla consegna
 
@@ -74,216 +69,189 @@ Pagamento alla consegna
 
 Dashboard di amministrazione
 
-Gestione del prodotto
+Gestione prodotti
 
-Gestione delle categorie
+Gestione categorie
 
-Gestione degli ordini
+Gestione ordini
 
-Configurazione di consegna
+Configurazione consegna
 
-Caricamento delle immagini (Supabase Storage)
+Caricamento immagini (Supabase Storage)
 
-Gestione manuale dello stato dei pagamenti per i pagamenti offline
-
-
+Gestione manuale pagamenti offline
 
 🏪 Panoramica del progetto
 
-Il modello PWA per supermercati è progettato principalmente per i supermercati locali che necessitano di una soluzione moderna e affidabile per la gestione degli ordini online e delle consegne locali .
+Il template è progettato per supermercati locali che necessitano di una soluzione moderna per ordini online e consegne.
 
-Il progetto comprende:
+Include:
 
 una vetrina pubblica per i clienti
 
-una dashboard di amministrazione protetta per gli operatori del negozio
+una dashboard admin protetta
 
-Tutte le operazioni quotidiane possono essere gestite dal pannello di amministrazione, senza dover accedere direttamente a Stripe, Supabase o al database.
-
-
+Tutte le operazioni quotidiane possono essere gestite dal pannello admin, senza accesso diretto a Stripe o al database.
 
 💳 Logica di pagamento
+Carta online
 
-Il checkout supporta tre metodi di pagamento:
+Gestita tramite Stripe Checkout
 
-Pagamento con carta online (Stripe)
+Lo stato diventa automaticamente paid al completamento
 
-POS alla consegna
+POS / Contanti
 
-Pagamento alla consegna
+Ordini creati come non pagati
 
-La gestione dei pagamenti segue i flussi di lavoro reali dei supermercati:
+Stato aggiornato manualmente dall’admin
 
-Pagamenti con carta online
+🗄 Database setup (one-shot)
 
-Elaborato tramite Stripe Checkout
+Il progetto è progettato per essere installato su un progetto Supabase vuoto tramite un unico script SQL.
 
-Contrassegnato automaticamente come paiduna volta che il pagamento è andato a buon fine
+Step
 
-POS / Pagamenti in contanti
+Creare un nuovo progetto Supabase
 
-Gli ordini vengono creati come non pagati
+Aprire SQL Editor
 
-Lo stato del pagamento viene aggiornato manualmente dalla dashboard di amministrazione
+Incollare ed eseguire:
 
-Ciò garantisce la massima flessibilità ai negozi che fanno ancora molto affidamento sui pagamenti offline.
+supabase/setup.sql
 
-🧑‍💼 Dashboard di amministrazione
 
-Il pannello di amministrazione è protetto da credenziali e comprende le seguenti sezioni:
+Questo script:
 
-📦 Gestione del prodotto
+crea tutte le tabelle
 
-Gli amministratori possono:
+crea funzioni RPC
 
-Crea nuovi prodotti
+configura RLS e policy
 
-Modifica i dettagli del prodotto (prezzo, tipo di unità, sconti, disponibilità)
+inserisce i seed minimi
 
-Scegli l'unità di vendita:
+applica patch di compatibilità (SAFE ALTER)
 
-per pezzo
+⚠️ Lo script è idempotente: può essere rieseguito senza errori.
 
-per chilogrammo
+👤 Configurazione utente admin (obbligatoria)
 
-Carica le immagini del prodotto
+Gli utenti Supabase Auth non possono essere creati via SQL.
 
-Eliminazione temporanea dei prodotti (i prodotti archiviati possono essere ripristinati)
+Step 1 — Creare utente
 
-Ciò impedisce la perdita accidentale di dati e consente una gestione sicura del prodotto.
+Supabase Dashboard → Authentication → Users → Add user
 
-📋 Gestione degli ordini
+Step 2 — Assegnare ruolo admin
+insert into public.profiles (id, role)
+values ('<AUTH_USER_ID>', 'admin')
+on conflict (id) do update set role = 'admin';
 
-Gli amministratori possono:
 
-Visualizza tutti gli ordini con un ID ordine pubblico
+Solo utenti con:
 
-Ispezionare gli articoli acquistati e le quantità
+profiles.role = 'admin'
 
-Visualizza il metodo di pagamento e lo stato del pagamento
 
-Aggiorna lo stato dell'ordine:
+possono accedere a /admin.
 
-contrassegna come pagato (per pagamenti POS o in contanti)
+🔐 Sicurezza e RLS
 
-confermare gli ordini
+Il database utilizza Row Level Security (RLS).
 
-contrassegnare gli ordini come consegnati
+Configurato automaticamente da setup.sql:
 
-Non è richiesta alcuna interazione diretta con Stripe o con il database.
+Utenti pubblici:
 
-🗂 Gestione delle categorie
+leggono solo prodotti e categorie attive
 
-Gli amministratori possono:
+Utenti admin:
 
-Crea categorie
+gestiscono prodotti
 
-Elimina categorie
+gestiscono categorie
 
-Assegna i prodotti alle categorie utilizzate nella vetrina
+gestiscono ordini
 
-🚚 Gestione delle consegne
+modificano impostazioni negozio
 
-Le regole di consegna sono completamente configurabili dal pannello di amministrazione:
+L’accesso admin è basato su:
 
-Abilita o disabilita la consegna
-
-Imposta il raggio massimo di consegna (km)
-
-Definisci la distanza di consegna di base
-
-Definisci il costo di consegna base
-
-Definisci il costo extra per chilometro aggiuntivo
-
-🌍 Geolocalizzazione e convalida della consegna
-
-Gli indirizzi dei clienti vengono convalidati utilizzando l'API di geocodifica di Google Maps
-
-La distanza di consegna viene calcolata utilizzando la formula di Haversine
-
-Gli ordini al di fuori del raggio di consegna vengono automaticamente bloccati
-
-Le spese di consegna vengono calcolate dinamicamente in base alla distanza
-
-📦 Cosa è incluso
-
-Codice sorgente completo
-
-Migrazioni supabase
-
-Dati dimostrativi
-
-Documentazione di configurazione di Supabase Storage
-
-Icone PWA e schermate iniziali
-
-Modello di variabili d'ambiente
-
-Guida all'installazione
-
-licenza commerciale
-
-⚙️ Requisiti
-
-Avrai bisogno di:
-
-Node.js ≥ 18
-
-Account Supabase
-
-Conto Stripe
-
-Chiave API di Google Maps
-
-⚠️ L'utilizzo dell'API di Google Maps potrebbe comportare dei costi a seconda del traffico e dell'utilizzo.
-
-🛠 Installazione
-
-Per una guida completa alla configurazione passo dopo passo, consultare INSTALL.md .
+public.profiles.role = 'admin'
 
 🌍 Variabili d'ambiente
 
-Tutte le variabili di ambiente richieste sono documentate in .env.example .
+Tutte documentate in .env.example.
 
 Nessun dominio hardcoded.
-Il progetto funziona automaticamente su localhost e Vercel Production .
+Funziona automaticamente su localhost e Vercel.
+
+💳 Testing Stripe in locale
+
+Per testare i pagamenti online in locale è necessario Stripe CLI.
+
+Installazione
+winget install Stripe.StripeCLI
+
+Login
+stripe login
+
+Avvio listener webhook
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
+
+
+Riceverai una chiave:
+
+whsec_xxxxxxxxx
+
+
+Inseriscila in .env.local:
+
+STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxx
+
+
+Riavvia:
+
+npm run dev
+
+Carta di test
+
+Numero: 4242 4242 4242 4242
+
+Scadenza: qualsiasi futura
+
+CVC: qualsiasi
 
 ⚠️ Limitazioni note
 
-Supporto per un singolo negozio (nessun SaaS multi-tenant)
+Supporto singolo negozio (no multi-tenant)
 
-Nessun sistema di autenticazione del cliente incluso
+Nessuna autenticazione cliente
 
-Pagamenti PayPal non inclusi per impostazione predefinita
+PayPal non incluso
 
-Utilizzo dell'API di Google Maps fatturato separatamente da Google
-
-Queste scelte sono intenzionali per mantenere il modello pulito, mirato ed estensibile .
+Google Maps API può avere costi
 
 📄 Licenza
 
-Questo progetto è concesso in licenza con una licenza modello commerciale .
+Licenza commerciale.
 
-✔️ Puoi utilizzarlo per progetti personali e per i clienti
-❌ Non puoi rivenderlo, ridistribuirlo o pubblicarlo come modello concorrente o SaaS
-
-Per i termini completi, consultare la LICENZA .
+✔ Utilizzabile per progetti personali e clienti
+❌ Non rivendibile come template concorrente o SaaS
 
 🧑‍💻 Supporto
 
-Supporto fornito tramite messaggi Gumroad
+Supporto via Gumroad
+Bugfix inclusi
+Sviluppo custom escluso
 
-Correzioni di bug incluse
-
-Sviluppo personalizzato non incluso
-
-✅ A chi è destinato questo modello
+✅ A chi è destinato
 
 ✔ Sviluppatori
-✔ Liberi professionisti
+✔ Freelance
 ✔ Agenzie
 
-❌ Non destinato a utenti non tecnici
+❌ Non per utenti non tecnici
 
 🔚 Fine
