@@ -10,7 +10,7 @@ export default async function Page() {
   // categorie
   const { data: categories, error: categoriesError } = await sb
     .from('categories')
-    .select('id, name')
+    .select('id, name, sort_order')
     .order('name', { ascending: true })
 
   if (categoriesError) {
@@ -35,7 +35,7 @@ export default async function Page() {
     if (productsError) {
       console.error('❌ Errore caricamento prodotti:', productsError.message)
     }
-    
+
     if (products) {
       // Ordina manualmente per sort_order e poi name
       products.sort((a, b) => {

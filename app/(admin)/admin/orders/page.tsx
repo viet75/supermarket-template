@@ -379,6 +379,57 @@ export default function OrdersAdminPage() {
     // Hook per refetch automatico quando l'app torna in foreground
     useRefetchOnResume(refetchCurrentPage)
 
+    // Auto-refresh ogni 30 secondi solo quando la pagina è visibile
+    useEffect(() => {
+        let intervalId: NodeJS.Timeout | null = null
+
+        const startPolling = () => {
+            // Pulisci interval esistente se presente
+            if (intervalId) {
+                clearInterval(intervalId)
+            }
+            // Crea nuovo interval
+            intervalId = setInterval(() => {
+                if (!document.hidden) {
+                    loadOrders(page)
+                }
+            }, 30000) // 30 secondi
+        }
+
+        const stopPolling = () => {
+            if (intervalId) {
+                clearInterval(intervalId)
+                intervalId = null
+            }
+        }
+
+        // Listener per gestire visibility change
+        const handleVisibilityChange = () => {
+            if (document.hidden) {
+                // Pausa il polling quando la pagina è nascosta
+                stopPolling()
+            } else {
+                // Riprendi il polling quando la pagina diventa visibile
+                // Ricarica immediatamente quando torna visibile
+                loadOrders(page)
+                // Poi continua con l'interval
+                startPolling()
+            }
+        }
+
+        // Avvia il polling se la pagina è visibile
+        if (!document.hidden) {
+            startPolling()
+        }
+
+        document.addEventListener('visibilitychange', handleVisibilityChange)
+
+        return () => {
+            stopPolling()
+            document.removeEventListener('visibilitychange', handleVisibilityChange)
+        }
+    }, [loadOrders, page])
+
     useEffect(() => {
         loadOrders(1)
         // eslint-disable-next-line react-hooks/exhaustive-deps

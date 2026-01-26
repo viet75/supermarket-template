@@ -4,7 +4,7 @@ import type { OrderPayload, StoreSettings, PaymentMethod } from '@/lib/types'
 import { geocodeAddress, computeDistanceFromStore } from '@/lib/geo'
 import { calculateDeliveryFee } from '@/lib/delivery'
 import { reserveOrderStock } from '@/lib/reserveOrderStock'
-import { releaseOrderStock } from '@/lib/releaseOrderStock'
+import { release_order_stock } from '@/lib/releaseOrderStock'
 import { getStripe } from '@/lib/stripe'
 import { cleanupExpiredReservations } from '@/lib/cleanupExpiredReservations'
 
@@ -16,15 +16,45 @@ function round2(n: number) {
     return Math.round(n * 100) / 100
 }
 
-// 🔎 Nuovo helper per normalizzare numeri (accetta "8,5" e "8.5")
+// 🔎 Helper robusto per normalizzare numeri (accetta "8,5" e "8.5", number o string)
 function parseDec(v: unknown, field: string): number {
-    if (v === null || v === undefined) throw new Error(`Invalid ${field}`)
-    let s = typeof v === 'string' ? v.trim() : String(v)
-    if (s === '' || s.toLowerCase() === 'nan') throw new Error(`Invalid ${field}`)
+    // Se è già un numero valido, restituiscilo direttamente
+    if (typeof v === 'number') {
+        if (isNaN(v) || !isFinite(v) || v <= 0) {
+            throw new Error(`Invalid ${field}: must be a positive number`)
+        }
+        return parseFloat(v.toFixed(3)) // mantiene fino a 3 decimali
+    }
+    
+    // Se è null/undefined, errore
+    if (v === null || v === undefined) {
+        throw new Error(`Invalid ${field}: value is required`)
+    }
+    
+    // Converti a stringa e pulisci
+    let s = String(v).trim()
+    if (s === '' || s.toLowerCase() === 'nan') {
+        throw new Error(`Invalid ${field}: empty or NaN`)
+    }
+    
+    // Sostituisci virgola italiana con punto
     s = s.replace(',', '.')
+    
+    // Rimuovi eventuali spazi
+    s = s.replace(/\s/g, '')
+    
+    // Parse
     const n = parseFloat(s)
-    if (isNaN(n)) throw new Error(`Invalid ${field}`)
-    return parseFloat(n.toFixed(3)) // mantiene fino a 3 decimali, es: 0.5 → ok
+    if (isNaN(n) || !isFinite(n)) {
+        throw new Error(`Invalid ${field}: not a valid number`)
+    }
+    
+    // Valida che sia positivo
+    if (n <= 0) {
+        throw new Error(`Invalid ${field}: must be greater than 0`)
+    }
+    
+    return parseFloat(n.toFixed(3)) // mantiene fino a 3 decimali
 }
 
 
@@ -104,6 +134,9 @@ export async function POST(req: Request) {
         await cleanupExpiredReservations()
 
         const body = await req.json()
+
+        // 🧾 Debug: log items payload
+        console.log("🧾 /api/orders items payload:", JSON.stringify(body?.items ?? body?.order_items ?? null));
 
         // Verifica campi base
         if (!Array.isArray(body.items) || body.items.length === 0) {
@@ -209,20 +242,28 @@ export async function POST(req: Request) {
         }
 
 
-        // Normalizza gli items
+        // Normalizza gli items con validazione robusta
         let items: { id: string; quantity: number; price: number }[] = []
         try {
             items = body.items.map((it: {
                 id: string
                 price?: number | string
-                qty?: number
-                quantity?: number
-            }) => ({
-
-                id: it.id,
-                price: parseDec(it.price ?? 0, 'price'),
-                quantity: parseDec(it.qty ?? it.quantity ?? 1, 'qty'),
-            }))
+                qty?: number | string
+                quantity?: number | string
+            }) => {
+                // Normalizza quantity: accetta number, string con virgola italiana, o string con punto
+                const rawQty = it.qty ?? it.quantity ?? 1
+                const normalizedQty = parseDec(rawQty, 'quantity')
+                
+                // Normalizza price
+                const normalizedPrice = parseDec(it.price ?? 0, 'price')
+                
+                return {
+                    id: it.id,
+                    price: normalizedPrice,
+                    quantity: normalizedQty, // Usa il valore normalizzato
+                }
+            })
         } catch (e: any) {
             return NextResponse.json(
                 { error: e?.message ?? 'Formato numerico non valido' },
@@ -230,7 +271,7 @@ export async function POST(req: Request) {
             )
         }
 
-        // Validazione items
+        // Validazione items (doppio check per sicurezza)
         for (const it of items) {
             if (!it.id || !Number.isFinite(it.quantity) || it.quantity <= 0) {
                 return NextResponse.json({ error: 'Formato degli articoli non valido' }, { status: 400 })
@@ -269,6 +310,7 @@ export async function POST(req: Request) {
         }
 
         const newOrderId = orderData.id
+        let stockCommitted = false // Track if reserveOrderStock succeeded
 
         // --- Inserimento degli order_items --- //
         for (const item of items) {
@@ -295,167 +337,217 @@ export async function POST(req: Request) {
         // Riserva stock dopo l'inserimento di tutti gli order_items
         try {
             await reserveOrderStock(newOrderId)
+            stockCommitted = true // Mark that stock reservation succeeded
         } catch (error) {
+            // 📦 Debug: log stock check details before returning error
+            const errorMessage = error instanceof Error ? error.message : 'Stock non disponibile per uno o più prodotti'
+            
+            // Extract product name from error message if it matches pattern "Stock insufficiente per <productName>"
+            const stockErrorMatch = errorMessage.match(/Stock insufficiente per (.+)/)
+            if (stockErrorMatch) {
+                const productName = stockErrorMatch[1]
+                
+                // Query order_items with products to get full product details
+                const { data: orderItemsWithProducts } = await supabaseServiceRole
+                    .from('order_items')
+                    .select('quantity, product_id, products(id, name, stock, unit_type, stock_unlimited)')
+                    .eq('order_id', newOrderId)
+                
+                if (orderItemsWithProducts && orderItemsWithProducts.length > 0) {
+                    // Find the product that matches the error
+                    for (const oi of orderItemsWithProducts) {
+                        let productData = (oi as any).products
+                        if (Array.isArray(productData)) {
+                            productData = productData[0] || null
+                        }
+                        if (productData && productData.name === productName) {
+                            console.log("📦 Stock check", {
+                                productId: oi.product_id,
+                                productName: productData.name,
+                                unitType: productData.unit_type || null,
+                                stock: productData.stock ?? null,
+                                stockUnlimited: productData.stock_unlimited ?? false,
+                                requestedQty: oi.quantity
+                            })
+                            break
+                        }
+                    }
+                }
+            }
+            
             // Cleanup: elimina order_items e ordine
             await supabaseServiceRole.from('order_items').delete().eq('order_id', newOrderId)
             await supabaseServiceRole.from('orders').delete().eq('id', newOrderId)
-            const errorMessage = error instanceof Error ? error.message : 'Stock non disponibile per uno o più prodotti'
+            
+            // Only return "Stock insufficiente" if error message includes "INSUFFICIENT_STOCK" or "Stock insufficiente"
+            const isStockError = errorMessage.includes('INSUFFICIENT_STOCK') || errorMessage.includes('Stock insufficiente')
             return NextResponse.json(
-                { error: errorMessage },
+                { error: isStockError ? errorMessage : 'Errore creazione ordine' },
                 { status: 400 }
             )
         }
 
-        // Imposta stock_committed=true e reserve_expires_at in base al metodo di pagamento
-        let reserveExpiresAt: string | null = null
-        let stockReserved: boolean
+        // Wrap everything after reserveOrderStock in try/catch for rollback protection
+        try {
+            // Imposta stock_committed=true e reserve_expires_at in base al metodo di pagamento
+            let reserveExpiresAt: string | null = null
+            let stockReserved: boolean
 
-        if (pm === 'card_online') {
-          // TTL diverso per dev/prod
-          const TTL_MINUTES =
-            process.env.NODE_ENV === 'development' ? 1 : 15
-        
-          const expiresAt = new Date(Date.now() + TTL_MINUTES * 60 * 1000)
-          reserveExpiresAt = expiresAt.toISOString()
-          stockReserved = true
-        } else {
-          // Per cash/pos_on_delivery: non è una riserva temporanea, quindi stock_reserved=false
-          stockReserved = false
-        }
+            if (pm === 'card_online') {
+              // TTL diverso per dev/prod
+              const TTL_MINUTES =
+                process.env.NODE_ENV === 'development' ? 1 : 15
+            
+              const expiresAt = new Date(Date.now() + TTL_MINUTES * 60 * 1000)
+              reserveExpiresAt = expiresAt.toISOString()
+              stockReserved = true
+            } else {
+              // Per cash/pos_on_delivery: non è una riserva temporanea, quindi stock_reserved=false
+              stockReserved = false
+            }
 
-        // Aggiorna ordine: stock_committed=true per tutti i metodi, stock_reserved e reserve_expires_at solo per card_online
-        await supabaseServiceRole
-            .from('orders')
-            .update({
-                stock_committed: true,
-                stock_reserved: stockReserved,
-                reserve_expires_at: reserveExpiresAt,
-            })
-            .eq('id', newOrderId)
+            // Aggiorna ordine: stock_committed=true per tutti i metodi, stock_reserved e reserve_expires_at solo per card_online
+            await supabaseServiceRole
+                .from('orders')
+                .update({
+                    stock_committed: true,
+                    stock_reserved: stockReserved,
+                    reserve_expires_at: reserveExpiresAt,
+                })
+                .eq('id', newOrderId)
 
-        // Se payment_method è card_online, crea Stripe Checkout Session
-        let checkoutUrl: string | null = null
-        if (pm === 'card_online') {
-            try {
-                // Leggi order_items con join products per ottenere name, unit_type, image_url
-                const { data: orderItems, error: itemsError } = await supabaseServiceRole
-                    .from('order_items')
-                    .select('quantity, price, products(id, name, unit_type, image_url)')
-                    .eq('order_id', newOrderId)
+            // Se payment_method è card_online, crea Stripe Checkout Session
+            let checkoutUrl: string | null = null
+            if (pm === 'card_online') {
+                try {
+                    // Leggi order_items con join products per ottenere name, unit_type, image_url
+                    const { data: orderItems, error: itemsError } = await supabaseServiceRole
+                        .from('order_items')
+                        .select('quantity, price, products(id, name, unit_type, image_url)')
+                        .eq('order_id', newOrderId)
 
-                if (itemsError || !orderItems || orderItems.length === 0) {
-                    // Errore: rilascia stock e cancella ordine
-                    await releaseOrderStock(newOrderId)
-                    await supabaseServiceRole.from('order_items').delete().eq('order_id', newOrderId)
-                    await supabaseServiceRole.from('orders').delete().eq('id', newOrderId)
-                    return NextResponse.json(
-                        { error: 'Errore caricamento articoli per checkout' },
-                        { status: 500 }
-                    )
-                }
-
-                // Costruisci line_items per Stripe
-                const line_items = orderItems.map((it: any) => {
-                    // Normalizza product data
-                    let productData = it.products
-                    if (Array.isArray(productData)) {
-                        productData = productData[0] || null
+                    if (itemsError || !orderItems || orderItems.length === 0) {
+                        throw new Error('Errore caricamento articoli per checkout')
                     }
 
-                    const productName = productData?.name || 'Prodotto'
-                    const unitType = productData?.unit_type || 'per_unit'
-                    const imageUrl = productData?.image_url || null
-                    const quantity = Number(it.quantity) || 1
-                    const price = Number(it.price) || 0
+                    // Costruisci line_items per Stripe
+                    const line_items = orderItems.map((it: any) => {
+                        // Normalizza product data
+                        let productData = it.products
+                        if (Array.isArray(productData)) {
+                            productData = productData[0] || null
+                        }
 
-                    // Stripe accetta solo quantità intere
-                    // Se il prodotto è "per_kg", ingloba la quantità nel prezzo
-                    if (unitType === 'per_kg') {
+                        const productName = productData?.name || 'Prodotto'
+                        const unitType = productData?.unit_type || 'per_unit'
+                        const imageUrl = productData?.image_url || null
+                        const quantity = Number(it.quantity) || 1
+                        const price = Number(it.price) || 0
+
+                        // Stripe accetta solo quantità intere
+                        // Se il prodotto è "per_kg", ingloba la quantità nel prezzo
+                        if (unitType === 'per_kg') {
+                            return {
+                                quantity: 1, // sempre 1 per i prodotti a peso
+                                price_data: {
+                                    currency: 'eur',
+                                    unit_amount: Math.round(price * quantity * 100),
+                                    product_data: {
+                                        name: `${productName} (${quantity} kg)`,
+                                        ...(imageUrl ? { images: [imageUrl] } : {}),
+                                    },
+                                },
+                            }
+                        }
+
+                        // Prodotti venduti "a pezzo"
                         return {
-                            quantity: 1, // sempre 1 per i prodotti a peso
+                            quantity: Math.round(quantity),
                             price_data: {
                                 currency: 'eur',
-                                unit_amount: Math.round(price * quantity * 100),
+                                unit_amount: Math.round(price * 100),
                                 product_data: {
-                                    name: `${productName} (${quantity} kg)`,
+                                    name: `${productName} (${quantity} pz)`,
                                     ...(imageUrl ? { images: [imageUrl] } : {}),
                                 },
                             },
                         }
-                    }
-
-                    // Prodotti venduti "a pezzo"
-                    return {
-                        quantity: Math.round(quantity),
-                        price_data: {
-                            currency: 'eur',
-                            unit_amount: Math.round(price * 100),
-                            product_data: {
-                                name: `${productName} (${quantity} pz)`,
-                                ...(imageUrl ? { images: [imageUrl] } : {}),
-                            },
-                        },
-                    }
-                })
-
-                // Aggiungi delivery fee come line item separato se > 0
-                if (deliveryFee > 0) {
-                    line_items.push({
-                        quantity: 1,
-                        price_data: {
-                            currency: 'eur',
-                            unit_amount: Math.round(deliveryFee * 100),
-                            product_data: {
-                                name: 'Spese di consegna',
-                            },
-                        },
                     })
+
+                    // Aggiungi delivery fee come line item separato se > 0
+                    if (deliveryFee > 0) {
+                        line_items.push({
+                            quantity: 1,
+                            price_data: {
+                                currency: 'eur',
+                                unit_amount: Math.round(deliveryFee * 100),
+                                product_data: {
+                                    name: 'Spese di consegna',
+                                },
+                            },
+                        })
+                    }
+
+                    // Deriva siteUrl dal dominio della richiesta corrente
+                    const url = new URL(req.url)
+                    const siteUrl = `${url.protocol}//${url.host}`
+
+                    const stripe = getStripe()
+
+                    // Crea la sessione Stripe
+                    const session = await stripe.checkout.sessions.create({
+                        mode: 'payment',
+                        payment_method_types: ['card'],
+                        line_items,
+                        success_url: `${siteUrl}/order/success?session_id={CHECKOUT_SESSION_ID}`,
+                        cancel_url: `${siteUrl}/checkout?cancelled=1&id=${newOrderId}`,
+                        metadata: { orderId: newOrderId },
+                    })
+
+                    checkoutUrl = session.url
+
+                    // Aggiorna ordine con stripe_session_id (non bloccare se fallisce)
+                    void supabaseServiceRole
+                        .from('orders')
+                        .update({ stripe_session_id: session.id })
+                        .eq('id', newOrderId)
+                } catch (stripeError: any) {
+                    // Re-throw to be caught by outer catch for rollback
+                    throw new Error(stripeError?.message ?? 'Errore creazione sessione di pagamento')
                 }
-
-                // Deriva siteUrl dal dominio della richiesta corrente
-                const url = new URL(req.url)
-                const siteUrl = `${url.protocol}//${url.host}`
-
-                const stripe = getStripe()
-
-                // Crea la sessione Stripe
-                const session = await stripe.checkout.sessions.create({
-                    mode: 'payment',
-                    payment_method_types: ['card'],
-                    line_items,
-                    success_url: `${siteUrl}/order/success?session_id={CHECKOUT_SESSION_ID}`,
-                    cancel_url: `${siteUrl}/checkout?cancelled=1&id=${newOrderId}`,
-                    metadata: { orderId: newOrderId },
-                })
-
-                checkoutUrl = session.url
-
-                // Aggiorna ordine con stripe_session_id (non bloccare se fallisce)
-                void supabaseServiceRole
-                    .from('orders')
-                    .update({ stripe_session_id: session.id })
-                    .eq('id', newOrderId)
-            } catch (stripeError: any) {
-                // Errore creazione Stripe Session: rilascia stock e cancella ordine
-                await releaseOrderStock(newOrderId)
-                await supabaseServiceRole.from('order_items').delete().eq('order_id', newOrderId)
-                await supabaseServiceRole.from('orders').delete().eq('id', newOrderId)
-                console.error('❌ Errore creazione Stripe Session:', stripeError)
-                return NextResponse.json(
-                    { error: stripeError?.message ?? 'Errore creazione sessione di pagamento' },
-                    { status: 500 }
-                )
             }
-        }
 
-        return NextResponse.json({
-            ok: true,
-            order_id: newOrderId,
-            delivery_fee: deliveryFee,
-            total: total,
-            distance_km: round2(distanceKm),
-            ...(checkoutUrl ? { checkoutUrl } : {})
-        })
+            return NextResponse.json({
+                ok: true,
+                order_id: newOrderId,
+                delivery_fee: deliveryFee,
+                total: total,
+                distance_km: round2(distanceKm),
+                ...(checkoutUrl ? { checkoutUrl } : {})
+            })
+        } catch (error) {
+            // Compensating transaction: if stock was committed, release it
+            if (stockCommitted) {
+                console.error('❌ Errore dopo reserveOrderStock, rilascio stock per ordine:', newOrderId)
+                await release_order_stock(newOrderId).catch((releaseError) => {
+                    console.error('❌ Errore durante release_order_stock:', releaseError)
+                })
+            }
+            
+            // Cleanup: elimina order_items e ordine
+            await supabaseServiceRole.from('order_items').delete().eq('order_id', newOrderId).catch(() => {})
+            await supabaseServiceRole.from('orders').delete().eq('id', newOrderId).catch(() => {})
+            
+            const errorMessage = error instanceof Error ? error.message : 'Errore creazione ordine'
+            // Only return "Stock insufficiente" if error message includes "INSUFFICIENT_STOCK" or "Stock insufficiente"
+            const isStockError = errorMessage.includes('INSUFFICIENT_STOCK') || errorMessage.includes('Stock insufficiente')
+            
+            console.error('❌ Errore dopo reserveOrderStock:', errorMessage)
+            return NextResponse.json(
+                { error: isStockError ? errorMessage : 'Errore creazione ordine' },
+                { status: isStockError ? 400 : 500 }
+            )
+        }
     } catch (e: any) {
         console.error('❌ API ERROR /api/orders:', e)
         return NextResponse.json(

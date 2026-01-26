@@ -135,23 +135,54 @@ applica patch di compatibilità (SAFE ALTER)
 
 ⚠️ Lo script è idempotente: può essere rieseguito senza errori.
 
+## Dati demo (seed)
+
+Il file `supabase/setup.sql` inserisce automaticamente:
+- categorie di esempio
+- prodotti di esempio (per_unit e per_kg)
+
+Questo serve per avere una demo funzionante immediatamente dopo l’installazione.
+
+Se desideri un database completamente vuoto (produzione reale),
+puoi rimuovere o commentare il blocco `DEMO SEED` all’interno di `setup.sql`.
+
+
+
 👤 Configurazione utente admin (obbligatoria)
 
-Gli utenti Supabase Auth non possono essere creati via SQL.
+⚠️ IMPORTANTE
+
+Prima di creare l’utente admin, è **obbligatorio** eseguire il file:
+
+supabase/setup.sql
+
+su un progetto Supabase vuoto.
+
+Questo file crea tutte le tabelle, funzioni, trigger e seed necessari.
+Senza aver eseguito `setup.sql`, la tabella `public.profiles` non esiste
+e la promozione admin fallirà.
+
 
 Step 1 — Creare utente
 
 Supabase Dashboard → Authentication → Users → Add user
 
+Nota: la riga in `public.profiles` viene creata automaticamente
+
+quando si crea un utente in Supabase Auth (trigger DB).
+
+
 Step 2 — Assegnare ruolo admin
-insert into public.profiles (id, role)
-values ('<AUTH_USER_ID>', 'admin')
-on conflict (id) do update set role = 'admin';
 
+Dopo aver creato l’utente in Supabase Auth, la riga in `public.profiles` viene creata automaticamente (trigger + backfill).
 
-Solo utenti con:
+Imposta admin così (consigliato, by email):
 
-profiles.role = 'admin'
+```sql
+update public.profiles
+set role = 'admin'
+where id = (select id from auth.users where email = 'admin@test.com');
+
 
 
 possono accedere a /admin.
@@ -254,4 +285,80 @@ Sviluppo custom escluso
 
 ❌ Non per utenti non tecnici
 
+Supabase Storage
+Il bucket products viene creato automaticamente da setup.sql.
+Non è necessario creare nulla manualmente nella dashboard.
+
+## Stock (DB-first, RPC)
+
+Lo stock è gestito esclusivamente dal database tramite RPC.
+
+RPC pubbliche (PostgREST):
+- reserve_order_stock(order_id uuid)
+- release_order_stock(order_id uuid)
+- cleanup_expired_reservations()
+
+Compatibilità (nomi legacy supportati):
+- reserveorderstock(order_id uuid)
+- releaseorderstock(order_id uuid)
+
+Node/Next.js non deve mai scalare stock direttamente: orchestration only.
+
+### Stock release (DB-first)
+
+Per annullare un ordine e ripristinare lo stock viene utilizzata la RPC:
+
+release_order_stock(order_id uuid)
+
+La logica è interamente nel database (PL/pgSQL).
+Node/Next.js non deve mai modificare lo stock direttamente.
+
+
 🔚 Fine
+## Sistema Stock (DB-first)
+
+Lo stock è gestito **esclusivamente dal database** tramite funzioni RPC PostgreSQL.
+Node/Next.js non deve mai modificare direttamente lo stock.
+
+Il sistema è reservation-based (stile Amazon) e non consente overselling.
+
+### RPC pubbliche (PostgREST)
+
+Queste sono le API ufficiali esposte dal database:
+
+reserve_order_stock(order_id uuid)  
+release_order_stock(order_id uuid)  
+cleanup_expired_reservations()
+
+### Flusso
+
+Alla creazione ordine:
+1. vengono creati `orders` e `order_items`
+2. viene chiamata `reserve_order_stock(order_id)`
+3. lo stock viene scalato nel database
+4. `orders.stock_committed = true`
+
+Per `card_online`:
+- `payment_status = pending`
+- `stock_reserved = true`
+- `reserve_expires_at = now + TTL`
+- se il pagamento non avviene → `cleanup_expired_reservations()`
+
+Per `cash` / `pos_on_delivery`:
+- stock scalato subito
+- se annullato → `release_order_stock(order_id)`
+
+## Reset Supabase (fresh install simulation)
+
+Per simulare l’installazione reale su Supabase vuoto senza creare un nuovo progetto:
+
+```sql
+drop schema if exists public cascade;
+create schema public;
+grant usage on schema public to postgres, anon, authenticated, service_role;
+grant all on schema public to postgres, service_role;
+
+update public.profiles
+set role = 'admin'
+where id = (select id from auth.users where email = 'admin@test.com');
+

@@ -1,5 +1,9 @@
 /**
- * Helper per gestire la visualizzazione dello stock con unità minime
+ * Helper per gestire la visualizzazione dello stock con unità minime.
+ * 
+ * NOTA: Questo file NON gestisce la riserva stock.
+ * La riserva stock è gestita completamente nel database tramite la RPC reserveOrderStock.
+ * Queste funzioni sono solo per visualizzazione e normalizzazione UI/admin.
  */
 
 type Product = {

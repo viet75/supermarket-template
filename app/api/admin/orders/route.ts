@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabaseServer'
 import { handleOrderPaid } from '@/lib/handleOrderPaid'
-import { releaseOrderStock } from '@/lib/releaseOrderStock'
+import { release_order_stock } from '@/lib/releaseOrderStock'
 import type { Order } from '@/lib/types'
 
 
@@ -264,7 +264,7 @@ export async function PATCH(req: NextRequest) {
 
             // Se status diventa 'cancelled', rilascia stock
             if (finalStatus === 'cancelled') {
-                const releaseResult = await releaseOrderStock(id)
+                const releaseResult = await release_order_stock(id)
                 if (releaseResult.ok === false) {
                     return NextResponse.json({ error: releaseResult.error }, { status: 400 })
                 }

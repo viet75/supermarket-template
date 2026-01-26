@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 );
 
 -- ============================================================
--- 🔧  ADD COLUMNS TO EXISTING TABLES
+-- 🔧  ADD ALL COLUMNS (BEFORE FUNCTIONS REFERENCE THEM)
 -- ============================================================
 
 -- Products: additional columns
@@ -141,6 +141,22 @@ BEGIN
             DEFAULT 'per_unit'
             CHECK (unit_type IN ('per_unit', 'per_kg') OR unit_type IS NULL);
     END IF;
+
+    -- stock_unit
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='products' AND column_name='stock_unit'
+    ) THEN
+        ALTER TABLE public.products ADD COLUMN stock_unit text;
+    END IF;
+
+    -- stock_unlimited
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='products' AND column_name='stock_unlimited'
+    ) THEN
+        ALTER TABLE public.products ADD COLUMN stock_unlimited boolean NOT NULL DEFAULT false;
+    END IF;
 END $$;
 
 -- Backfill prodotti: valori null -> default coerenti
@@ -166,20 +182,102 @@ BEGIN
     END IF;
 END $$;
 
--- Orders: additional columns
+-- Backfill stock_unit coherent with Soluzione A (kg reali / unità)
+UPDATE public.products
+SET stock_unit =
+  CASE
+    WHEN unit_type = 'per_kg' THEN 'kg'
+    ELSE 'unit'
+  END
+WHERE stock_unit IS NULL;
+
+-- Backfill stock_unlimited: eventuali record con stock NULL => unlimited
+UPDATE public.products
+SET stock_unlimited = true,
+    stock = 0
+WHERE stock IS NULL;
+
+-- Orders: ALL columns (including stock_committed BEFORE functions reference it)
 ALTER TABLE public.orders
 ADD COLUMN IF NOT EXISTS stripe_payment_intent_id text,
 ADD COLUMN IF NOT EXISTS stripe_session_id text,
-ADD COLUMN IF NOT EXISTS stock_scaled boolean NOT NULL DEFAULT false,
 ADD COLUMN IF NOT EXISTS public_id text,
 ADD COLUMN IF NOT EXISTS customer_first_name text,
 ADD COLUMN IF NOT EXISTS customer_last_name text,
 ADD COLUMN IF NOT EXISTS address jsonb,
-ADD COLUMN IF NOT EXISTS reserve_expires_at timestamptz;
+ADD COLUMN IF NOT EXISTS reserve_expires_at timestamptz,
+ADD COLUMN IF NOT EXISTS stock_reserved boolean NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS stock_committed boolean NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS subtotal numeric(10,2),
+ADD COLUMN IF NOT EXISTS delivery_fee numeric(10,2) NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS distance_km numeric(10,2);
 
--- Stock reservation flag
-ALTER TABLE public.orders
-ADD COLUMN IF NOT EXISTS stock_reserved boolean NOT NULL DEFAULT false;
+-- REMOVE stock_scaled (Solution A: NO stock_scaled column)
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='orders' AND column_name='stock_scaled'
+    ) THEN
+        ALTER TABLE public.orders DROP COLUMN stock_scaled;
+    END IF;
+END $$;
+
+-- Categories: additional columns
+ALTER TABLE public.categories
+ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now(),
+ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now(),
+ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true,
+ADD COLUMN IF NOT EXISTS sort_order integer NOT NULL DEFAULT 0;
+
+-- Store Settings: additional columns
+ALTER TABLE public.store_settings
+ADD COLUMN IF NOT EXISTS delivery_base_km numeric(10,2) NOT NULL DEFAULT 3,
+ADD COLUMN IF NOT EXISTS delivery_base_fee numeric(10,2) NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS delivery_extra_fee_per_km numeric(10,2) NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS payment_methods jsonb NOT NULL
+DEFAULT jsonb_build_object(
+  'cash', true,
+  'pos_on_delivery', true,
+  'card_online', true
+),
+ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now(),
+ADD COLUMN IF NOT EXISTS singleton_key boolean NOT NULL DEFAULT true;
+
+-- Backfill orders (safe on existing rows)
+UPDATE public.orders
+SET public_id = left(id::text, 12)
+WHERE public_id IS NULL;
+
+UPDATE public.orders
+SET
+    customer_first_name = COALESCE(address->>'firstName', address->>'first_name', ''),
+    customer_last_name  = COALESCE(address->>'lastName',  address->>'last_name',  '')
+WHERE customer_first_name IS NULL OR customer_last_name IS NULL;
+
+UPDATE public.orders
+SET
+  subtotal = COALESCE(subtotal, total),
+  delivery_fee = COALESCE(delivery_fee, 0),
+  distance_km = COALESCE(distance_km, 0)
+WHERE subtotal IS NULL
+   OR delivery_fee IS NULL
+   OR distance_km IS NULL;
+
+-- Backfill store_settings (safe on existing singleton row)
+UPDATE public.store_settings
+SET
+  delivery_base_km = COALESCE(delivery_base_km, 3),
+  delivery_base_fee = COALESCE(delivery_base_fee, delivery_fee_base, 0),
+  delivery_extra_fee_per_km = COALESCE(delivery_extra_fee_per_km, delivery_fee_per_km, 0),
+  payment_methods = COALESCE(
+    payment_methods,
+    jsonb_build_object(
+      'cash', true,
+      'pos_on_delivery', true,
+      'card_online', true
+    )
+  );
 
 -- ============================================================
 -- 📊  INDEXES AND CONSTRAINTS
@@ -205,23 +303,43 @@ CREATE INDEX IF NOT EXISTS idx_orders_reserve_expires_at
 ON public.orders(reserve_expires_at)
 WHERE reserve_expires_at IS NOT NULL;
 
--- ============================================================
--- 🔄  BACKFILL DATA
--- ============================================================
+CREATE INDEX IF NOT EXISTS idx_categories_deleted_at ON public.categories(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_categories_is_active ON public.categories(is_active);
+CREATE INDEX IF NOT EXISTS idx_categories_sort_order ON public.categories(sort_order);
 
-UPDATE public.orders
-SET public_id = left(id::text, 12)
-WHERE public_id IS NULL;
+-- Store settings singleton constraint
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'store_settings_singleton_key_unique'
+  ) THEN
+    ALTER TABLE public.store_settings
+      ADD CONSTRAINT store_settings_singleton_key_unique UNIQUE (singleton_key);
+  END IF;
+END $$;
 
-UPDATE public.orders
-SET
-    customer_first_name = COALESCE(address->>'firstName', address->>'first_name', ''),
-    customer_last_name  = COALESCE(address->>'lastName',  address->>'last_name',  '')
-WHERE customer_first_name IS NULL OR customer_last_name IS NULL;
+INSERT INTO public.store_settings (singleton_key)
+VALUES (true)
+ON CONFLICT (singleton_key) DO NOTHING;
 
 -- ============================================================
 -- ⚙️  FUNCTIONS AND TRIGGERS
 -- ============================================================
+
+-- Helper: admin check (profiles.role = 'admin')
+CREATE OR REPLACE FUNCTION public.is_admin(uid uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.profiles
+    WHERE id = uid
+      AND role = 'admin'
+  );
+$$;
 
 CREATE OR REPLACE FUNCTION public.set_orders_public_id()
 RETURNS TRIGGER AS $$
@@ -264,6 +382,47 @@ CREATE TRIGGER trigger_sync_customer_names
     FOR EACH ROW
     EXECUTE FUNCTION public.sync_customer_names_from_address();
 
+CREATE OR REPLACE FUNCTION public.set_store_settings_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_store_settings_updated_at ON public.store_settings;
+CREATE TRIGGER trg_store_settings_updated_at
+BEFORE UPDATE ON public.store_settings
+FOR EACH ROW
+EXECUTE FUNCTION public.set_store_settings_updated_at();
+
+-- Trigger: se arriva stock NULL, convertilo in unlimited (stock_unlimited=true, stock=0)
+CREATE OR REPLACE FUNCTION public.products_apply_stock_unlimited()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.stock IS NULL THEN
+    NEW.stock_unlimited := true;
+    NEW.stock := 0;
+  END IF;
+
+  IF COALESCE(NEW.stock_unlimited, false) = true THEN
+    NEW.stock := 0;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_products_apply_stock_unlimited ON public.products;
+CREATE TRIGGER trg_products_apply_stock_unlimited
+BEFORE INSERT OR UPDATE ON public.products
+FOR EACH ROW
+EXECUTE FUNCTION public.products_apply_stock_unlimited();
+
 -- ============================================================
 -- 📦  STORAGE BUCKETS
 -- ============================================================
@@ -279,412 +438,778 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
--- 📦 STOCK RESERVATION RPC (ATOMIC, DIAGNOSTIC)
+-- 📦 CANONICAL STOCK RPC (DB-FIRST, SOLUTION A)
+-- ============================================================
+-- Official API: reserve_order_stock, release_order_stock, cleanup_expired_reservations
+-- All other names are thin alias wrappers that delegate to these.
 -- ============================================================
 
-CREATE OR REPLACE FUNCTION public.rpc_decrement_stock(
-  p_product_id uuid,
-  p_qty numeric
+-- CANONICAL: Reserve stock for an entire order (Soluzione A: REAL KG, no scaling)
+-- Idempotent: if stock_committed is already true, does nothing
+CREATE OR REPLACE FUNCTION public.reserve_order_stock_internal(
+  p_order_id uuid
 )
 RETURNS void
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
-  v_stock numeric;
+  v_stock_committed boolean;
+  v_item RECORD;
+  v_product_stock numeric;
+  v_product_stock_unlimited boolean;
 BEGIN
-  IF p_qty IS NULL OR p_qty <= 0 THEN
-    RAISE EXCEPTION 'INVALID_QTY';
-  END IF;
-
-  SELECT stock INTO v_stock
-  FROM public.products
-  WHERE id = p_product_id;
-
+  -- Idempotency check: if already committed, return early
+  SELECT stock_committed INTO v_stock_committed
+  FROM public.orders
+  WHERE id = p_order_id;
+  
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'PRODUCT_NOT_FOUND';
+    RAISE EXCEPTION USING errcode = 'P0001', message = 'ORDER_NOT_FOUND';
   END IF;
-
-  IF v_stock < p_qty THEN
-    RAISE EXCEPTION 'INSUFFICIENT_STOCK';
+  
+  IF v_stock_committed = true THEN
+    RETURN; -- Already committed, idempotent
   END IF;
-
-  UPDATE public.products
-  SET stock = stock - p_qty
-  WHERE id = p_product_id;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION public.rpc_decrement_stock_v2(
-  p_product_id uuid,
-  p_qty numeric
-)
-RETURNS numeric
-LANGUAGE plpgsql
-AS $$
-DECLARE
-  new_stock numeric;
-BEGIN
-  IF p_qty IS NULL OR p_qty <= 0 THEN
-    RAISE EXCEPTION 'INVALID_QTY';
-  END IF;
-
-  UPDATE public.products
-  SET stock = stock - p_qty
-  WHERE id = p_product_id
-    AND stock >= p_qty
-  RETURNING stock INTO new_stock;
-
-  RETURN new_stock;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION public.rpc_decrement_stock_debug(
-  p_product_id uuid,
-  p_qty numeric
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-AS $$
-DECLARE
-  old_stock numeric;
-  new_stock numeric;
-  updated boolean;
-BEGIN
-  IF p_qty IS NULL OR p_qty <= 0 THEN
-    RAISE EXCEPTION 'INVALID_QTY';
-  END IF;
-
-  SELECT stock INTO old_stock
-  FROM public.products
-  WHERE id = p_product_id;
-
+  
+  -- Loop through all order_items for this order
+  FOR v_item IN
+    SELECT oi.product_id, oi.quantity
+    FROM public.order_items oi
+    WHERE oi.order_id = p_order_id
+    ORDER BY oi.product_id -- Consistent ordering to avoid deadlocks
+  LOOP
+    -- Lock product row FOR UPDATE to prevent concurrent modifications
+    SELECT stock, COALESCE(stock_unlimited, false)
+    INTO v_product_stock, v_product_stock_unlimited
+    FROM public.products
+    WHERE id = v_item.product_id
+    FOR UPDATE;
+    
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'INSUFFICIENT_STOCK' USING errcode = 'P0001';
+    END IF;
+    
+    -- If stock_unlimited is true, skip this product (reservation always succeeds, no decrement)
+    IF v_product_stock_unlimited = true THEN
+      CONTINUE;
+    END IF;
+    
+    -- Check if stock is sufficient (REAL numeric comparison, no scaling)
+    IF v_product_stock < v_item.quantity THEN
+      RAISE EXCEPTION 'INSUFFICIENT_STOCK' USING errcode = 'P0001';
+    END IF;
+    
+    -- Decrement stock using REAL numeric values (no x10/x100 scaling)
+    UPDATE public.products
+    SET stock = stock - v_item.quantity
+    WHERE id = v_item.product_id;
+    
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'INSUFFICIENT_STOCK' USING errcode = 'P0001';
+    END IF;
+  END LOOP;
+  
+  -- All products reserved successfully, mark order as committed
+  UPDATE public.orders
+  SET stock_committed = true
+  WHERE id = p_order_id;
+  
   IF NOT FOUND THEN
-    RETURN jsonb_build_object(
-      'old_stock', NULL,
-      'new_stock', NULL,
-      'updated', false
-    );
+    RAISE EXCEPTION USING errcode = 'P0001', message = 'ORDER_NOT_FOUND';
   END IF;
-
-  UPDATE public.products
-  SET stock = stock - p_qty
-  WHERE id = p_product_id
-    AND stock >= p_qty
-  RETURNING stock INTO new_stock;
-
-  updated := (new_stock IS NOT NULL);
-
-  RETURN jsonb_build_object(
-    'old_stock', old_stock,
-    'new_stock', new_stock,
-    'updated', updated
-  );
 END;
 $$;
 
-NOTIFY pgrst, 'reload schema';
-
-CREATE OR REPLACE FUNCTION public.rpc_increment_stock(
-  p_product_id uuid,
-  p_qty numeric
+-- CANONICAL: Release stock for an entire order (Soluzione A: REAL KG, no scaling)
+-- Idempotent: if stock_committed is already false, does nothing
+CREATE OR REPLACE FUNCTION public.release_order_stock_internal(
+  p_order_id uuid
 )
 RETURNS void
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
+DECLARE
+  v_stock_committed boolean;
+  v_item RECORD;
+  v_product_stock_unlimited boolean;
 BEGIN
-  IF p_qty IS NULL OR p_qty <= 0 THEN
-    RAISE EXCEPTION 'INVALID_QTY';
+  -- Idempotency check
+  SELECT stock_committed INTO v_stock_committed
+  FROM public.orders
+  WHERE id = p_order_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING errcode = 'P0001', message = 'ORDER_NOT_FOUND';
   END IF;
 
-  UPDATE public.products
-  SET stock = stock + p_qty
-  WHERE id = p_product_id;
+  IF v_stock_committed = false THEN
+    RETURN; -- Already released, idempotent
+  END IF;
+
+  -- Loop items and increment stock back
+  FOR v_item IN
+    SELECT oi.product_id, oi.quantity
+    FROM public.order_items oi
+    WHERE oi.order_id = p_order_id
+    ORDER BY oi.product_id
+  LOOP
+    -- Lock product row for consistency
+    SELECT COALESCE(stock_unlimited, false)
+    INTO v_product_stock_unlimited
+    FROM public.products
+    WHERE id = v_item.product_id
+    FOR UPDATE;
+
+    -- If product not found, ignore (safe)
+    IF NOT FOUND THEN
+      CONTINUE;
+    END IF;
+
+    -- Unlimited: no-op
+    IF v_product_stock_unlimited = true THEN
+      CONTINUE;
+    END IF;
+
+    -- Increment (Soluzione A: kg/unità reali, no scaling)
+    UPDATE public.products
+    SET stock = stock + v_item.quantity
+    WHERE id = v_item.product_id;
+  END LOOP;
+
+  -- Mark order as not committed and not reserved
+  UPDATE public.orders
+  SET
+    stock_committed = false,
+    stock_reserved = false,
+    reserve_expires_at = NULL
+  WHERE id = p_order_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING errcode = 'P0001', message = 'ORDER_NOT_FOUND';
+  END IF;
 END;
 $$;
 
--- Reload PostgREST schema cache (evita "schema cache" dopo setup)
-NOTIFY pgrst, 'reload schema';
+-- CANONICAL: Cleanup expired reservations (TTL)
+-- Releases stock for unpaid card_online orders whose reservation expired.
+CREATE OR REPLACE FUNCTION public.cleanup_expired_reservations()
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_order RECORD;
+  v_count integer := 0;
+BEGIN
+  FOR v_order IN
+    SELECT id
+    FROM public.orders
+    WHERE stock_reserved = true
+      AND payment_status = 'pending'
+      AND reserve_expires_at IS NOT NULL
+      AND reserve_expires_at < now()
+  LOOP
+    -- Release stock (idempotent)
+    PERFORM public.release_order_stock_internal(v_order.id);
 
--- ============================================================
--- ✅  SETUP COMPLETE
--- ============================================================
--- ============================================================
--- ============================================================
--- ============================================================
--- 🧩 SAFE ALTER / RLS PATCHES (schema drift protection)
--- Keep setup.sql compatible with code expectations
--- ============================================================
+    -- Mark order as cancelled/expired (safe defaults)
+    UPDATE public.orders
+    SET
+      status = 'cancelled',
+      payment_status = 'expired',
+      stock_reserved = false,
+      reserve_expires_at = NULL,
+      stock_committed = false
+    WHERE id = v_order.id;
 
--- ============================================================
--- 👤 Helper: admin check (profiles.role = 'admin')
--- ============================================================
-create or replace function public.is_admin(uid uuid)
-returns boolean
-language sql
-stable
-as $$
-  select exists (
-    select 1
-    from public.profiles
-    where id = uid
-      and role = 'admin'
-  );
+    v_count := v_count + 1;
+  END LOOP;
+
+  RETURN v_count;
+END;
 $$;
 
 -- ============================================================
--- ORDERS (admin/orders API expects these columns)
+-- 📦 OFFICIAL PUBLIC RPC (snake_case, PostgREST compatible)
+-- ============================================================
+-- Node.js calls these: reserve_order_stock, release_order_stock, cleanup_expired_reservations
 -- ============================================================
 
-alter table public.orders
-add column if not exists public_id text;
-
-alter table public.orders
-add column if not exists customer_first_name text;
-
-alter table public.orders
-add column if not exists customer_last_name text;
-
-alter table public.orders
-add column if not exists address text;
-
-alter table public.orders
-add column if not exists stock_reserved boolean not null default false;
-
-alter table public.orders
-add column if not exists reserve_expires_at timestamptz;
-
-alter table public.orders
-add column if not exists stock_committed boolean not null default false;
-
-alter table public.orders
-add column if not exists subtotal numeric(10,2);
-
-alter table public.orders
-add column if not exists delivery_fee numeric(10,2) not null default 0;
-
-alter table public.orders
-add column if not exists distance_km numeric(10,2);
-
--- Backfill (safe on existing rows)
-update public.orders
-set
-  subtotal = coalesce(subtotal, total),
-  delivery_fee = coalesce(delivery_fee, 0),
-  distance_km = coalesce(distance_km, 0)
-where subtotal is null
-   or delivery_fee is null
-   or distance_km is null;
-
--- ============================================================
--- PRODUCTS (admin/products expects these columns)
--- ============================================================
-
-alter table public.products
-add column if not exists unit_type text;
-
-alter table public.products
-add column if not exists stock numeric(10,2);
-
-alter table public.products
-add column if not exists stock_unit text;
-
-alter table public.products
-add column if not exists is_active boolean;
-
--- Backfill coherent with Soluzione A (kg reali / unità)
-update public.products
-set stock_unit =
-  case
-    when unit_type = 'per_kg' then 'kg'
-    else 'unit'
-  end
-where stock_unit is null;
-
--- ============================================================
--- STORE SETTINGS (admin/settings/delivery expects these columns)
--- ============================================================
-
-alter table public.store_settings
-add column if not exists delivery_base_km numeric(10,2) not null default 3;
-
-alter table public.store_settings
-add column if not exists delivery_base_fee numeric(10,2) not null default 0;
-
-alter table public.store_settings
-add column if not exists delivery_extra_fee_per_km numeric(10,2) not null default 0;
-
-alter table public.store_settings
-add column if not exists payment_methods jsonb not null
-default jsonb_build_object(
-  'cash', true,
-  'pos_on_delivery', true,
-  'card_online', true
-);
-
--- Backfill (safe on existing singleton row)
-update public.store_settings
-set
-  delivery_base_km = coalesce(delivery_base_km, 3),
-  delivery_base_fee = coalesce(delivery_base_fee, delivery_fee_base, 0),
-  delivery_extra_fee_per_km = coalesce(delivery_extra_fee_per_km, delivery_fee_per_km, 0),
-  payment_methods = coalesce(
-    payment_methods,
-    jsonb_build_object(
-      'cash', true,
-      'pos_on_delivery', true,
-      'card_online', true
-    )
-  );
-
--- ============================================================
--- STORE SETTINGS: updated_at (required by admin UI updates)
--- ============================================================
-
-alter table public.store_settings
-add column if not exists updated_at timestamptz not null default now();
-
-create or replace function public.set_store_settings_updated_at()
-returns trigger
-language plpgsql
-as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
+-- Official RESERVE RPC: calls internal function
+CREATE OR REPLACE FUNCTION public.reserve_order_stock(order_id uuid)
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT public.reserve_order_stock_internal($1);
 $$;
 
-drop trigger if exists trg_store_settings_updated_at on public.store_settings;
-create trigger trg_store_settings_updated_at
-before update on public.store_settings
-for each row
-execute function public.set_store_settings_updated_at();
+-- Official RELEASE RPC: calls internal function
+CREATE OR REPLACE FUNCTION public.release_order_stock(order_id uuid)
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT public.release_order_stock_internal($1);
+$$;
+
+-- cleanup_expired_reservations is already canonical (no wrapper needed)
+
+-- ============================================================
+-- 📦 LEGACY ALIASES (backward compatibility)
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.reserveorderstock(order_id uuid)
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT public.reserve_order_stock($1);
+$$;
+
+CREATE OR REPLACE FUNCTION public.releaseorderstock(order_id uuid)
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT public.release_order_stock($1);
+$$;
+
+CREATE OR REPLACE FUNCTION public.releaseOrderStock(order_id uuid)
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT public.release_order_stock($1);
+$$;
 
 -- ============================================================
 -- 🔐 RLS / POLICIES
 -- ============================================================
 
 -- CATEGORIES (public read + admin CRUD; soft delete/restore via UPDATE)
-alter table public.categories enable row level security;
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 
-drop policy if exists "public_select_categories" on public.categories;
-create policy "public_select_categories"
-on public.categories
-for select
-to anon
-using (deleted_at is null);
+DROP POLICY IF EXISTS "public_select_categories" ON public.categories;
+CREATE POLICY "public_select_categories"
+ON public.categories
+FOR SELECT
+TO anon, authenticated
+USING (deleted_at IS NULL AND is_active = true);
 
-drop policy if exists "admin_select_categories" on public.categories;
-create policy "admin_select_categories"
-on public.categories
-for select
-to authenticated
-using (public.is_admin(auth.uid()));
+DROP POLICY IF EXISTS "admin_select_categories" ON public.categories;
+CREATE POLICY "admin_select_categories"
+ON public.categories
+FOR SELECT
+TO authenticated
+USING (public.is_admin(auth.uid()));
 
-drop policy if exists "admin_insert_categories" on public.categories;
-create policy "admin_insert_categories"
-on public.categories
-for insert
-to authenticated
-with check (public.is_admin(auth.uid()));
+DROP POLICY IF EXISTS "admin_insert_categories" ON public.categories;
+CREATE POLICY "admin_insert_categories"
+ON public.categories
+FOR INSERT
+TO authenticated
+WITH CHECK (public.is_admin(auth.uid()));
 
-drop policy if exists "admin_update_categories" on public.categories;
-create policy "admin_update_categories"
-on public.categories
-for update
-to authenticated
-using (public.is_admin(auth.uid()))
-with check (public.is_admin(auth.uid()));
+DROP POLICY IF EXISTS "admin_update_categories" ON public.categories;
+CREATE POLICY "admin_update_categories"
+ON public.categories
+FOR UPDATE
+TO authenticated
+USING (public.is_admin(auth.uid()))
+WITH CHECK (public.is_admin(auth.uid()));
 
-drop policy if exists "admin_delete_categories" on public.categories;
-create policy "admin_delete_categories"
-on public.categories
-for delete
-to authenticated
-using (public.is_admin(auth.uid()));
+DROP POLICY IF EXISTS "admin_delete_categories" ON public.categories;
+CREATE POLICY "admin_delete_categories"
+ON public.categories
+FOR DELETE
+TO authenticated
+USING (public.is_admin(auth.uid()));
 
 -- STORE SETTINGS (public read; admin update)
-alter table public.store_settings enable row level security;
+ALTER TABLE public.store_settings ENABLE ROW LEVEL SECURITY;
 
-drop policy if exists "public_select_store_settings" on public.store_settings;
-create policy "public_select_store_settings"
-on public.store_settings
-for select
-to anon
-using (true);
+DROP POLICY IF EXISTS "public_select_store_settings" ON public.store_settings;
+CREATE POLICY "public_select_store_settings"
+ON public.store_settings
+FOR SELECT
+TO anon
+USING (true);
 
-drop policy if exists "admin_select_store_settings" on public.store_settings;
-create policy "admin_select_store_settings"
-on public.store_settings
-for select
-to authenticated
-using (public.is_admin(auth.uid()));
+DROP POLICY IF EXISTS "admin_select_store_settings" ON public.store_settings;
+CREATE POLICY "admin_select_store_settings"
+ON public.store_settings
+FOR SELECT
+TO authenticated
+USING (public.is_admin(auth.uid()));
 
-drop policy if exists "admin_update_store_settings" on public.store_settings;
-create policy "admin_update_store_settings"
-on public.store_settings
-for update
-to authenticated
-using (public.is_admin(auth.uid()))
-with check (public.is_admin(auth.uid()));
+DROP POLICY IF EXISTS "admin_update_store_settings" ON public.store_settings;
+CREATE POLICY "admin_update_store_settings"
+ON public.store_settings
+FOR UPDATE
+TO authenticated
+USING (public.is_admin(auth.uid()))
+WITH CHECK (public.is_admin(auth.uid()));
 
 -- PRODUCTS (public catalog can read active, non-deleted products; admin CRUD)
-alter table public.products enable row level security;
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 
-drop policy if exists "public_select_products" on public.products;
-create policy "public_select_products"
-on public.products
-for select
-to anon
-using (coalesce(is_active, true) = true and deleted_at is null);
+DROP POLICY IF EXISTS "public_select_products" ON public.products;
+CREATE POLICY "public_select_products"
+ON public.products
+FOR SELECT
+TO anon, authenticated
+USING (deleted_at IS NULL AND COALESCE(is_active, true) = true);
 
-drop policy if exists "admin_select_products" on public.products;
-create policy "admin_select_products"
-on public.products
-for select
-to authenticated
-using (public.is_admin(auth.uid()));
+DROP POLICY IF EXISTS "admin_select_products" ON public.products;
+CREATE POLICY "admin_select_products"
+ON public.products
+FOR SELECT
+TO authenticated
+USING (public.is_admin(auth.uid()));
 
-drop policy if exists "admin_insert_products" on public.products;
-create policy "admin_insert_products"
-on public.products
-for insert
-to authenticated
-with check (public.is_admin(auth.uid()));
+DROP POLICY IF EXISTS "admin_insert_products" ON public.products;
+CREATE POLICY "admin_insert_products"
+ON public.products
+FOR INSERT
+TO authenticated
+WITH CHECK (public.is_admin(auth.uid()));
 
-drop policy if exists "admin_update_products" on public.products;
-create policy "admin_update_products"
-on public.products
-for update
-to authenticated
-using (public.is_admin(auth.uid()))
-with check (public.is_admin(auth.uid()));
+DROP POLICY IF EXISTS "admin_update_products" ON public.products;
+CREATE POLICY "admin_update_products"
+ON public.products
+FOR UPDATE
+TO authenticated
+USING (public.is_admin(auth.uid()))
+WITH CHECK (public.is_admin(auth.uid()));
 
-drop policy if exists "admin_delete_products" on public.products;
-create policy "admin_delete_products"
-on public.products
-for delete
-to authenticated
-using (public.is_admin(auth.uid()));
+DROP POLICY IF EXISTS "admin_delete_products" ON public.products;
+CREATE POLICY "admin_delete_products"
+ON public.products
+FOR DELETE
+TO authenticated
+USING (public.is_admin(auth.uid()));
 
 -- ============================================================
 -- 🔓 GRANTS (required for PostgREST access)
 -- ============================================================
 
-grant usage on schema public to anon, authenticated;
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
 
 -- Public read
-grant select on table public.products, public.categories, public.store_settings to anon;
+GRANT SELECT ON TABLE public.products, public.categories, public.store_settings TO anon;
 
 -- Authenticated read
-grant select on table public.products, public.categories, public.store_settings, public.orders, public.order_items, public.profiles to authenticated;
+GRANT SELECT ON TABLE public.products, public.categories, public.store_settings, public.orders, public.order_items, public.profiles TO authenticated;
 
 -- Customer checkout flow
-grant insert on table public.orders, public.order_items to authenticated;
+GRANT INSERT ON TABLE public.orders, public.order_items TO authenticated;
 
 -- Admin mutations (RLS will gate actual access)
-grant insert, update, delete on table public.products, public.categories to authenticated;
-grant update on table public.store_settings, public.orders to authenticated;
+GRANT INSERT, UPDATE, DELETE ON TABLE public.products, public.categories TO authenticated;
+GRANT UPDATE ON TABLE public.store_settings, public.orders TO authenticated;
+
+-- Future objects too (important for one-shot installs)
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+GRANT SELECT ON TABLES TO anon, authenticated;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+GRANT USAGE, SELECT ON SEQUENCES TO anon, authenticated;
 
 -- ============================================================
--- ✅ END
+-- STORAGE: bucket immagini prodotti
+-- ============================================================
+
+-- Policy: chiunque può leggere immagini (catalogo pubblico)
+DROP POLICY IF EXISTS "public_read_products_images" ON storage.objects;
+CREATE POLICY "public_read_products_images"
+ON storage.objects
+FOR SELECT
+TO anon, authenticated
+USING (bucket_id = 'products');
+
+-- Policy: solo admin può caricare immagini
+DROP POLICY IF EXISTS "admin_upload_products_images" ON storage.objects;
+CREATE POLICY "admin_upload_products_images"
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'products'
+  AND public.is_admin(auth.uid())
+);
+
+-- Policy: solo admin può cancellare immagini
+DROP POLICY IF EXISTS "admin_delete_products_images" ON storage.objects;
+CREATE POLICY "admin_delete_products_images"
+ON storage.objects
+FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'products'
+  AND public.is_admin(auth.uid())
+);
+
+-- Policy: solo admin può aggiornare immagini (necessario per upsert/overwrite)
+DROP POLICY IF EXISTS "admin_update_products_images" ON storage.objects;
+CREATE POLICY "admin_update_products_images"
+ON storage.objects
+FOR UPDATE
+TO authenticated
+USING (
+  bucket_id = 'products'
+  AND public.is_admin(auth.uid())
+)
+WITH CHECK (
+  bucket_id = 'products'
+  AND public.is_admin(auth.uid())
+);
+
+-- ============================================================
+-- 🔧 RPC GRANTS (official API)
+-- ============================================================
+
+GRANT EXECUTE ON FUNCTION public.reserve_order_stock(uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.release_order_stock(uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.cleanup_expired_reservations() TO anon, authenticated, service_role;
+
+-- Legacy aliases grants (for backward compatibility)
+GRANT EXECUTE ON FUNCTION public.reserveorderstock(uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.releaseorderstock(uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.releaseOrderStock(uuid) TO anon, authenticated, service_role;
+
+-- Reload PostgREST schema cache (Supabase)
+NOTIFY pgrst, 'reload schema';
+
+-- PATCH: auto-create profiles row on new auth user
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, role)
+  values (new.id, 'customer')
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute function public.handle_new_user();
+
+-- PATCH: backfill missing profiles for existing auth users
+insert into public.profiles (id, role)
+select u.id, 'customer'
+from auth.users u
+left join public.profiles p on p.id = u.id
+where p.id is null
+on conflict (id) do nothing;
+
+
+-- PATCH: profiles - allow user to read own profile
+alter table public.profiles enable row level security;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='public' and tablename='profiles' and policyname='profiles_select_own'
+  ) then
+    create policy profiles_select_own
+      on public.profiles
+      for select
+      using (auth.uid() = id);
+  end if;
+end $$;
+
+
+-- PATCH: categories.slug for stable URLs + idempotent seeds
+alter table public.categories
+add column if not exists slug text;
+
+-- Backfill slug from name (only when missing)
+update public.categories
+set slug = lower(regexp_replace(trim(name), '\s+', '-', 'g'))
+where slug is null;
+
+-- Enforce slug not null (safe)
+alter table public.categories
+alter column slug set not null;
+
+-- Unique index for ON CONFLICT (idempotent)
+do $$
+begin
+  if not exists (
+    select 1 from pg_indexes
+    where schemaname='public'
+      and tablename='categories'
+      and indexname='categories_slug_unique'
+  ) then
+    create unique index categories_slug_unique on public.categories(slug);
+  end if;
+end $$;
+
+
+-- OPTIONAL: DEMO SEED - categories
+insert into public.categories (name, slug, is_active, sort_order)
+values
+  ('Frutta e Verdura', 'frutta-verdura', true, 1),
+  ('Dispensa', 'dispensa', true, 2),
+  ('Bevande', 'bevande', true, 3)
+on conflict (slug) do update set
+  name = excluded.name,
+  is_active = excluded.is_active,
+  sort_order = excluded.sort_order;
+
+
+-- PATCH: categories.slug for stable URLs + idempotent seeds
+alter table public.categories
+add column if not exists slug text;
+
+update public.categories
+set slug = lower(regexp_replace(trim(name), '\s+', '-', 'g'))
+where slug is null;
+
+alter table public.categories
+alter column slug set not null;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_indexes
+    where schemaname='public'
+      and tablename='categories'
+      and indexname='categories_slug_unique'
+  ) then
+    create unique index categories_slug_unique on public.categories(slug);
+  end if;
+end $$;
+
+-- OPTIONAL: DEMO SEED - categories
+insert into public.categories (name, slug, is_active, sort_order)
+values
+  ('Frutta e Verdura', 'frutta-verdura', true, 1),
+  ('Dispensa', 'dispensa', true, 2),
+  ('Bevande', 'bevande', true, 3)
+on conflict (slug) do update set
+  name = excluded.name,
+  is_active = excluded.is_active,
+  sort_order = excluded.sort_order;
+
+-- PATCH: products.slug for stable URLs + idempotent seeds
+alter table public.products
+add column if not exists slug text;
+
+-- Backfill slug from name (only when missing)
+update public.products
+set slug = lower(regexp_replace(trim(name), '\s+', '-', 'g'))
+where slug is null;
+
+alter table public.products
+alter column slug set not null;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_indexes
+    where schemaname='public'
+      and tablename='products'
+      and indexname='products_slug_unique'
+  ) then
+    create unique index products_slug_unique on public.products(slug);
+  end if;
+end $$;
+
+-- OPTIONAL: DEMO SEED - categories
+insert into public.categories (name, slug, is_active, sort_order)
+values
+  ('Frutta e Verdura', 'frutta-verdura', true, 1),
+  ('Dispensa', 'dispensa', true, 2),
+  ('Bevande', 'bevande', true, 3)
+on conflict (slug) do update set
+  name = excluded.name,
+  is_active = excluded.is_active,
+  sort_order = excluded.sort_order;
+
+-- OPTIONAL: DEMO SEED - products (with stable images)
+insert into public.products (
+  name, slug, description,
+  price, price_sale,
+  category_id,
+  stock, stock_unlimited,
+  unit_type, stock_unit,
+  is_active, sort_order,
+  image_url, image, images
+)
+select
+  v.name,
+  v.slug,
+  v.description,
+  v.price,
+  v.price_sale,
+  c.id as category_id,
+  v.stock,
+  v.stock_unlimited,
+  v.unit_type,
+  v.stock_unit,
+  true as is_active,
+  v.sort_order,
+  v.image_url,
+  null::text as image,
+  jsonb_build_array(v.image_url) as images
+from (values
+  -- per_kg
+  (
+    'Banane',
+    'banane',
+    'Banane fresche',
+    1.99::numeric,
+    null::numeric,
+    'frutta-verdura',
+    20.0::numeric,
+    false,
+    'per_kg',
+    'kg',
+    1,
+    'https://images.unsplash.com/photo-1640958900081-7b069dd23e9c?auto=format&fit=crop&w=800&q=80'
+  ),
+  (
+    'Pomodori',
+    'pomodori',
+    'Pomodori da insalata',
+    2.49::numeric,
+    1.99::numeric,
+    'frutta-verdura',
+    15.0::numeric,
+    false,
+    'per_kg',
+    'kg',
+    2,
+    'https://images.unsplash.com/photo-1652084610276-c311441bd4ec?auto=format&fit=crop&w=800&q=80'
+  ),
+
+  -- per_unit
+  (
+    'Pasta 500g',
+    'pasta-500g',
+    'Pasta di grano duro',
+    0.99::numeric,
+    null::numeric,
+    'dispensa',
+    50.0::numeric,
+    false,
+    'per_unit',
+    'pz',
+    3,
+    'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?auto=format&fit=crop&w=800&q=80'
+  ),
+  (
+    'Passata di pomodoro',
+    'passata-pomodoro',
+    'Passata 700g',
+    1.29::numeric,
+    null::numeric,
+    'dispensa',
+    40.0::numeric,
+    false,
+    'per_unit',
+    'pz',
+    4,
+    'https://images.unsplash.com/photo-1529566260205-50597c058463?auto=format&fit=crop&w=800&q=80'
+  ),
+  (
+    'Acqua 1.5L',
+    'acqua-15l',
+    'Acqua naturale',
+    0.39::numeric,
+    null::numeric,
+    'bevande',
+    100.0::numeric,
+    false,
+    'per_unit',
+    'pz',
+    5,
+    'https://images.unsplash.com/photo-1561041695-d2fadf9f318c?auto=format&fit=crop&w=800&q=80
+'
+  ),
+  (
+    'Coca Cola 1.5L',
+    'coca-15l',
+    'Bibita gassata',
+    1.79::numeric,
+    1.49::numeric,
+    'bevande',
+    30.0::numeric,
+    false,
+    'per_unit',
+    'pz',
+    6,
+    'https://images.unsplash.com/photo-1624552184280-9e9631bbeee9?auto=format&fit=crop&w=800&q=80'
+  )
+) as v(
+  name, slug, description,
+  price, price_sale,
+  cat_slug,
+  stock, stock_unlimited,
+  unit_type, stock_unit,
+  sort_order, image_url
+)
+join public.categories c on c.slug = v.cat_slug
+on conflict (slug) do update set
+  name = excluded.name,
+  description = excluded.description,
+  price = excluded.price,
+  price_sale = excluded.price_sale,
+  category_id = excluded.category_id,
+  stock = excluded.stock,
+  stock_unlimited = excluded.stock_unlimited,
+  unit_type = excluded.unit_type,
+  stock_unit = excluded.stock_unit,
+  is_active = excluded.is_active,
+  sort_order = excluded.sort_order,
+  image_url = excluded.image_url,
+  images = excluded.images;
+
+-- PATCH: store_settings flag to enable demo seed
+alter table public.store_settings
+add column if not exists seed_demo_enabled boolean not null default false;
+
+-- OPTIONAL DEMO SEED (runs only when seed_demo_enabled = true)
+do $$
+begin
+  if exists (select 1 from public.store_settings where seed_demo_enabled = true) then
+
+    -- categories seed (ONE copy)
+    insert into public.categories (name, slug, is_active, sort_order)
+    values
+      ('Frutta e Verdura', 'frutta-verdura', true, 1),
+      ('Dispensa', 'dispensa', true, 2),
+      ('Bevande', 'bevande', true, 3)
+    on conflict (slug) do update set
+      name = excluded.name,
+      is_active = excluded.is_active,
+      sort_order = excluded.sort_order;
+
+    -- products seed (your existing block)
+    -- ... incolla qui il tuo insert products ...
+  end if;
+end $$;
+
+-- ============================================================
+-- ✅ SETUP COMPLETE
 -- ============================================================

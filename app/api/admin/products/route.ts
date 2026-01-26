@@ -10,7 +10,16 @@ export async function POST(req: NextRequest) {
 
         // Normalizza stock (kg reali per per_kg, pezzi interi per per_unit)
         if (typeof body.stock !== 'undefined') {
-            body.stock = normalizeStock(body.unit_type, body.stock)
+            const normalizedStock = normalizeStock(body.unit_type, body.stock)
+            
+            // Gestione stock illimitato: se normalizedStock è null, imposta stock_unlimited = true e stock = 0
+            if (normalizedStock === null) {
+                body.stock_unlimited = true
+                body.stock = 0
+            } else {
+                body.stock_unlimited = false
+                body.stock = normalizedStock
+            }
         }
 
         const { data, error } = await supabase
@@ -51,7 +60,17 @@ export async function PATCH(req: NextRequest) {
                     .single()
                 unitType = current?.unit_type ?? null
             }
-            payload.stock = normalizeStock(unitType, payload.stock)
+            
+            const normalizedStock = normalizeStock(unitType, payload.stock)
+            
+            // Gestione stock illimitato: se normalizedStock è null, imposta stock_unlimited = true e stock = 0
+            if (normalizedStock === null) {
+                payload.stock_unlimited = true
+                payload.stock = 0
+            } else {
+                payload.stock_unlimited = false
+                payload.stock = normalizedStock
+            }
         }
 
         const { data, error } = await supabase

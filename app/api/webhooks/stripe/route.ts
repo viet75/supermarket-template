@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getStripe } from '@/lib/stripe'
 import { createClient } from '@supabase/supabase-js'
-import { releaseOrderStock } from '@/lib/releaseOrderStock'
+import { release_order_stock } from '@/lib/releaseOrderStock'
 
 
 export const runtime = 'nodejs'
@@ -131,7 +131,7 @@ export async function POST(req: Request) {
 
       // Rilascia stock solo se non pagato e stock committed
       if (order.payment_status !== 'paid' && order.stock_committed === true) {
-        const releaseResult = await releaseOrderStock(orderId)
+        const releaseResult = await release_order_stock(orderId)
         if (releaseResult.ok) {
           console.log('✅ Stock rilasciato per ordine scaduto/fallito:', orderId)
         } else {
