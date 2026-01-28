@@ -3,11 +3,14 @@
 -- One-shot idempotent database setup script
 -- ============================================================
 
--- Estensioni utili (gen_random_uuid)
+-- ============================================================
+-- 🧩 EXTENSIONS
+-- ============================================================
+
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ============================================================
--- 📦  BASE TABLES
+-- 📦 TABLES (BASE)
 -- ============================================================
 
 -- Categorie prodotti
@@ -69,7 +72,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 );
 
 -- ============================================================
--- 🔧  ADD ALL COLUMNS (BEFORE FUNCTIONS REFERENCE THEM)
+-- 🛠️  SAFE ALTER / BACKFILL (BEFORE FUNCTIONS REFERENCE COLUMNS)
 -- ============================================================
 
 -- Products: additional columns
@@ -280,51 +283,7 @@ SET
   );
 
 -- ============================================================
--- 📊  INDEXES AND CONSTRAINTS
--- ============================================================
-
-CREATE INDEX IF NOT EXISTS idx_orders_public_id ON public.orders(public_id);
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint
-        WHERE conname = 'orders_public_id_unique'
-    ) THEN
-        ALTER TABLE public.orders
-        ADD CONSTRAINT orders_public_id_unique UNIQUE (public_id);
-    END IF;
-END $$;
-
-CREATE INDEX IF NOT EXISTS idx_orders_customer_first_name ON public.orders(customer_first_name);
-CREATE INDEX IF NOT EXISTS idx_orders_customer_last_name ON public.orders(customer_last_name);
-
-CREATE INDEX IF NOT EXISTS idx_orders_reserve_expires_at
-ON public.orders(reserve_expires_at)
-WHERE reserve_expires_at IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS idx_categories_deleted_at ON public.categories(deleted_at);
-CREATE INDEX IF NOT EXISTS idx_categories_is_active ON public.categories(is_active);
-CREATE INDEX IF NOT EXISTS idx_categories_sort_order ON public.categories(sort_order);
-
--- Store settings singleton constraint
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'store_settings_singleton_key_unique'
-  ) THEN
-    ALTER TABLE public.store_settings
-      ADD CONSTRAINT store_settings_singleton_key_unique UNIQUE (singleton_key);
-  END IF;
-END $$;
-
-INSERT INTO public.store_settings (singleton_key)
-VALUES (true)
-ON CONFLICT (singleton_key) DO NOTHING;
-
--- ============================================================
--- ⚙️  FUNCTIONS AND TRIGGERS
+-- ⚙️  FUNCTIONS / RPC
 -- ============================================================
 
 -- Helper: admin check (profiles.role = 'admin')
@@ -422,20 +381,6 @@ CREATE TRIGGER trg_products_apply_stock_unlimited
 BEFORE INSERT OR UPDATE ON public.products
 FOR EACH ROW
 EXECUTE FUNCTION public.products_apply_stock_unlimited();
-
--- ============================================================
--- 📦  STORAGE BUCKETS
--- ============================================================
-
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES (
-    'products',
-    'products',
-    true,
-    5242880,
-    ARRAY['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
-)
-ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
 -- 📦 CANONICAL STOCK RPC (DB-FIRST, SOLUTION A)
@@ -694,6 +639,28 @@ AS $$
 $$;
 
 -- ============================================================
+-- 📦 STORAGE BUCKETS
+-- ============================================================
+
+-- ============================================================
+-- 📦  STORAGE BUCKETS
+-- ============================================================
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+    'products',
+    'products',
+    true,
+    5242880,
+    ARRAY['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================
+-- 🔐 RLS / POLICIES
+-- ============================================================
+
+-- ============================================================
 -- 🔐 RLS / POLICIES
 -- ============================================================
 
@@ -801,32 +768,6 @@ TO authenticated
 USING (public.is_admin(auth.uid()));
 
 -- ============================================================
--- 🔓 GRANTS (required for PostgREST access)
--- ============================================================
-
-GRANT USAGE ON SCHEMA public TO anon, authenticated;
-
--- Public read
-GRANT SELECT ON TABLE public.products, public.categories, public.store_settings TO anon;
-
--- Authenticated read
-GRANT SELECT ON TABLE public.products, public.categories, public.store_settings, public.orders, public.order_items, public.profiles TO authenticated;
-
--- Customer checkout flow
-GRANT INSERT ON TABLE public.orders, public.order_items TO authenticated;
-
--- Admin mutations (RLS will gate actual access)
-GRANT INSERT, UPDATE, DELETE ON TABLE public.products, public.categories TO authenticated;
-GRANT UPDATE ON TABLE public.store_settings, public.orders TO authenticated;
-
--- Future objects too (important for one-shot installs)
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-GRANT SELECT ON TABLES TO anon, authenticated;
-
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-GRANT USAGE, SELECT ON SEQUENCES TO anon, authenticated;
-
--- ============================================================
 -- STORAGE: bucket immagini prodotti
 -- ============================================================
 
@@ -876,6 +817,84 @@ WITH CHECK (
 );
 
 -- ============================================================
+-- 📊 INDEXES & CONSTRAINTS
+-- ============================================================
+
+-- ============================================================
+-- 📊  INDEXES AND CONSTRAINTS
+-- ============================================================
+
+CREATE INDEX IF NOT EXISTS idx_orders_public_id ON public.orders(public_id);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'orders_public_id_unique'
+    ) THEN
+        ALTER TABLE public.orders
+        ADD CONSTRAINT orders_public_id_unique UNIQUE (public_id);
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_orders_customer_first_name ON public.orders(customer_first_name);
+CREATE INDEX IF NOT EXISTS idx_orders_customer_last_name ON public.orders(customer_last_name);
+
+CREATE INDEX IF NOT EXISTS idx_orders_reserve_expires_at
+ON public.orders(reserve_expires_at)
+WHERE reserve_expires_at IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_categories_deleted_at ON public.categories(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_categories_is_active ON public.categories(is_active);
+CREATE INDEX IF NOT EXISTS idx_categories_sort_order ON public.categories(sort_order);
+
+-- Store settings singleton constraint
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'store_settings_singleton_key_unique'
+  ) THEN
+    ALTER TABLE public.store_settings
+      ADD CONSTRAINT store_settings_singleton_key_unique UNIQUE (singleton_key);
+  END IF;
+END $$;
+
+INSERT INTO public.store_settings (singleton_key)
+VALUES (true)
+ON CONFLICT (singleton_key) DO NOTHING;
+
+-- ============================================================
+-- 🔓 GRANTS
+-- ============================================================
+
+-- ============================================================
+-- 🔓 GRANTS (required for PostgREST access)
+-- ============================================================
+
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+
+-- Public read
+GRANT SELECT ON TABLE public.products, public.categories, public.store_settings TO anon;
+
+-- Authenticated read
+GRANT SELECT ON TABLE public.products, public.categories, public.store_settings, public.orders, public.order_items, public.profiles TO authenticated;
+
+-- Customer checkout flow
+GRANT INSERT ON TABLE public.orders, public.order_items TO authenticated;
+
+-- Admin mutations (RLS will gate actual access)
+GRANT INSERT, UPDATE, DELETE ON TABLE public.products, public.categories TO authenticated;
+GRANT UPDATE ON TABLE public.store_settings, public.orders TO authenticated;
+
+-- Future objects too (important for one-shot installs)
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+GRANT SELECT ON TABLES TO anon, authenticated;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+GRANT USAGE, SELECT ON SEQUENCES TO anon, authenticated;
+
+-- ============================================================
 -- 🔧 RPC GRANTS (official API)
 -- ============================================================
 
@@ -890,6 +909,10 @@ GRANT EXECUTE ON FUNCTION public.releaseOrderStock(uuid) TO anon, authenticated,
 
 -- Reload PostgREST schema cache (Supabase)
 NOTIFY pgrst, 'reload schema';
+
+-- ============================================================
+-- 👤 PROFILES PATCHES (AUTH HOOK + RLS)
+-- ============================================================
 
 -- PATCH: auto-create profiles row on new auth user
 create or replace function public.handle_new_user()
@@ -937,6 +960,9 @@ begin
   end if;
 end $$;
 
+-- ============================================================
+-- 🌱 SLUG PATCHES + DEMO SEED
+-- ============================================================
 
 -- PATCH: categories.slug for stable URLs + idempotent seeds
 alter table public.categories
@@ -1213,3 +1239,5 @@ end $$;
 -- ============================================================
 -- ✅ SETUP COMPLETE
 -- ============================================================
+
+
