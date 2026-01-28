@@ -6,7 +6,7 @@ import { supabaseServiceRole } from '@/lib/supabaseService'
  * non più al pagamento. Questa funzione mantiene solo le altre logiche post-paid.
  * - Legge l'ordine dal database
  * - Esce se payment_status !== 'paid'
- * - Mantiene flag stock_scaled per compatibilità (se necessario)
+ * - Idempotente: può essere chiamata più volte senza effetti collaterali
  */
 export async function handleOrderPaid(orderId: string): Promise<{ ok: boolean; error?: string }> {
     if (!orderId) {
@@ -18,7 +18,7 @@ export async function handleOrderPaid(orderId: string): Promise<{ ok: boolean; e
     // Legge l'ordine dal database
     const { data: order, error: orderError } = await svc
         .from('orders')
-        .select('payment_status, stock_scaled')
+        .select('payment_status')
         .eq('id', orderId)
         .single()
 
@@ -31,22 +31,10 @@ export async function handleOrderPaid(orderId: string): Promise<{ ok: boolean; e
         return { ok: true } // Non è un errore, semplicemente non serve processare
     }
 
-    // Esce se stock_scaled === true (idempotenza per altre logiche post-paid)
-    if (order.stock_scaled === true) {
-        return { ok: true } // Già processato, idempotente
-    }
-
     // NOTA: Lo stock è già stato riservato alla creazione ordine (reserveOrderStock).
-    // Non serve più scalare stock qui. Manteniamo solo altre logiche post-paid se necessario.
-    // Per ora, marcare come processato per idempotenza.
-    const { error: updateError } = await svc
-        .from('orders')
-        .update({ stock_scaled: true })
-        .eq('id', orderId)
-
-    if (updateError) {
-        return { ok: false, error: updateError.message }
-    }
+    // Non serve più scalare stock qui. Questa funzione è idempotente e può essere chiamata
+    // più volte senza effetti collaterali.
+    // Per ora non ci sono altre logiche post-paid da gestire.
 
     return { ok: true }
 }
