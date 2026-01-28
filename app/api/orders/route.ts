@@ -11,6 +11,7 @@ import { cleanupExpiredReservations } from '@/lib/cleanupExpiredReservations'
 
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 function round2(n: number) {
     return Math.round(n * 100) / 100
@@ -535,8 +536,21 @@ export async function POST(req: Request) {
             }
             
             // Cleanup: elimina order_items e ordine
-            await supabaseServiceRole.from('order_items').delete().eq('order_id', newOrderId).catch(() => {})
-            await supabaseServiceRole.from('orders').delete().eq('id', newOrderId).catch(() => {})
+            const { error: cleanupItemsError } = await supabaseServiceRole
+                .from('order_items')
+                .delete()
+                .eq('order_id', newOrderId);
+            if (cleanupItemsError && process.env.NODE_ENV !== 'production') {
+                console.warn('⚠️ Cleanup order_items error (non-blocking):', cleanupItemsError.message);
+            }
+
+            const { error: cleanupOrderError } = await supabaseServiceRole
+                .from('orders')
+                .delete()
+                .eq('id', newOrderId);
+            if (cleanupOrderError && process.env.NODE_ENV !== 'production') {
+                console.warn('⚠️ Cleanup orders error (non-blocking):', cleanupOrderError.message);
+            }
             
             const errorMessage = error instanceof Error ? error.message : 'Errore creazione ordine'
             // Only return "Stock insufficiente" if error message includes "INSUFFICIENT_STOCK" or "Stock insufficiente"
