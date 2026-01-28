@@ -864,9 +864,6 @@ INSERT INTO public.store_settings (singleton_key)
 VALUES (true)
 ON CONFLICT (singleton_key) DO NOTHING;
 
--- ============================================================
--- 🔓 GRANTS
--- ============================================================
 
 -- ============================================================
 -- 🔓 GRANTS (required for PostgREST access)
@@ -1235,6 +1232,111 @@ begin
     -- ... incolla qui il tuo insert products ...
   end if;
 end $$;
+
+-- ============================================================
+-- PATCH: auto-generate slug for categories/products if missing
+-- ============================================================
+
+-- 1) slugify helper (SQL, stabile e semplice)
+create or replace function public.slugify(input text)
+returns text
+language sql
+immutable
+as $$
+  select trim(both '-' from
+    regexp_replace(
+      lower(coalesce(input, '')),
+      '[^a-z0-9]+',
+      '-',
+      'g'
+    )
+  );
+$$;
+
+-- 2) ensure slug columns are NOT NULL (se già lo sono, ok)
+alter table public.categories alter column slug set not null;
+alter table public.products   alter column slug set not null;
+
+-- 3) trigger function for categories
+create or replace function public.categories_set_slug()
+returns trigger
+language plpgsql
+as $$
+declare
+  base_slug text;
+  candidate text;
+  i int := 0;
+begin
+  if new.slug is null or btrim(new.slug) = '' then
+    base_slug := public.slugify(new.name);
+    if base_slug is null or base_slug = '' then
+      base_slug := 'category';
+    end if;
+
+    candidate := base_slug;
+
+    -- ensure uniqueness (simple -1, -2, ...)
+    while exists (
+      select 1 from public.categories c
+      where c.slug = candidate
+        and (tg_op = 'INSERT' or c.id <> new.id)
+    ) loop
+      i := i + 1;
+      candidate := base_slug || '-' || i::text;
+    end loop;
+
+    new.slug := candidate;
+  end if;
+
+  return new;
+end $$;
+
+drop trigger if exists trg_categories_set_slug on public.categories;
+create trigger trg_categories_set_slug
+before insert or update of name, slug
+on public.categories
+for each row
+execute function public.categories_set_slug();
+
+-- 4) trigger function for products
+create or replace function public.products_set_slug()
+returns trigger
+language plpgsql
+as $$
+declare
+  base_slug text;
+  candidate text;
+  i int := 0;
+begin
+  if new.slug is null or btrim(new.slug) = '' then
+    base_slug := public.slugify(new.name);
+    if base_slug is null or base_slug = '' then
+      base_slug := 'product';
+    end if;
+
+    candidate := base_slug;
+
+    while exists (
+      select 1 from public.products p
+      where p.slug = candidate
+        and (tg_op = 'INSERT' or p.id <> new.id)
+    ) loop
+      i := i + 1;
+      candidate := base_slug || '-' || i::text;
+    end loop;
+
+    new.slug := candidate;
+  end if;
+
+  return new;
+end $$;
+
+drop trigger if exists trg_products_set_slug on public.products;
+create trigger trg_products_set_slug
+before insert or update of name, slug
+on public.products
+for each row
+execute function public.products_set_slug();
 
 -- ============================================================
 -- ✅ SETUP COMPLETE
