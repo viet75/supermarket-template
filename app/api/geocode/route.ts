@@ -29,8 +29,20 @@ export async function GET(req: NextRequest) {
   geocodeParams.set("key", apiKey);
   const url = `https://maps.googleapis.com/maps/api/geocode/json?${geocodeParams.toString()}`;
 
+  const MAPS_UNAVAILABLE = {
+    ok: false,
+    code: "MAPS_UNAVAILABLE",
+    message: "Servizio mappe temporaneamente non disponibile. Riprova più tardi.",
+  } as const;
+
   try {
     const res = await fetch(url);
+
+    // Gestione errori Google Maps: quota, billing, limiti
+    if (res.status === 429 || res.status === 403) {
+      return NextResponse.json(MAPS_UNAVAILABLE, { status: 503, headers: { "Cache-Control": "no-store" } });
+    }
+
     const json = await res.json();
 
     // Se Google geocoding ritorna 0 risultati -> return 400
@@ -157,6 +169,7 @@ export async function GET(req: NextRequest) {
       ...(cityFromGoogle ? { city_google: cityFromGoogle } : {}),
     });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: "Fetch error" }, { status: 500 });
+    // Rete, timeout, parsing: messaggio user-friendly, nessun dettaglio tecnico
+    return NextResponse.json(MAPS_UNAVAILABLE, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 }
