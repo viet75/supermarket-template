@@ -168,10 +168,14 @@ export const useCartStore = create<CartState>()(
                         const prod = byId.get(String(item.id))
                         if (!prod) continue
 
-                        const unlimited = prod.stock_unlimited === true || prod.stock == null
-                        const stock = prod.stock
+                        const isUnlimited = prod.stock_unlimited === true || prod.stock == null
+                        if (isUnlimited) {
+                            next.push({ ...item, maxStock: null })
+                            continue
+                        }
 
-                        if (unlimited) {
+                        const stock = Number(prod.stock)
+                        if (!Number.isFinite(stock)) {
                             next.push({ ...item, maxStock: null })
                             continue
                         }

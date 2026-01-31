@@ -521,7 +521,9 @@ export default function ProductsAdminPage() {
                                                         const displayStock = toDisplayStock(p)
                                                         setEditing({
                                                             ...p,
-                                                            stock: displayStock
+                                                            stock: displayStock,
+                                                            price: p.price ?? "",
+                                                            price_sale: p.price_sale ?? "",
                                                         })
                                                     }}
                                                 >
@@ -649,7 +651,9 @@ export default function ProductsAdminPage() {
                                                         const displayStock = toDisplayStock(p)
                                                         setEditing({
                                                             ...p,
-                                                            stock: displayStock
+                                                            stock: displayStock,
+                                                            price: p.price ?? "",
+                                                            price_sale: p.price_sale ?? "",
                                                         })
                                                     }}
                                                 >
