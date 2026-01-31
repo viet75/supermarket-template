@@ -7,12 +7,31 @@ import { toDisplayStock, getUnitLabel } from '@/lib/stock'
 import { formatPrice } from '@/lib/pricing'
 import { useRefetchOnResume } from '@/hooks/useRefetchOnResume'
 
+type EditableProduct = Omit<Product, 'price' | 'price_sale'> & {
+    price: string | number | null
+    price_sale: string | number | null
+}
+
+function parsePriceInput(v: unknown): number {
+    if (v == null) return NaN
+    if (typeof v === 'number') return v
+    if (typeof v !== 'string') return NaN
+    const s = v.trim().replace(',', '.')
+    if (s === '') return NaN
+    const n = Number(s)
+    return Number.isFinite(n) ? n : NaN
+}
+
+function parseOptionalPriceInput(v: unknown): number | null {
+    const n = parsePriceInput(v)
+    return Number.isFinite(n) ? n : null
+}
 
 export default function ProductsAdminPage() {
     const sb = useMemo(() => supabaseClient(), [])
     const [items, setItems] = useState<Product[]>([])
     const [loading, setLoading] = useState(true)
-    const [editing, setEditing] = useState<Product | null>(null)
+    const [editing, setEditing] = useState<EditableProduct | null>(null)
     const [saving, setSaving] = useState(false)
     const [deleting, setDeleting] = useState<string | null>(null)
 
@@ -188,7 +207,7 @@ export default function ProductsAdminPage() {
     // SAVE (create or update)
     async function save() {
         if (!editing) return
-        const priceNum = editing.price === '' || editing.price == null ? NaN : Number(editing.price)
+        const priceNum = parsePriceInput(editing.price)
         if (!Number.isFinite(priceNum) || priceNum <= 0) {
             alert('Il prezzo è obbligatorio e deve essere maggiore di 0.')
             return
@@ -199,10 +218,7 @@ export default function ProductsAdminPage() {
                 name: editing?.name?.trim() || '',
                 description: editing?.description?.trim() || null,
                 price: priceNum,
-                price_sale:
-                    editing?.price_sale == null || String(editing?.price_sale).trim() === ''
-                        ? null
-                        : Number(editing?.price_sale),
+                price_sale: parseOptionalPriceInput(editing.price_sale),
 
                 image_url: editing?.image_url || null,
                 category_id: editing?.category_id || null,
@@ -330,8 +346,8 @@ export default function ProductsAdminPage() {
                             id: '',
                             name: '',
                             description: '',
-                            price: '' as any,
-                            price_sale: null,
+                            price: '',
+                            price_sale: '',
                             image_url: '',
                             images: [],
                             category_id: '',
@@ -760,11 +776,8 @@ export default function ProductsAdminPage() {
                                             step="0.01"
                                             placeholder="0.00"
                                             className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2"
-                                            value={editing.price === '' || editing.price == null ? '' : editing.price}
-                                            onChange={(e) => {
-                                                const v = e.target.value
-                                                setEditing({ ...editing, price: v === '' ? ('' as any) : Number(v) })
-                                            }}
+                                            value={editing.price == null || editing.price === '' ? '' : String(editing.price)}
+                                            onChange={(e) => setEditing({ ...editing, price: e.target.value })}
                                         />
                                     </div>
                                     <div>
@@ -774,14 +787,8 @@ export default function ProductsAdminPage() {
                                             step="0.01"
                                             placeholder="opzionale"
                                             className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2"
-
-                                            value={editing.price_sale ?? ''}
-                                            onChange={(e) =>
-                                                setEditing({
-                                                    ...editing,
-                                                    price_sale: e.target.value === '' ? null : Number(e.target.value),
-                                                })
-                                            }
+                                            value={editing.price_sale == null || editing.price_sale === '' ? '' : String(editing.price_sale)}
+                                            onChange={(e) => setEditing({ ...editing, price_sale: e.target.value })}
                                         />
                                     </div>
                                 </div>
