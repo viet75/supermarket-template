@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useCartStore } from '@/stores/cartStore'
+import { formatPrice } from '@/lib/pricing'
 import { motion, AnimatePresence } from 'framer-motion'
 
 type CartBarProps = {
@@ -41,7 +42,7 @@ export default function CartBar({ onCheckout }: CartBarProps) {
                         >
                             <span className="text-lg">🛒</span>
                             <span>
-                                Vai al carrello ({count} – €{total.toFixed(2)})
+                                Vai al carrello ({count} – {formatPrice(total)})
                             </span>
                         </button>
                     ) : (
@@ -51,7 +52,7 @@ export default function CartBar({ onCheckout }: CartBarProps) {
                         >
                             <span className="text-lg">🛒</span>
                             <span>
-                                Vai al carrello ({count} – €{total.toFixed(2)})
+                                Vai al carrello ({count} – {formatPrice(total)})
                             </span>
                         </Link>
                     )}

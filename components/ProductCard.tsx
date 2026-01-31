@@ -3,6 +3,7 @@
 import { useMemo, useCallback, useState, useEffect } from 'react'
 import { useCartStore } from '@/stores/cartStore'
 import { toDisplayStock, getUnitLabel } from '@/lib/stock'
+import { formatPrice } from '@/lib/pricing'
 
 type Product = {
     id: string | number
@@ -155,11 +156,11 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
 
                 <div className="mt-1 flex items-baseline gap-2">
                     <span className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                        €{effective.toFixed(2)} / {getUnitLabel(p as any)}
+                        {formatPrice(effective)} / {getUnitLabel(p as any)}
                     </span>
                     {sale != null && sale > 0 && sale < base && (
                         <span className="text-sm text-gray-500 dark:text-gray-400 line-through">
-                            €{base.toFixed(2)}
+                            {formatPrice(base)}
                         </span>
                     )}
                 </div>

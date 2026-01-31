@@ -40,8 +40,7 @@ export async function GET() {
         const { data, error } = await svc
             .from('products')
             .select(
-                // seleziona le colonne che ti servono; * va bene ma qui esplicito per chiarezza
-                'id,name,description,price,price_sale,unit_type,category_id,stock,image_url,images,is_active,deleted_at,created_at'
+                'id,name,description,price,price_sale,unit_type,category_id,stock,stock_unlimited,image_url,images,is_active,deleted_at,created_at'
             )
             .eq('is_active', true)        // <-- fix: usa is_active
             .is('deleted_at', null)
@@ -54,7 +53,8 @@ export async function GET() {
             ...p,
             price: mustNumber(p.price, 'price'),
             price_sale: p.price_sale == null ? null : mustNumber(p.price_sale, 'price_sale'),
-            stock: numOrNull(p.stock), // null = illimitato, 0 = esaurito, N>0 = limitato
+            stock: numOrNull(p.stock),
+            stock_unlimited: p.stock_unlimited === true,
         }));
 
         return NextResponse.json(

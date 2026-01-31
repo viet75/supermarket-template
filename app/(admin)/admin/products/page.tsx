@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { supabaseClient } from '@/lib/supabaseClient'
 import type { Product, Category } from '@/lib/types'
 import { toDisplayStock, getUnitLabel } from '@/lib/stock'
+import { formatPrice } from '@/lib/pricing'
 import { useRefetchOnResume } from '@/hooks/useRefetchOnResume'
 
 
@@ -187,12 +188,17 @@ export default function ProductsAdminPage() {
     // SAVE (create or update)
     async function save() {
         if (!editing) return
+        const priceNum = editing.price === '' || editing.price == null ? NaN : Number(editing.price)
+        if (!Number.isFinite(priceNum) || priceNum <= 0) {
+            alert('Il prezzo è obbligatorio e deve essere maggiore di 0.')
+            return
+        }
         setSaving(true)
         try {
             const payload: any = {
                 name: editing?.name?.trim() || '',
                 description: editing?.description?.trim() || null,
-                price: editing?.price ? Number(editing.price) : 0,
+                price: priceNum,
                 price_sale:
                     editing?.price_sale == null || String(editing?.price_sale).trim() === ''
                         ? null
@@ -324,7 +330,7 @@ export default function ProductsAdminPage() {
                             id: '',
                             name: '',
                             description: '',
-                            price: 0,
+                            price: '' as any,
                             price_sale: null,
                             image_url: '',
                             images: [],
@@ -438,10 +444,10 @@ export default function ProductsAdminPage() {
                                         </div>
 
                                         <div className="text-sm text-gray-600">
-                                            €{Number(p.price).toFixed(2)} / {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
+                                            {formatPrice(Number(p.price))} / {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
                                             {p.price_sale ? (
                                                 <span className="ml-2 text-gray-500 line-through">
-                                                    €{Number(p.price_sale).toFixed(2)} / {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
+                                                    {formatPrice(Number(p.price_sale))} / {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
                                                 </span>
                                             ) : null}
                                         </div>
@@ -559,10 +565,10 @@ export default function ProductsAdminPage() {
                                             </div>
 
                                             <div className="text-sm text-gray-600">
-                                                €{Number(p.price).toFixed(2)} / {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
+                                                {formatPrice(Number(p.price))} / {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
                                                 {p.price_sale ? (
                                                     <span className="ml-2 text-gray-500 line-through">
-                                                        €{Number(p.price_sale).toFixed(2)} / {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
+                                                        {formatPrice(Number(p.price_sale))} / {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
                                                     </span>
                                                 ) : null}
                                             </div>
@@ -752,12 +758,13 @@ export default function ProductsAdminPage() {
                                         <input
                                             type="number"
                                             step="0.01"
+                                            placeholder="0.00"
                                             className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2"
-
-                                            value={editing.price ?? ''}
-                                            onChange={(e) =>
-                                                setEditing({ ...editing, price: Number(e.target.value) })
-                                            }
+                                            value={editing.price === '' || editing.price == null ? '' : editing.price}
+                                            onChange={(e) => {
+                                                const v = e.target.value
+                                                setEditing({ ...editing, price: v === '' ? ('' as any) : Number(v) })
+                                            }}
                                         />
                                     </div>
                                     <div>

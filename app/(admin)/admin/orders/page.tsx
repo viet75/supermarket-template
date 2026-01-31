@@ -3,14 +3,11 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import type { Order } from '@/lib/types'
 import { useRefetchOnResume } from '@/hooks/useRefetchOnResume'
+import { formatPrice } from '@/lib/pricing'
 
 function formatQuantity(q: number, unit?: string | null) {
     if (!unit) return q.toString()
     return `${q} ${unit}`
-}
-
-function formatPrice(value: number) {
-    return `€${value.toFixed(2)}`
 }
 
 function ProductListCell({ items }: { items: any[] }) {
@@ -108,7 +105,7 @@ function OrderDrawer({ order, onClose }: OrderDrawerProps) {
                                 {it.product.unit_type && ` (${it.product.unit_type})`}
                             </span>
                             <span className="font-medium">
-                                € {(it.price * it.quantity).toFixed(2)}
+                                {formatPrice(it.price * it.quantity)}
                             </span>
                         </div>
                     ))}
@@ -116,7 +113,7 @@ function OrderDrawer({ order, onClose }: OrderDrawerProps) {
 
                 <div className="p-4 border-t text-sm flex justify-between">
                     <span>Totale</span>
-                    <span className="font-semibold">€ {order.total.toFixed(2)}</span>
+                    <span className="font-semibold">{formatPrice(order.total)}</span>
                 </div>
             </div>
         </div>
@@ -688,7 +685,7 @@ export default function OrdersAdminPage() {
                                         {/* Totale */}
                                         <td className="px-4 py-2 text-sm font-semibold text-right text-gray-900 dark:text-gray-100 whitespace-nowrap min-w-[90px] w-24 align-top">
 
-                                            € {o.total.toFixed(2)}
+                                            {formatPrice(o.total)}
                                         </td>
 
                                         {/* Pagamento */}
@@ -869,7 +866,7 @@ export default function OrdersAdminPage() {
                             {/* FOOTER */}
                             <div className="px-4 py-3 border-t flex justify-between items-center">
                                 <span className="text-sm font-semibold whitespace-nowrap">
-                                    Totale: € {o.total.toFixed(2)}
+                                    Totale: {formatPrice(o.total)}
                                 </span>
                                 <PaymentBadge status={o.payment_status} payment_method={o.payment_method} />
                             </div>
@@ -967,7 +964,7 @@ export default function OrdersAdminPage() {
                                             {it.product.unit_type && ` (${it.product.unit_type})`}
                                         </span>
                                         <span className="font-medium">
-                                            € {(it.price * it.quantity).toFixed(2)}
+                                            {formatPrice(it.price * it.quantity)}
                                         </span>
                                     </div>
                                 ))}

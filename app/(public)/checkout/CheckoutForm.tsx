@@ -7,6 +7,7 @@ import type { StoreSettings, PaymentMethod, OrderItem, OrderAddress, OrderPayloa
 import { validateDelivery, allowedPaymentMethods } from '@/lib/delivery'
 import { geocodeAddress, computeDistanceFromStore } from '@/lib/geo'
 import { useCartStore } from '@/stores/cartStore'
+import { formatPrice } from '@/lib/pricing'
 
 type Props = { settings: StoreSettings }
 
@@ -35,6 +36,7 @@ export default function CheckoutForm({ settings }: Props) {
 
     const items = useCartStore((s) => s.items || [])
     const clearCart = useCartStore((s) => s.clear)
+    const reconcileWithProducts = useCartStore((s) => s.reconcileWithProducts)
 
     const subtotal = useMemo(
         () =>
@@ -443,6 +445,15 @@ export default function CheckoutForm({ settings }: Props) {
                 if (res.status === 409 && data?.code === 'STOCK_INSUFFICIENT') {
                     const message = data?.message ?? 'Alcuni prodotti non sono più disponibili. Abbiamo aggiornato il carrello.'
                     setMsg({ type: 'error', text: `⚠️ ${message}` })
+                    try {
+                        const prodRes = await fetch('/api/products', { cache: 'no-store' })
+                        if (prodRes.ok) {
+                            const { items: products } = await prodRes.json()
+                            reconcileWithProducts(products ?? [])
+                        }
+                    } catch {
+                        /* best-effort */
+                    }
                     router.refresh()
                 } else {
                     setMsg({ type: 'error', text: data?.error ?? `Errore API (${res.status})` })
@@ -479,7 +490,7 @@ export default function CheckoutForm({ settings }: Props) {
             setMsg({ type: 'error', text: e?.message ?? 'Errore imprevisto' })
             setSaving(false)
         }
-    }, [items, addr, subtotal, pay, settings, validation, clearCart, router, backendTotal, errorMessage, previewDistanceKm])
+    }, [items, addr, subtotal, pay, settings, validation, clearCart, reconcileWithProducts, router, backendTotal, errorMessage, previewDistanceKm])
 
     if (!mounted) return <Skeleton />
     if (!hydrated && items.length === 0) return <Skeleton />
@@ -635,7 +646,7 @@ export default function CheckoutForm({ settings }: Props) {
                     {items.map((it: any) => (
                         <li key={it.id} className="flex justify-between py-2 text-gray-900 dark:text-gray-100">
                             <span>{it.name} × {it.qty}</span>
-                            <span>€{(Number(it.price) * it.qty).toFixed(2)}</span>
+                            <span>{formatPrice(Number(it.price) * it.qty)}</span>
                         </li>
                     ))}
                 </ul>
@@ -643,7 +654,7 @@ export default function CheckoutForm({ settings }: Props) {
                 <div className="border-t border-gray-200 dark:border-zinc-800 pt-4 space-y-1 text-sm">
                     <div className="flex justify-between text-gray-900 dark:text-gray-100">
                         <span>Subtotale</span>
-                        <span>€{subtotal.toFixed(2)}</span>
+                        <span>{formatPrice(subtotal)}</span>
                     </div>
                     {settings.delivery_enabled && (
                         <div className="flex justify-between text-gray-900 dark:text-gray-100">
@@ -652,11 +663,11 @@ export default function CheckoutForm({ settings }: Props) {
                                 {backendDeliveryFee !== null
                                     ? backendDeliveryFee === 0
                                         ? 'Consegna gratuita'
-                                        : `€${backendDeliveryFee.toFixed(2)} (${(backendDistanceKm ?? 0).toFixed(1)} km)`
+                                        : `${formatPrice(backendDeliveryFee)} (${(backendDistanceKm ?? 0).toFixed(1)} km)`
                                     : previewDeliveryFee !== null
                                         ? previewDeliveryFee === 0
                                             ? 'Consegna gratuita (stima)'
-                                            : `€${previewDeliveryFee.toFixed(2)} (stima)`
+                                            : `${formatPrice(previewDeliveryFee)} (stima)`
                                         : loadingPreview || loadingDistance
                                             ? '...'
                                             : '—'}
@@ -667,10 +678,10 @@ export default function CheckoutForm({ settings }: Props) {
                         <span>Totale</span>
                         <span>
                             {backendTotal !== null
-                                ? `€${backendTotal.toFixed(2)}`
+                                ? formatPrice(backendTotal)
                                 : previewDeliveryFee !== null
-                                    ? `€${(subtotal + previewDeliveryFee).toFixed(2)} (stima)`
-                                    : `€${subtotal.toFixed(2)}`}
+                                    ? `${formatPrice(subtotal + previewDeliveryFee)} (stima)`
+                                    : formatPrice(subtotal)}
                         </span>
                     </div>
                 </div>

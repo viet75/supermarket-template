@@ -23,6 +23,13 @@ function normalizeQty(v: any): number {
     return Number.isFinite(n) ? Math.max(0, Math.round(n * 100) / 100) : 0
 }
 
+/** Prodotto minimo da API per reconcile (id, stock, stock_unlimited opzionale) */
+export type ProductForReconcile = {
+    id: string
+    stock?: number | null
+    stock_unlimited?: boolean | null
+}
+
 type CartState = {
     items: CartItem[]
 
@@ -36,6 +43,7 @@ type CartState = {
     updateQty: (id: string, qty: number) => void
     removeItem: (id: string, qty?: number) => void
     clear: () => void
+    reconcileWithProducts: (products: ProductForReconcile[]) => void
 }
 
 export const useCartStore = create<CartState>()(
@@ -150,6 +158,38 @@ export const useCartStore = create<CartState>()(
                 }),
 
             clear: () => set({ items: [] }),
+
+            reconcileWithProducts: (products) =>
+                set((s) => {
+                    const byId = new Map(products.map((p) => [String(p.id), p]))
+                    const next: CartItem[] = []
+
+                    for (const item of s.items) {
+                        const prod = byId.get(String(item.id))
+                        if (!prod) continue
+
+                        const unlimited = prod.stock_unlimited === true || prod.stock == null
+                        const stock = prod.stock
+
+                        if (unlimited) {
+                            next.push({ ...item, maxStock: null })
+                            continue
+                        }
+                        if (stock <= 0) continue
+
+                        const qty = normalizeQty(item.qty)
+                        const clamped = Math.min(qty, stock)
+                        if (clamped <= 0) continue
+
+                        next.push({
+                            ...item,
+                            qty: clamped,
+                            maxStock: stock,
+                        })
+                    }
+
+                    return { items: next }
+                }),
         }),
         {
             name: 'cart',

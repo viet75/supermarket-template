@@ -308,6 +308,15 @@ create schema public;
 grant usage on schema public to postgres, anon, authenticated, service_role;
 grant all on schema public to postgres, service_role;
 
+### Soft Delete (Archive)
+
+Products and categories are soft-deleted (archived) from the admin dashboard and can be restored at any time.
+
+Permanent deletion is intentionally not exposed in the UI to prevent accidental data loss and to preserve data integrity (orders, analytics, history).
+
+Advanced users can permanently remove archived records directly from Supabase if needed.
+
+
 ⚠️ Limitazioni note
 
 Supporto single-store (no multi-tenant)

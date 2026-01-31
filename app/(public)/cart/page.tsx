@@ -1,6 +1,7 @@
 'use client'
 
 import { useCartStore } from '@/stores/cartStore'
+import { formatPrice } from '@/lib/pricing'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -49,7 +50,7 @@ export default function CartPage() {
                                         {i.unit === 'per_kg' ? `${i.qty} kg` : `x${i.qty}`}
                                     </p>
                                     <p className="text-sm font-medium text-gray-700">
-                                        €{(i.salePrice && i.salePrice < i.price ? i.salePrice : i.price) * i.qty}
+                                        {formatPrice((i.salePrice && i.salePrice < i.price ? i.salePrice : i.price) * i.qty)}
                                     </p>
                                 </div>
                             </div>
@@ -72,7 +73,7 @@ export default function CartPage() {
                             Svuota carrello
                         </button>
                         <p className="text-lg font-semibold">
-                            Totale: €{total().toFixed(2)}
+                            Totale: {formatPrice(total())}
                         </p>
                     </div>
 
