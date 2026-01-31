@@ -4,7 +4,8 @@ import { normalizeProduct } from '@/lib/normalizeProduct'
 import { normalizeStock } from '@/lib/stock'
 
 
-export const runtime = 'nodejs';
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 /* ===========================
    Helpers
@@ -56,7 +57,10 @@ export async function GET() {
             stock: numOrNull(p.stock), // null = illimitato, 0 = esaurito, N>0 = limitato
         }));
 
-        return NextResponse.json({ items });
+        return NextResponse.json(
+            { items },
+            { headers: { 'Cache-Control': 'no-store' } }
+        );
     } catch (e: any) {
         return NextResponse.json({ error: e?.message ?? 'Errore' }, { status: 500 });
     }

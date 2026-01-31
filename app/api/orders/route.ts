@@ -380,12 +380,16 @@ export async function POST(req: Request) {
             await supabaseServiceRole.from('order_items').delete().eq('order_id', newOrderId)
             await supabaseServiceRole.from('orders').delete().eq('id', newOrderId)
             
-            // Only return "Stock insufficiente" if error message includes "INSUFFICIENT_STOCK" or "Stock insufficiente"
+            // Stock insufficiente: HTTP 409 + code STOCK_INSUFFICIENT per UX dedicata
             const isStockError = errorMessage.includes('INSUFFICIENT_STOCK') || errorMessage.includes('Stock insufficiente')
-            return NextResponse.json(
-                { error: isStockError ? errorMessage : 'Errore creazione ordine' },
-                { status: 400 }
-            )
+            const status = isStockError ? 409 : 400
+            const body = isStockError
+                ? { ok: false, code: 'STOCK_INSUFFICIENT', message: 'Alcuni prodotti non sono più disponibili. Abbiamo aggiornato il carrello.' }
+                : { error: errorMessage }
+            return NextResponse.json(body, {
+                status,
+                headers: { 'Cache-Control': 'no-store' },
+            })
         }
 
         // Wrap everything after reserveOrderStock in try/catch for rollback protection
@@ -518,14 +522,17 @@ export async function POST(req: Request) {
                 }
             }
 
-            return NextResponse.json({
-                ok: true,
-                order_id: newOrderId,
-                delivery_fee: deliveryFee,
-                total: total,
-                distance_km: round2(distanceKm),
-                ...(checkoutUrl ? { checkoutUrl } : {})
-            })
+            return NextResponse.json(
+                {
+                    ok: true,
+                    order_id: newOrderId,
+                    delivery_fee: deliveryFee,
+                    total: total,
+                    distance_km: round2(distanceKm),
+                    ...(checkoutUrl ? { checkoutUrl } : {}),
+                },
+                { headers: { 'Cache-Control': 'no-store' } }
+            )
         } catch (error) {
             // Compensating transaction: if stock was committed, release it
             if (stockCommitted) {
@@ -553,14 +560,17 @@ export async function POST(req: Request) {
             }
             
             const errorMessage = error instanceof Error ? error.message : 'Errore creazione ordine'
-            // Only return "Stock insufficiente" if error message includes "INSUFFICIENT_STOCK" or "Stock insufficiente"
             const isStockError = errorMessage.includes('INSUFFICIENT_STOCK') || errorMessage.includes('Stock insufficiente')
-            
+
             console.error('❌ Errore dopo reserveOrderStock:', errorMessage)
-            return NextResponse.json(
-                { error: isStockError ? errorMessage : 'Errore creazione ordine' },
-                { status: isStockError ? 400 : 500 }
-            )
+            const status = isStockError ? 409 : 500
+            const body = isStockError
+                ? { ok: false, code: 'STOCK_INSUFFICIENT', message: 'Alcuni prodotti non sono più disponibili. Abbiamo aggiornato il carrello.' }
+                : { error: errorMessage }
+            return NextResponse.json(body, {
+                status,
+                headers: { 'Cache-Control': 'no-store' },
+            })
         }
     } catch (e: any) {
         console.error('❌ API ERROR /api/orders:', e)

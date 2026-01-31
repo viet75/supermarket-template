@@ -3,6 +3,7 @@ import StoreClient from '@/app/(public)/StoreClient'
 import type { Metadata } from 'next' // 👈 rimesso come nel tuo originale
 
 export const revalidate = 0
+export const dynamic = 'force-dynamic'
 
 export default async function Page() {
   const sb = supabaseServer()

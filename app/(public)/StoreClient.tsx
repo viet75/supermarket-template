@@ -1,42 +1,11 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import type { Product, Category } from '@/lib/types'
 import CategoryChipsContainer from '@/components/CategoryChipsContainer'
 import ProductsGrid from '@/components/ProductsGrid'
-
-// Type for Supabase Realtime postgres_changes payload
-type RealtimePostgresChangesPayload<T = Record<string, any>> = {
-    eventType: 'INSERT' | 'UPDATE' | 'DELETE'
-    new: T | null
-    old: T | null
-    schema: string
-    table: string
-    commit_timestamp?: string
-}
-
-// 👉 Usa il client singleton (NESSUN WARNING)
-import { supabaseClient } from '@/lib/supabaseClient'
-const supabase = supabaseClient()
-
-// ✅ Funzione di parsing sicuro
-function safeParse<T>(val: any, fallback: T): T {
-    try {
-        if (!val) return fallback
-        if (typeof val === "string") return JSON.parse(val)
-        return val
-    } catch {
-        return fallback
-    }
-}
-
-// ✅ Normalizza prodotto in arrivo dal realtime
-function normalizeProduct(p: any): Product {
-    return {
-        ...p,
-        images: safeParse(p.images, []),
-    }
-}
+import { useForegroundRefresh } from '@/lib/useForegroundRefresh'
 
 export default function StoreClient({
     products: initialProducts,
@@ -45,59 +14,18 @@ export default function StoreClient({
     products: Product[]
     categories: Category[]
 }) {
+    const router = useRouter()
     const [products, setProducts] = useState<Product[]>(initialProducts)
     const [activeCategory, setActiveCategory] = useState<string | null>(null)
     const [search, setSearch] = useState('')
 
     // ✅ Sincronizza lo stato quando initialProducts cambia
     useEffect(() => {
-        if (initialProducts.length > 0) {
-            setProducts(initialProducts)
-        }
+        setProducts(initialProducts)
     }, [initialProducts])
 
-
-    // ✅ Realtime: ascolta cambiamenti su `products`
-    useEffect(() => {
-        const channel = supabase
-            .channel('products-changes')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'products' },
-                (payload: RealtimePostgresChangesPayload<Product>) => {
-                    if (payload.eventType === 'INSERT' && payload.new) {
-                        setProducts((prev) => {
-                            const updated = [...prev, normalizeProduct(payload.new!)]
-                            return updated.sort(
-                                (a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999)
-                            )
-                        })
-                    }
-
-                    if (payload.eventType === 'UPDATE' && payload.new) {
-                        setProducts((prev) => {
-                            const updated = prev.map((p) =>
-                                p.id === payload.new!.id ? normalizeProduct(payload.new!) : p
-                            )
-                            return updated.sort(
-                                (a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999)
-                            )
-                        })
-                    }
-
-                    if (payload.eventType === 'DELETE' && payload.old) {
-                        setProducts((prev) =>
-                            prev.filter((p) => p.id !== payload.old!.id)
-                        )
-                    }
-                }
-            )
-            .subscribe()
-
-        return () => {
-            supabase.removeChannel(channel)
-        }
-    }, [])
+    // ✅ Foreground refresh: ricarica prodotti quando l'app torna visibile (no realtime)
+    useForegroundRefresh(() => router.refresh(), 3000)
 
     // 🔎 Filtro live
     const filteredProducts = useMemo(() => {

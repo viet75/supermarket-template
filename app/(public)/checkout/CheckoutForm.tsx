@@ -431,6 +431,7 @@ export default function CheckoutForm({ settings }: Props) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
+                cache: 'no-store',
             })
 
             if (!res.ok) {
@@ -438,12 +439,11 @@ export default function CheckoutForm({ settings }: Props) {
                 console.error('❌ API error /api/orders:', text)
                 let data: any = null
                 try { data = JSON.parse(text) } catch { }
-                
-                if (res.status === 409) {
-                    setMsg({
-                        type: 'error',
-                        text: '⚠️ Alcuni prodotti non sono più disponibili nelle quantità richieste. Aggiorna il carrello.',
-                    })
+
+                if (res.status === 409 && data?.code === 'STOCK_INSUFFICIENT') {
+                    const message = data?.message ?? 'Alcuni prodotti non sono più disponibili. Abbiamo aggiornato il carrello.'
+                    setMsg({ type: 'error', text: `⚠️ ${message}` })
+                    router.refresh()
                 } else {
                     setMsg({ type: 'error', text: data?.error ?? `Errore API (${res.status})` })
                 }
