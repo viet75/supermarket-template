@@ -1,37 +1,29 @@
 // app/admin/settings/actions.ts
 'use server';
 
+import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-import type { PaymentMethod } from '@/lib/types';
 
 export async function saveSettingsAction(_: any, formData: FormData) {
-    const delivery_enabled = formData.get('delivery_enabled') === 'on';
-    const delivery_fee_base = Number(formData.get('delivery_fee_base') ?? 0);
-    const delivery_fee_per_km = Number(formData.get('delivery_fee_per_km') ?? 0);
-    const delivery_max_km = Number(formData.get('delivery_max_km') ?? 0);
-
-    // ✅ valori coerenti con PaymentMethod
-    const allowed: PaymentMethod[] = ['cash', 'card_online', 'pos_on_delivery'];
-    const selected = new Set<string>(formData.getAll('payment_methods') as string[]);
-    const payment_methods = allowed.filter((m) => selected.has(m));
-
-    if ([delivery_fee_base, delivery_fee_per_km, delivery_max_km].some(Number.isNaN)) {
-        return { ok: false, message: 'Valori numerici non validi.' };
-    }
-
     const payload = {
-        delivery_enabled,
-        delivery_fee_base,
-        delivery_fee_per_km,
-        delivery_max_km,
-        payment_methods,
+        store_name: String(formData.get('store_name') ?? '').trim() || '',
+        address: String(formData.get('address') ?? '').trim() || '',
+        email: String(formData.get('email') ?? '').trim() || '',
+        phone: String(formData.get('phone') ?? '').trim() || '',
+        opening_hours: String(formData.get('opening_hours') ?? '').trim() || '',
+        maps_link: String(formData.get('maps_link') ?? '').trim() || '',
     };
 
-    const res = await fetch('/api/admin/settings', {
+    const cookieStore = await cookies();
+    const cookieHeader = cookieStore.getAll().map((c) => `${c.name}=${c.value}`).join('; ');
+
+    const base = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    const res = await fetch(`${base}/api/settings`, {
         method: 'PUT',
         headers: {
             'content-type': 'application/json',
             'x-internal-admin-key': process.env.INTERNAL_ADMIN_KEY ?? '',
+            ...(cookieHeader && { cookie: cookieHeader }),
         },
         body: JSON.stringify(payload),
     }).catch(() => null as any);
@@ -42,5 +34,6 @@ export async function saveSettingsAction(_: any, formData: FormData) {
     }
 
     revalidatePath('/admin/settings');
+    revalidatePath('/');
     return { ok: true, message: 'Impostazioni salvate.' };
 }

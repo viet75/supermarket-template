@@ -1,26 +1,17 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
-import { useFormState } from 'react-dom';
-import type { StoreSettings, PaymentMethod } from '@/lib/types';
+import * as React from 'react';
+import type { StoreSettings } from '@/lib/types';
 
 type Props = {
     initial: StoreSettings | null;
     action: (state: any, formData: FormData) => Promise<{ ok: boolean; message: string }>;
 };
 
-// Mappa dei metodi di pagamento gestibili dall'admin
-const PAYMENT_METHODS = [
-    { key: 'cash', label: 'Contanti alla consegna' },
-    { key: 'pos_on_delivery', label: 'POS alla consegna' },
-    { key: 'card_online', label: 'Carta online' },
-] as const
-
 export default function SettingsForm({ initial, action }: Props) {
-    const [state, formAction] = useFormState(action, { ok: false, message: '' });
+    const [state, formAction] = React.useActionState(action, { ok: false, message: '' });
 
-    // Valori iniziali fallback se non c'è riga (dopo seed dovrebbe esistere)
-    const init = useMemo<StoreSettings>(
+    const init = React.useMemo<StoreSettings>(
         () =>
             initial ?? {
                 id: '',
@@ -28,18 +19,23 @@ export default function SettingsForm({ initial, action }: Props) {
                 delivery_fee_base: 0,
                 delivery_fee_per_km: 0,
                 delivery_max_km: 0,
-                free_over: 0,            // ✅ aggiunto
-                store_lat: null,         // ✅ aggiunto
-                store_lng: null,         // ✅ aggiunto
+                free_over: 0,
+                store_lat: null,
+                store_lng: null,
                 payment_methods: ['cash'],
                 updated_at: new Date().toISOString(),
+                store_name: '',
+                address: '',
+                email: '',
+                phone: '',
+                opening_hours: '',
+                maps_link: '',
             },
         [initial]
     );
 
-    useEffect(() => {
+    React.useEffect(() => {
         if (state?.message) {
-            // sostituisci con il tuo Toast se preferisci
             // eslint-disable-next-line no-alert
             alert(state.message);
         }
@@ -47,76 +43,32 @@ export default function SettingsForm({ initial, action }: Props) {
 
     return (
         <form action={formAction} className="space-y-6 rounded-2xl border p-4 md:p-6 shadow-sm bg-white">
-            {/* Consegna attiva */}
-            <div className="flex items-center justify-between">
-                <label htmlFor="delivery_enabled" className="font-medium">
-                    Abilita consegna
-                </label>
-                <input
-                    id="delivery_enabled"
-                    name="delivery_enabled"
-                    type="checkbox"
-                    defaultChecked={init.delivery_enabled}
-                    className="h-5 w-5"
-                />
-            </div>
-
-            {/* Costi/consegna */}
-            <fieldset className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Field label="Fee base (€)">
-                    <input
-                        name="delivery_fee_base"
-                        type="number"
-                        step="0.01"
-                        defaultValue={init.delivery_fee_base}
-                        className="w-full rounded-md border p-2"
-                    />
+            {/* Contatti negozio */}
+            <fieldset className="space-y-4 rounded-xl border p-4">
+                <legend className="font-medium px-2">Contatti negozio</legend>
+                <Field label="Nome negozio">
+                    <input name="store_name" type="text" defaultValue={init.store_name ?? ''} className="w-full rounded-md border p-2" />
                 </Field>
-                <Field label="€/km aggiuntivo">
-                    <input
-                        name="delivery_fee_per_km"
-                        type="number"
-                        step="0.01"
-                        defaultValue={init.delivery_fee_per_km}
-                        className="w-full rounded-md border p-2"
-                    />
+                <Field label="Indirizzo">
+                    <input name="address" type="text" defaultValue={init.address ?? ''} className="w-full rounded-md border p-2" />
                 </Field>
-                <Field label="Raggio massimo (km)">
-                    <input
-                        name="delivery_max_km"
-                        type="number"
-                        step="0.1"
-                        defaultValue={init.delivery_max_km}
-                        className="w-full rounded-md border p-2"
-                    />
+                <Field label="Email">
+                    <input name="email" type="email" defaultValue={init.email ?? ''} className="w-full rounded-md border p-2" />
+                </Field>
+                <Field label="Telefono">
+                    <input name="phone" type="tel" defaultValue={init.phone ?? ''} className="w-full rounded-md border p-2" />
+                </Field>
+                <Field label="Orari di apertura">
+                    <input name="opening_hours" type="text" defaultValue={init.opening_hours ?? ''} className="w-full rounded-md border p-2" />
+                </Field>
+                <Field label="Link Google Maps">
+                    <input name="maps_link" type="url" defaultValue={init.maps_link ?? ''} className="w-full rounded-md border p-2" />
                 </Field>
             </fieldset>
 
-            {/* Metodi di pagamento */}
-            <div>
-                <div className="font-medium mb-2">Metodi di pagamento</div>
-                <div className="flex flex-wrap gap-4">
-                    {PAYMENT_METHODS.map((pm) => {
-                        const checked = init.payment_methods.includes(pm.key as PaymentMethod);
-                        return (
-                            <label key={pm.key} className="inline-flex items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    name="payment_methods"
-                                    value={pm.key}
-                                    defaultChecked={checked}
-                                    className="h-5 w-5"
-                                />
-                                <span>{pm.label}</span>
-                            </label>
-                        );
-                    })}
-                </div>
-            </div>
-
             <div className="flex justify-end gap-3">
                 <button type="submit" className="rounded-lg px-4 py-2 border bg-gray-900 text-white hover:bg-black">
-                    Salva impostazioni
+                    Salva
                 </button>
             </div>
 

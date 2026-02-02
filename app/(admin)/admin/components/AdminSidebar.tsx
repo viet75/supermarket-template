@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
-import { Package, ShoppingCart, Layers, Menu, X, Truck } from 'lucide-react'
+import { useState, Fragment } from 'react'
+import { Package, ShoppingCart, Layers, Menu, X, Truck, Settings } from 'lucide-react'
 
 export default function AdminSidebar() {
     const pathname = usePathname()
@@ -14,9 +14,7 @@ export default function AdminSidebar() {
         { href: '/admin/products', label: 'Prodotti', icon: Package },
         { href: '/admin/categories', label: 'Categorie', icon: Layers },
         { href: '/admin/settings/delivery', label: 'Consegna', icon: Truck },
-
-
-    
+        { href: '/admin/settings', label: 'Impostazioni', icon: Settings, exact: true, separatorBefore: true },
     ]
 
     return (
@@ -78,22 +76,26 @@ export default function AdminSidebar() {
                 </div>
 
                 <nav className="flex-1 p-4 space-y-1">
-                    {links.map(({ href, label, icon: Icon }) => {
-                        const active = pathname.startsWith(href)
+                    {links.map(({ href, label, icon: Icon, exact, separatorBefore }) => {
+                        const active = exact ? pathname === href : pathname.startsWith(href)
                         return (
-                            <Link
-                                key={href}
-                                href={href}
-                                onClick={() => setOpen(false)}
-                                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
-                                    ${active
-                                        ? 'bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-200'
-                                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-                                    }`}
-                            >
-                                <Icon className="w-4 h-4" />
-                                {label}
-                            </Link>
+                            <Fragment key={href}>
+                                {separatorBefore && (
+                                    <div className="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2" />
+                                )}
+                                <Link
+                                    href={href}
+                                    onClick={() => setOpen(false)}
+                                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
+                                        ${active
+                                            ? 'bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-200'
+                                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                                        }`}
+                                >
+                                    <Icon className="w-4 h-4" />
+                                    {label}
+                                </Link>
+                            </Fragment>
                         )
                     })}
                 </nav>

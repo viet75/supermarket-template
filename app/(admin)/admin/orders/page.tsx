@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
+import Link from 'next/link'
 import type { Order } from '@/lib/types'
 import { useRefetchOnResume } from '@/hooks/useRefetchOnResume'
 import { formatPrice } from '@/lib/pricing'
@@ -652,7 +653,14 @@ export default function OrdersAdminPage() {
 
                                     >
                                         {/* ID */}
-                                        <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 align-top">{o.public_id || o.id.slice(0, 8)}</td>
+                                        <td className="px-4 py-2 text-sm align-top">
+                                            <Link
+                                                href={`/admin/orders/${o.id}`}
+                                                className="text-blue-600 dark:text-blue-400 hover:underline"
+                                            >
+                                                {o.public_id || o.id.slice(0, 8)}
+                                            </Link>
+                                        </td>
 
 
                                         {/* Data */}
@@ -662,10 +670,15 @@ export default function OrdersAdminPage() {
 
                                         {/* Indirizzo */}
                                         <td
-                                            className="px-4 py-2 text-sm text-gray-600 max-w-xs truncate dark:text-gray-300 align-top"
-                                            title={`${o.address?.line1}, ${o.address?.cap} ${o.address?.city}`}
+                                            className="px-4 py-2 text-sm text-gray-600 max-w-xs dark:text-gray-300 align-top"
+                                            title={`${o.address?.line1}, ${o.address?.cap} ${o.address?.city}${o.address?.note?.trim() ? `\nNote: ${o.address.note}` : ''}`}
                                         >
-                                            {o.address?.line1}, {o.address?.cap} {o.address?.city}
+                                            <div className="truncate">{o.address?.line1}, {o.address?.cap} {o.address?.city}</div>
+                                            {o.address?.note?.trim() && (
+                                                <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]" title={o.address.note}>
+                                                    Note: {o.address.note}
+                                                </div>
+                                            )}
                                         </td>
 
                                         {/* Cliente */}
@@ -831,9 +844,12 @@ export default function OrdersAdminPage() {
 
                             {/* HEADER */}
                             <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 flex items-center justify-between">
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                <Link
+                                    href={`/admin/orders/${o.id}`}
+                                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                >
                                     Ordine #{o.public_id || o.id.slice(0, 8)}
-                                </p>
+                                </Link>
                                 <div className="shrink-0">
                                     <StatusBadge status={o.status} />
                                 </div>
@@ -855,6 +871,11 @@ export default function OrdersAdminPage() {
                                 >
                                     📍 {o.address?.line1}, {o.address?.cap} {o.address?.city}
                                 </p>
+                                {o.address?.note?.trim() && (
+                                    <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 break-words" title={o.address.note}>
+                                        Note: {o.address.note}
+                                    </p>
+                                )}
 
                                 {/* Prodotti */}
                                 <div className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -942,19 +963,25 @@ export default function OrdersAdminPage() {
                         <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg max-w-md w-full mx-4 text-gray-900 dark:text-gray-100">
 
                             <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-
                                 <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-
-                                    Prodotti dell\'ordine #{selectedOrder.public_id || selectedOrder.id.slice(0, 8)}
+                                    Prodotti dell&apos;ordine #{selectedOrder.public_id || selectedOrder.id.slice(0, 8)}
                                 </h2>
                                 <button
                                     onClick={() => setSelectedOrder(null)}
                                     className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-sm"
-
                                 >
                                     ✕
                                 </button>
                             </div>
+
+                            {selectedOrder.address?.note?.trim() && (
+                                <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                                    <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Note per il corriere</h3>
+                                    <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
+                                        {selectedOrder.address.note.trim()}
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
                                 {selectedOrder.order_items.map((it, idx) => (

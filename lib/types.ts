@@ -33,6 +33,13 @@ export interface StoreSettings {
     store_lng: number | null      // coordinate negozio
     payment_methods: PaymentMethod[]
     updated_at: string            // ISO string
+    // Contatti negozio (footer pubblico, solo se valorizzati)
+    store_name?: string | null
+    address?: string | null
+    email?: string | null
+    phone?: string | null
+    opening_hours?: string | null
+    maps_link?: string | null
 }
 
 // === Tipi per ordine ===

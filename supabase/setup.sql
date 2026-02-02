@@ -1208,6 +1208,15 @@ on conflict (slug) do update set
   image_url = excluded.image_url,
   images = excluded.images;
 
+-- PATCH: store_settings contatti negozio (footer pubblico)
+alter table public.store_settings
+  add column if not exists store_name text,
+  add column if not exists address text,
+  add column if not exists email text,
+  add column if not exists phone text,
+  add column if not exists opening_hours text,
+  add column if not exists maps_link text;
+
 -- PATCH: store_settings flag to enable demo seed
 alter table public.store_settings
 add column if not exists seed_demo_enabled boolean not null default false;

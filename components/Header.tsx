@@ -116,8 +116,14 @@ export default function Header() {
                                     >
                                         Gestione Consegna
                                     </Link>
-
-
+                                    <div className="border-t border-gray-200 dark:border-gray-600 my-1" />
+                                    <Link
+                                        href="/admin/settings"
+                                        className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        onClick={() => setOpenMenu(false)}
+                                    >
+                                        Impostazioni
+                                    </Link>
                                 </>
                             )}
                         </motion.div>

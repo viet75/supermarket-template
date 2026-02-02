@@ -11,6 +11,10 @@ type DeliverySettings = {
   payment_methods?: string[]
 }
 
+function numToDisplay(value: number | null | undefined): string {
+  return value === 0 || value == null ? '' : String(value)
+}
+
 export default function DeliverySettingsPage() {
   const [settings, setSettings] = useState<DeliverySettings | null>(null)
   const [paymentMethods, setPaymentMethods] = useState<string[]>([])
@@ -19,18 +23,32 @@ export default function DeliverySettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
+  // Valori visualizzati per i campi numerici: vuoto se 0, altrimenti stringa
+  const [numDisplay, setNumDisplay] = useState({
+    delivery_base_km: '',
+    delivery_base_fee: '',
+    delivery_extra_fee_per_km: '',
+    delivery_max_km: '',
+  })
+
   // Caricamento iniziale
   useEffect(() => {
     fetch('/api/admin/settings/delivery')
       .then((res) => res.json())
       .then((data) => {
         setSettings(data.settings)
-        // Inizializza paymentMethods da store_settings.payment_methods
         if (Array.isArray(data.settings?.payment_methods)) {
           setPaymentMethods(data.settings.payment_methods)
         } else {
           setPaymentMethods([])
         }
+        const s = data.settings
+        setNumDisplay({
+          delivery_base_km: numToDisplay(s?.delivery_base_km),
+          delivery_base_fee: numToDisplay(s?.delivery_base_fee),
+          delivery_extra_fee_per_km: numToDisplay(s?.delivery_extra_fee_per_km),
+          delivery_max_km: numToDisplay(s?.delivery_max_km),
+        })
         setLoading(false)
       })
       .catch(() => {
@@ -45,19 +63,33 @@ export default function DeliverySettingsPage() {
     setSuccess(false)
   }
 
+  function setNumDisplayField(
+    field: keyof typeof numDisplay,
+    value: string
+  ) {
+    setNumDisplay((prev) => ({ ...prev, [field]: value }))
+    setSuccess(false)
+  }
+
   async function onSave() {
     if (!settings) return
     setSaving(true)
     setError(null)
 
+    const payload = {
+      ...settings,
+      delivery_base_km: Number(numDisplay.delivery_base_km || 0),
+      delivery_base_fee: Number(numDisplay.delivery_base_fee || 0),
+      delivery_extra_fee_per_km: Number(numDisplay.delivery_extra_fee_per_km || 0),
+      delivery_max_km: Number(numDisplay.delivery_max_km || 0),
+      payment_methods: paymentMethods,
+    }
+
     try {
       const res = await fetch('/api/admin/settings/delivery', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...settings,
-          payment_methods: paymentMethods,
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {
@@ -67,10 +99,16 @@ export default function DeliverySettingsPage() {
 
       const data = await res.json()
       setSettings(data.settings)
-      // Aggiorna anche paymentMethods dal response
       if (Array.isArray(data.settings?.payment_methods)) {
         setPaymentMethods(data.settings.payment_methods)
       }
+      const s = data.settings
+      setNumDisplay({
+        delivery_base_km: numToDisplay(s?.delivery_base_km),
+        delivery_base_fee: numToDisplay(s?.delivery_base_fee),
+        delivery_extra_fee_per_km: numToDisplay(s?.delivery_extra_fee_per_km),
+        delivery_max_km: numToDisplay(s?.delivery_max_km),
+      })
       setSuccess(true)
     } catch (e: any) {
       setError(e.message)
@@ -120,8 +158,8 @@ export default function DeliverySettingsPage() {
             type="number"
             min={0}
             step={0.1}
-            value={settings.delivery_base_km}
-            onChange={(e) => update('delivery_base_km', Number(e.target.value))}
+            value={numDisplay.delivery_base_km}
+            onChange={(e) => setNumDisplayField('delivery_base_km', e.target.value)}
             className="w-full border rounded px-3 py-2"
           />
         </div>
@@ -132,8 +170,8 @@ export default function DeliverySettingsPage() {
             type="number"
             min={0}
             step={0.1}
-            value={settings.delivery_base_fee}
-            onChange={(e) => update('delivery_base_fee', Number(e.target.value))}
+            value={numDisplay.delivery_base_fee}
+            onChange={(e) => setNumDisplayField('delivery_base_fee', e.target.value)}
             className="w-full border rounded px-3 py-2"
           />
         </div>
@@ -144,9 +182,9 @@ export default function DeliverySettingsPage() {
             type="number"
             min={0}
             step={0.1}
-            value={settings.delivery_extra_fee_per_km}
+            value={numDisplay.delivery_extra_fee_per_km}
             onChange={(e) =>
-              update('delivery_extra_fee_per_km', Number(e.target.value))
+              setNumDisplayField('delivery_extra_fee_per_km', e.target.value)
             }
             className="w-full border rounded px-3 py-2"
           />
@@ -158,8 +196,8 @@ export default function DeliverySettingsPage() {
             type="number"
             min={0}
             step={0.1}
-            value={settings.delivery_max_km}
-            onChange={(e) => update('delivery_max_km', Number(e.target.value))}
+            value={numDisplay.delivery_max_km}
+            onChange={(e) => setNumDisplayField('delivery_max_km', e.target.value)}
             className="w-full border rounded px-3 py-2"
           />
         </div>

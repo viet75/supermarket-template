@@ -105,35 +105,27 @@ tramite **un unico script SQL**.
 
 ### Step obbligatori
 
-1. Creare un nuovo progetto Supabase
-2. Aprire **SQL Editor**
-3. Incollare ed eseguire **prima di tutto**:
-
-```sql
-supabase/setup.sql
+1. Creare un nuovo progetto Supabase  
+2. Aprire **SQL Editor**  
+3. Incollare ed eseguire **prima di tutto** `supabase/setup.sql`
 
 Questo script:
 
-crea tutte le tabelle
+- crea tutte le tabelle  
+- crea funzioni RPC  
+- configura RLS e policies  
+- inserisce seed demo  
+- applica patch SAFE ALTER  
 
-crea funzioni RPC
-
-configura RLS e policies
-
-inserisce seed demo
-
-applica patch SAFE ALTER
-
-⚠️ Lo script è idempotente
+⚠️ Lo script è idempotente  
 Può essere rieseguito senza errori.
 
 🌱 Dati demo (seed)
 
 Il file supabase/setup.sql inserisce automaticamente:
 
-categorie di esempio
-
-prodotti di esempio (per_unit e per_kg)
+- categorie di esempio  
+- prodotti di esempio (per_unit e per_kg)
 
 Questo permette di avere una demo funzionante immediatamente.
 
@@ -150,15 +142,14 @@ aver eseguito supabase/setup.sql su un progetto Supabase vuoto.
 
 Senza questo step:
 
-la tabella public.profiles non esiste
-
-la promozione admin fallisce
+- la tabella public.profiles non esiste  
+- la promozione admin fallisce  
 
 Step 1 — Creare utente
 
 Supabase Dashboard → Authentication → Users → Add user
 
-Nota
+Nota  
 La riga in public.profiles viene creata automaticamente
 tramite trigger DB al momento della creazione dell’utente Auth.
 
@@ -166,14 +157,13 @@ Step 2 — Assegnare ruolo admin
 
 Dopo la creazione dell’utente, promuovilo ad admin:
 
+```sql
 update public.profiles
 set role = 'admin'
 where id = (
   select id from auth.users
   where email = 'admin@test.com'
 );
-
-
 Da questo momento l’utente può accedere a /admin.
 
 🔐 Sicurezza e RLS
@@ -182,11 +172,11 @@ Il database utilizza Row Level Security (RLS).
 
 Configurazione automatica tramite setup.sql:
 
-Utenti pubblici
+Utenti pubblici:
 
 lettura prodotti e categorie attive
 
-Utenti admin
+Utenti admin:
 
 gestione prodotti
 
@@ -200,13 +190,64 @@ L’accesso admin è basato su:
 
 public.profiles.role = 'admin'
 
-🌍 Variabili d’ambiente
+🔐 Security – INTERNAL_ADMIN_KEY (REQUIRED)
+Il progetto utilizza una chiave interna di sicurezza per proteggere
+le azioni admin sensibili (Server Actions e API).
 
-Tutte le variabili sono documentate in .env.example.
+Devi generare una chiave unica per ogni installazione.
 
-Nessun dominio hardcoded
+Esempio:
 
-Funziona automaticamente su localhost e Vercel
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+Poi impostarla nelle variabili ambiente:
+
+INTERNAL_ADMIN_KEY=your_generated_key
+⚠️ IMPORTANTE:
+
+Deve essere sempre cambiata in produzione
+
+Non va mai committata nel repository
+
+Ogni installazione cliente deve avere una chiave diversa
+
+⚙️ Admin Settings
+Il pannello admin fornisce due sezioni di configurazione separate.
+
+General Settings
+Percorso:
+
+/admin/settings
+Permette di configurare le informazioni pubbliche del negozio:
+
+Nome negozio
+
+Indirizzo
+
+Email
+
+Telefono
+
+Orari di apertura
+
+Link Google Maps
+
+Questi dati vengono mostrati automaticamente nel footer pubblico.
+
+Delivery Settings
+Percorso:
+
+/admin/settings/delivery
+Permette di configurare:
+
+Attivazione/disattivazione consegna
+
+Costo base consegna
+
+Costo extra per km
+
+Distanza massima
+
+Metodi di pagamento disponibili
 
 💳 Testing Stripe in locale
 
@@ -221,16 +262,13 @@ stripe login
 Avvio listener webhook
 stripe listen --forward-to localhost:3000/api/webhooks/stripe
 
-
 Riceverai una chiave:
 
 whsec_xxxxxxxxx
 
-
 Inseriscila in .env.local:
 
 STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxx
-
 
 Riavvia:
 
@@ -239,9 +277,7 @@ npm run dev
 Carta di test
 
 Numero: 4242 4242 4242 4242
-
 Scadenza: qualsiasi futura
-
 CVC: qualsiasi
 
 🗂 Supabase Storage
@@ -256,23 +292,19 @@ Lo stock è gestito esclusivamente dal database tramite funzioni RPC PostgreSQL.
 
 Node / Next.js non deve mai modificare direttamente lo stock.
 
-RPC pubbliche (PostgREST)
+RPC pubbliche (PostgREST):
 
 reserve_order_stock(order_id uuid)
-
 release_order_stock(order_id uuid)
-
 cleanup_expired_reservations()
 
-Compatibilità (nomi legacy supportati)
+Compatibilità (nomi legacy supportati):
 
 reserveOrderStock(order_id uuid)
-
 releaseOrderStock(order_id uuid)
-
 cleanupExpiredReservations()
 
-Flusso
+Flusso:
 
 Alla creazione di un ordine:
 
@@ -287,7 +319,6 @@ orders.stock_reserved = true
 Per card_online:
 
 payment_status = pending
-
 reserve_expires_at = now + TTL
 
 se il pagamento non avviene → cleanup_expired_reservations()
@@ -295,7 +326,6 @@ se il pagamento non avviene → cleanup_expired_reservations()
 Per cash / pos_on_delivery:
 
 stock scalato subito
-
 se annullato → release_order_stock(order_id)
 
 🔁 Reset Supabase (simulazione fresh install)
@@ -307,25 +337,29 @@ create schema public;
 
 grant usage on schema public to postgres, anon, authenticated, service_role;
 grant all on schema public to postgres, service_role;
-
-### Soft Delete (Archive)
-
+Soft Delete (Archive)
 Products and categories are soft-deleted (archived) from the admin dashboard and can be restored at any time.
 
 Permanent deletion is intentionally not exposed in the UI to prevent accidental data loss and to preserve data integrity (orders, analytics, history).
 
 Advanced users can permanently remove archived records directly from Supabase if needed.
 
-
 ⚠️ Limitazioni note
 
 Supporto single-store (no multi-tenant)
-
 Nessuna autenticazione cliente
-
 PayPal non incluso
-
 Google Maps API può avere costi
+
+È necessario generare una INTERNAL_ADMIN_KEY univoca per ogni installazione.
+
+Questa chiave viene utilizzata internamente dal backend per proteggere i percorsi API sensibili.
+
+Esempio:
+openssl rand -hex 32
+
+Quindi impostala nel tuo ambiente:
+INTERNAL_ADMIN_KEY=chiave_generata
 
 📄 Licenza
 
@@ -337,7 +371,5 @@ Licenza commerciale.
 🧑‍💻 Supporto
 
 Supporto via Gumroad
-
 Bugfix inclusi
-
 Sviluppo custom escluso

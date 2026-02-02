@@ -12,10 +12,75 @@ export const runtime = 'nodejs'
    GET /api/admin/orders
    Ritorna gli ordini con paginazione e filtri
 =========================== */
+async function normalizeOrderRow(o: any): Promise<Order> {
+    const address =
+        typeof o.address === 'string'
+            ? JSON.parse(o.address)
+            : (o.address ?? {})
+
+    const normalizedItems: any[] = Array.isArray(o.order_items)
+        ? o.order_items.map((it: any) => {
+                let productData = it.products || it.product || null
+                if (Array.isArray(productData)) productData = productData[0] || null
+                const quantity = Number(it.quantity)
+                const unitPrice = Number(it.price ?? 0)
+                const product = productData
+                    ? { id: productData.id, name: productData.name, unit_type: productData.unit_type }
+                    : { id: '', name: 'Prodotto', unit_type: null }
+                return { quantity, price: unitPrice, product }
+            })
+        : []
+
+    return {
+        ...o,
+        first_name: address.firstName ?? null,
+        last_name: address.lastName ?? null,
+        address,
+        subtotal: Number(o.subtotal),
+        delivery_fee: Number(o.delivery_fee),
+        total: Number(o.total),
+        distance_km: Number(o.distance_km),
+        order_items: normalizedItems,
+        items: [],
+    }
+}
+
 export async function GET(req: NextRequest) {
     try {
         const svc = supabaseServer()
         const { searchParams } = new URL(req.url)
+
+        // 🔹 Singolo ordine per id (per pagina dettaglio)
+        const singleId = (searchParams.get('id') || '').trim()
+        if (singleId) {
+            const orderSelect = `
+              id,
+              public_id,
+              created_at,
+              status,
+              payment_method,
+              payment_status,
+              subtotal,
+              delivery_fee,
+              total,
+              distance_km,
+              address,
+              order_items:order_items (
+                quantity,
+                price,
+                products (id, name, unit_type)
+              )
+            `
+            const { data: row, error } = await svc
+                .from('orders')
+                .select(orderSelect)
+                .eq('id', singleId)
+                .maybeSingle()
+            if (error) throw error
+            if (!row) return NextResponse.json({ error: 'Ordine non trovato' }, { status: 404 })
+            const order = await normalizeOrderRow(row)
+            return NextResponse.json({ order })
+        }
 
         const page = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
         const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '20')))
@@ -88,58 +153,7 @@ export async function GET(req: NextRequest) {
         const { data, count, error } = await q.range(fromIdx, toIdx)
         if (error) throw error
 
-        const orders: Order[] = await Promise.all((data ?? []).map(async (o: any) => {
-            const address =
-                typeof o.address === 'string'
-                    ? JSON.parse(o.address)
-                    : (o.address ?? {})
-
-            // Normalizzazione degli order_items usando i dati già inclusi dalla query
-            const normalizedItems: any[] = Array.isArray(o.order_items)
-                ? o.order_items.map((it: any) => {
-                        // Usa i dati del prodotto già inclusi dalla query principale
-                        // Supabase può restituire i dati come oggetto singolo o come array
-                        let productData = it.products || it.product || null
-                        if (Array.isArray(productData)) {
-                            productData = productData[0] || null
-                        }
-                        
-                        const quantity = Number(it.quantity)
-                        const unitPrice = Number(it.price ?? 0)
-                        
-                        const product = productData
-                            ? {
-                                id: productData.id,
-                                name: productData.name,
-                                unit_type: productData.unit_type,
-                            }
-                            : {
-                                id: '',
-                                name: 'Prodotto',
-                                unit_type: null,
-                            }
-
-                        return {
-                            quantity,
-                            price: unitPrice,
-                            product,
-                        }
-                    })
-                : []
-
-            return {
-                ...o,
-                first_name: address.firstName ?? null,
-                last_name: address.lastName ?? null,
-                address,
-                subtotal: Number(o.subtotal),
-                delivery_fee: Number(o.delivery_fee),
-                total: Number(o.total),
-                distance_km: Number(o.distance_km),
-                order_items: normalizedItems,
-                items: [], // legacy
-            }
-        }))
+        const orders: Order[] = await Promise.all((data ?? []).map((o: any) => normalizeOrderRow(o)))
 
         return NextResponse.json({
             orders,

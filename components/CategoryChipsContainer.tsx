@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabaseClient } from '@/lib/supabaseClient'
 import CategoryChips from './CategoryChips'
 import type { Category } from '@/lib/types'
+
+const SCROLL_THRESHOLD = 10
 
 // Type for Supabase Realtime postgres_changes payload
 type RealtimePostgresChangesPayload<T = Record<string, any>> = {
@@ -23,6 +25,23 @@ export default function CategoryChipsContainer({
     onChange: (id: string | null) => void
 }) {
     const [categories, setCategories] = useState<Category[]>([])
+    const [showBar, setShowBar] = useState(true)
+    const lastScrollY = useRef(0)
+
+    // Smart sticky: nascondi su scroll down, mostra su scroll up
+    useEffect(() => {
+        const handleScroll = () => {
+            const current = window.scrollY
+            if (current > lastScrollY.current + SCROLL_THRESHOLD) {
+                setShowBar(false)
+            } else if (current < lastScrollY.current) {
+                setShowBar(true)
+            }
+            lastScrollY.current = current
+        }
+        window.addEventListener('scroll', handleScroll, { passive: true })
+        return () => window.removeEventListener('scroll', handleScroll)
+    }, [])
 
     useEffect(() => {
         const supabase = supabaseClient()
@@ -80,6 +99,18 @@ export default function CategoryChipsContainer({
 
 
     return (
-        <CategoryChips categories={categories} activeId={activeId} onChange={onChange} />
+        <div
+            className={`
+                sticky top-14 z-20 -mx-1 -mt-2 mb-2 pt-2
+                bg-white dark:bg-gray-900
+                transition-[transform,opacity] duration-250 ease-out
+                ${showBar
+                    ? 'translate-y-0 opacity-100'
+                    : '-translate-y-full opacity-0 pointer-events-none'
+                }
+            `}
+        >
+            <CategoryChips categories={categories} activeId={activeId} onChange={onChange} />
+        </div>
     )
 }
