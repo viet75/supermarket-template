@@ -1,7 +1,7 @@
 // app/admin/settings/actions.ts
 'use server';
 
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 
 export async function saveSettingsAction(_: any, formData: FormData) {
@@ -17,7 +17,10 @@ export async function saveSettingsAction(_: any, formData: FormData) {
     const cookieStore = await cookies();
     const cookieHeader = cookieStore.getAll().map((c) => `${c.name}=${c.value}`).join('; ');
 
-    const base = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    const h = await headers();
+    const proto = h.get('x-forwarded-proto') ?? 'https';
+    const host = h.get('x-forwarded-host') ?? h.get('host');
+    const base = host ? `${proto}://${host}` : (process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'));
     const res = await fetch(`${base}/api/settings`, {
         method: 'PUT',
         headers: {
