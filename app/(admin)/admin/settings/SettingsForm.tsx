@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useFormStatus } from 'react-dom';
 import type { StoreSettings } from '@/lib/types';
 
 type Props = {
@@ -8,8 +9,39 @@ type Props = {
     action: (state: any, formData: FormData) => Promise<{ ok: boolean; message: string }>;
 };
 
+function SubmitButton({ success }: { success: boolean }) {
+    const { pending } = useFormStatus();
+    return (
+        <button
+            type="submit"
+            disabled={pending}
+            className="rounded-lg px-4 py-2 border bg-gray-900 text-white hover:bg-black transition-all duration-150 active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2 min-w-[120px]"
+        >
+            {pending ? (
+                <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    Salvataggio…
+                </>
+            ) : success ? (
+                'Salvato ✓'
+            ) : (
+                'Salva'
+            )}
+        </button>
+    );
+}
+
 export default function SettingsForm({ initial, action }: Props) {
     const [state, formAction] = React.useActionState(action, { ok: false, message: '' });
+    const [success, setSuccess] = React.useState(false);
+
+    React.useEffect(() => {
+        if (state?.ok) {
+            setSuccess(true);
+            const t = setTimeout(() => setSuccess(false), 1500);
+            return () => clearTimeout(t);
+        }
+    }, [state?.ok]);
 
     const init = React.useMemo<StoreSettings>(
         () =>
@@ -67,9 +99,7 @@ export default function SettingsForm({ initial, action }: Props) {
             </fieldset>
 
             <div className="flex justify-end gap-3">
-                <button type="submit" className="rounded-lg px-4 py-2 border bg-gray-900 text-white hover:bg-black">
-                    Salva
-                </button>
+                <SubmitButton success={success} />
             </div>
 
             <p className="text-xs text-gray-400">Ultimo aggiornamento: {new Date(init.updated_at).toLocaleString()}</p>

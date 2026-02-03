@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS public.store_settings (
     delivery_enabled boolean DEFAULT true,
     delivery_fee_base numeric(10,2) DEFAULT 0,
     delivery_fee_per_km numeric(10,2) DEFAULT 0.5,
-    delivery_max_km numeric(10,2) DEFAULT 10,
+    delivery_max_km numeric(10,2),
     free_over numeric(10,2) DEFAULT 50,
     store_lat numeric(10,6),
     store_lng numeric(10,6)
@@ -235,7 +235,7 @@ ADD COLUMN IF NOT EXISTS sort_order integer NOT NULL DEFAULT 0;
 
 -- Store Settings: additional columns
 ALTER TABLE public.store_settings
-ADD COLUMN IF NOT EXISTS delivery_base_km numeric(10,2) NOT NULL DEFAULT 3,
+ADD COLUMN IF NOT EXISTS delivery_base_km numeric(10,2),
 ADD COLUMN IF NOT EXISTS delivery_base_fee numeric(10,2) NOT NULL DEFAULT 0,
 ADD COLUMN IF NOT EXISTS delivery_extra_fee_per_km numeric(10,2) NOT NULL DEFAULT 0,
 ADD COLUMN IF NOT EXISTS payment_methods jsonb NOT NULL
@@ -246,6 +246,14 @@ DEFAULT jsonb_build_object(
 ),
 ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now(),
 ADD COLUMN IF NOT EXISTS singleton_key boolean NOT NULL DEFAULT true;
+
+-- Make delivery km fields nullable with no defaults (template-friendly)
+ALTER TABLE public.store_settings
+  ALTER COLUMN delivery_base_km DROP DEFAULT,
+  ALTER COLUMN delivery_base_km DROP NOT NULL,
+  ALTER COLUMN delivery_max_km DROP DEFAULT,
+  ALTER COLUMN delivery_max_km DROP NOT NULL;
+
 
 -- Backfill orders (safe on existing rows)
 UPDATE public.orders
@@ -270,7 +278,6 @@ WHERE subtotal IS NULL
 -- Backfill store_settings (safe on existing singleton row)
 UPDATE public.store_settings
 SET
-  delivery_base_km = COALESCE(delivery_base_km, 3),
   delivery_base_fee = COALESCE(delivery_base_fee, delivery_fee_base, 0),
   delivery_extra_fee_per_km = COALESCE(delivery_extra_fee_per_km, delivery_fee_per_km, 0),
   payment_methods = COALESCE(
@@ -660,10 +667,6 @@ ON CONFLICT (id) DO NOTHING;
 -- 🔐 RLS / POLICIES
 -- ============================================================
 
--- ============================================================
--- 🔐 RLS / POLICIES
--- ============================================================
-
 -- CATEGORIES (public read + admin CRUD; soft delete/restore via UPDATE)
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 
@@ -815,10 +818,6 @@ WITH CHECK (
   bucket_id = 'products'
   AND public.is_admin(auth.uid())
 );
-
--- ============================================================
--- 📊 INDEXES & CONSTRAINTS
--- ============================================================
 
 -- ============================================================
 -- 📊  INDEXES AND CONSTRAINTS

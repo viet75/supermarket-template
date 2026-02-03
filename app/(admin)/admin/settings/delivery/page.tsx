@@ -15,6 +15,13 @@ function numToDisplay(value: number | null | undefined): string {
   return value === 0 || value == null ? '' : String(value)
 }
 
+function parseOptionalNumber(v: string): number | null {
+  const s = String(v).trim()
+  if (s === '') return null
+  const n = Number(s)
+  return Number.isFinite(n) ? n : null
+}
+
 export default function DeliverySettingsPage() {
   const [settings, setSettings] = useState<DeliverySettings | null>(null)
   const [paymentMethods, setPaymentMethods] = useState<string[]>([])
@@ -71,17 +78,39 @@ export default function DeliverySettingsPage() {
     setSuccess(false)
   }
 
+  const baseKm = parseOptionalNumber(numDisplay.delivery_base_km)
+  const maxKm = parseOptionalNumber(numDisplay.delivery_max_km)
+  const baseFee = parseOptionalNumber(numDisplay.delivery_base_fee)
+  const extraFee = parseOptionalNumber(numDisplay.delivery_extra_fee_per_km)
+  const missingDeliveryFields =
+    settings?.delivery_enabled && (baseKm === null || maxKm === null)
+  const invalidDeliveryRange =
+    settings?.delivery_enabled &&
+    baseKm !== null &&
+    maxKm !== null &&
+    maxKm < baseKm
+  const isDeliveryValid =
+    !settings?.delivery_enabled || (!missingDeliveryFields && !invalidDeliveryRange)
+
   async function onSave() {
     if (!settings) return
+    if (!isDeliveryValid) {
+      setError(
+        missingDeliveryFields
+          ? 'Compila i campi obbligatori: distanza inclusa e distanza massima (km).'
+          : 'La distanza massima (km) deve essere maggiore o uguale alla distanza inclusa.'
+      )
+      return
+    }
     setSaving(true)
     setError(null)
 
     const payload = {
       ...settings,
-      delivery_base_km: Number(numDisplay.delivery_base_km || 0),
-      delivery_base_fee: Number(numDisplay.delivery_base_fee || 0),
-      delivery_extra_fee_per_km: Number(numDisplay.delivery_extra_fee_per_km || 0),
-      delivery_max_km: Number(numDisplay.delivery_max_km || 0),
+      delivery_base_km: baseKm,
+      delivery_base_fee: baseFee ?? 0,
+      delivery_extra_fee_per_km: extraFee ?? 0,
+      delivery_max_km: maxKm,
       payment_methods: paymentMethods,
     }
 
@@ -237,12 +266,19 @@ export default function DeliverySettingsPage() {
         </div>
       </div>
 
+      {settings.delivery_enabled && !isDeliveryValid && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-3 text-sm text-amber-800 dark:text-amber-200">
+          {missingDeliveryFields
+            ? 'Con consegna attiva, compila distanza inclusa e distanza massima (km). I costi sono opzionali (consegna gratuita).'
+            : 'La distanza massima deve essere maggiore o uguale alla distanza inclusa.'}
+        </div>
+      )}
       {error && <div className="text-red-600">{error}</div>}
       {success && <div className="text-green-600">Impostazioni salvate</div>}
 
       <button
         onClick={onSave}
-        disabled={saving}
+        disabled={saving || !isDeliveryValid}
         className="bg-black text-white px-6 py-2 rounded disabled:opacity-50"
       >
         {saving ? 'Salvataggio…' : 'Salva impostazioni'}
