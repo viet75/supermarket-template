@@ -1,14 +1,16 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useCartStore } from '@/stores/cartStore'
+import { supabaseClient } from '@/lib/supabaseClient'
 import { motion } from 'framer-motion'
 import { useState, useRef, useEffect } from 'react'
 
 export default function Header() {
+    const router = useRouter()
     const { items } = useCartStore()
     const badgeCount = items.length // numero articoli diversi
-
 
     const [openMenu, setOpenMenu] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
@@ -25,6 +27,13 @@ export default function Header() {
             document.removeEventListener('mousedown', handleClickOutside)
         }
     }, [])
+
+    const handleLogout = async () => {
+        setOpenMenu(false)
+        await supabaseClient().auth.signOut()
+        router.push('/')
+        router.refresh()
+    }
 
     // Traduzione semplice metodo pagamento
     const isAdmin = true // 👈 per ora forzato, in futuro useremo user.email === process.env.ADMIN_EMAIL
@@ -124,6 +133,15 @@ export default function Header() {
                                     >
                                         Impostazioni
                                     </Link>
+                                    <div className="border-t border-gray-200 dark:border-gray-600 my-1" />
+                                    <button
+                                        type="button"
+                                        onClick={handleLogout}
+                                        className="w-full flex items-center gap-2 px-4 py-2 text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 cursor-pointer rounded-b-xl"
+                                    >
+                                        <span aria-hidden>🚪</span>
+                                        Logout
+                                    </button>
                                 </>
                             )}
                         </motion.div>

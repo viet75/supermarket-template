@@ -1,13 +1,22 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useState, Fragment } from 'react'
 import { Package, ShoppingCart, Layers, Menu, X, Truck, Settings } from 'lucide-react'
+import { supabaseClient } from '@/lib/supabaseClient'
 
 export default function AdminSidebar() {
     const pathname = usePathname()
+    const router = useRouter()
     const [open, setOpen] = useState(false)
+
+    const handleLogout = async () => {
+        setOpen(false)
+        await supabaseClient().auth.signOut()
+        router.push('/')
+        router.refresh()
+    }
 
     const links = [
         { href: '/admin/orders', label: 'Ordini', icon: ShoppingCart },
@@ -98,7 +107,18 @@ export default function AdminSidebar() {
                             </Fragment>
                         )
                     })}
+                    <div className="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2">
+                        <button
+                            type="button"
+                            onClick={handleLogout}
+                            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 cursor-pointer transition-colors"
+                        >
+                            <span aria-hidden>🚪</span>
+                            Logout
+                        </button>
+                    </div>
                 </nav>
+                <div className="border-t border-gray-200 dark:border-gray-700 mx-4" />
                 <Link
                     href="/"
                     className="flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
