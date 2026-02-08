@@ -111,6 +111,7 @@ export type Product = {
     category_id?: string | null
     stock?: number | null
     is_active?: boolean
+    archived?: boolean              // true = bloccato per order_items (trigger DB)
     created_at?: string
     sort_order: number
     unit_type?: 'per_unit' | 'per_kg' | null

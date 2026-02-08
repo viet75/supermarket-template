@@ -246,6 +246,9 @@ DEFAULT jsonb_build_object(
 ),
 ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now(),
 ADD COLUMN IF NOT EXISTS singleton_key boolean NOT NULL DEFAULT true;
+alter table public.store_settings
+add column if not exists closed_message text;
+
 
 -- Make delivery km fields nullable with no defaults (template-friendly)
 ALTER TABLE public.store_settings
@@ -254,6 +257,29 @@ ALTER TABLE public.store_settings
   ALTER COLUMN delivery_max_km DROP DEFAULT,
   ALTER COLUMN delivery_max_km DROP NOT NULL;
 
+-- Store settings: orari apertura, cutoff, chiusure, timezone (idempotent)
+ALTER TABLE public.store_settings
+ADD COLUMN IF NOT EXISTS weekly_hours jsonb,
+ADD COLUMN IF NOT EXISTS cutoff_time text,
+ADD COLUMN IF NOT EXISTS closed_dates jsonb,
+ADD COLUMN IF NOT EXISTS closed_ranges jsonb,
+ADD COLUMN IF NOT EXISTS accept_orders_when_closed boolean NOT NULL DEFAULT true,
+ADD COLUMN IF NOT EXISTS timezone text NOT NULL DEFAULT 'Europe/Rome',
+ADD COLUMN IF NOT EXISTS preparation_days integer NOT NULL DEFAULT 0;
+
+UPDATE public.store_settings
+SET
+  cutoff_time = COALESCE(cutoff_time, '19:00'),
+  accept_orders_when_closed = COALESCE(accept_orders_when_closed, true),
+  timezone = COALESCE(timezone, 'Europe/Rome'),
+  preparation_days = COALESCE(preparation_days, 0),
+  closed_dates = COALESCE(closed_dates, '[]'::jsonb),
+  closed_ranges = COALESCE(closed_ranges, '[]'::jsonb),
+  weekly_hours = COALESCE(weekly_hours, '{"mon":[{"start":"09:00","end":"19:30"}],"tue":[{"start":"09:00","end":"19:30"}],"wed":[{"start":"09:00","end":"19:30"}],"thu":[{"start":"09:00","end":"19:30"}],"fri":[{"start":"09:00","end":"19:30"}],"sat":[{"start":"09:00","end":"13:00"}],"sun":[]}'::jsonb)
+WHERE id IS NOT NULL;
+
+-- Orders: data evasione (primo giorno utile)
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS fulfillment_date date;
 
 -- Backfill orders (safe on existing rows)
 UPDATE public.orders
@@ -646,11 +672,194 @@ AS $$
 $$;
 
 -- ============================================================
--- 📦 STORAGE BUCKETS
+-- 📦 FULFILLMENT PREVIEW (orari, cutoff, chiusure, primo giorno utile)
 -- ============================================================
+-- weekly_hours: chiavi mon,tue,wed,thu,fri,sat,sun; valore array di fasce [{ "start":"HH:MM","end":"HH:MM" }, ...]; [] = chiuso.
+-- closed_dates: array ["YYYY-MM-DD", ...]
+-- closed_ranges: array [{ "from":"YYYY-MM-DD","to":"YYYY-MM-DD","reason":"..." }, ...]
+CREATE OR REPLACE FUNCTION public.get_fulfillment_preview()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+DECLARE
+  s RECORD;
+  tz text;
+  now_local timestamp;
+  d date;
+  t time;
+  dow int;
+  day_key text;
+  cutoff_t time;
+  is_open_today boolean := false;
+  after_cutoff boolean := false;
+  can_accept boolean := true;
+  start_date date;
+  next_date date;
+  prep_days int;
+  slots jsonb;
+  slot jsonb;
+  slot_start time;
+  slot_end time;
+  i int;
+  j int;
+  msg text;
+  in_range boolean;
+  range_reason text;
+  current_day_key text;
+  day_keys text[] := ARRAY['sun','mon','tue','wed','thu','fri','sat'];
+BEGIN
+  SELECT
+    COALESCE(timezone, 'Europe/Rome') AS timezone,
+    COALESCE(cutoff_time, '19:00') AS cutoff_time,
+    COALESCE(weekly_hours, '{"mon":[{"start":"09:00","end":"19:30"}],"tue":[{"start":"09:00","end":"19:30"}],"wed":[{"start":"09:00","end":"19:30"}],"thu":[{"start":"09:00","end":"19:30"}],"fri":[{"start":"09:00","end":"19:30"}],"sat":[{"start":"09:00","end":"13:00"}],"sun":[]}'::jsonb) AS weekly_hours,
+    COALESCE(closed_dates, '[]'::jsonb) AS closed_dates,
+    COALESCE(closed_ranges, '[]'::jsonb) AS closed_ranges,
+    COALESCE(accept_orders_when_closed, true) AS accept_orders_when_closed,
+    COALESCE(preparation_days, 0) AS preparation_days
+  INTO s
+  FROM public.store_settings
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'ok', true,
+      'can_accept', true,
+      'is_open_now', true,
+      'after_cutoff', false,
+      'next_fulfillment_date', to_char(now()::date, 'YYYY-MM-DD'),
+      'message', ''
+    );
+  END IF;
+
+  tz := s.timezone;
+  now_local := (now() AT TIME ZONE tz);
+  d := now_local::date;
+  t := now_local::time;
+  dow := EXTRACT(DOW FROM now_local)::int;
+  day_key := day_keys[dow + 1];
+
+  BEGIN
+    cutoff_t := (trim(s.cutoff_time))::time;
+  EXCEPTION WHEN OTHERS THEN
+    cutoff_t := '19:00'::time;
+  END;
+
+  IF t >= cutoff_t THEN
+    after_cutoff := true;
+  END IF;
+
+  -- is_open_now: oggi non chiuso E ora corrente in una fascia di weekly_hours[day_key]
+  IF jsonb_typeof(s.closed_dates) = 'array' AND to_char(d, 'YYYY-MM-DD') = ANY(ARRAY(SELECT jsonb_array_elements_text(s.closed_dates))) THEN
+    is_open_today := false;
+  ELSIF jsonb_typeof(s.closed_ranges) = 'array' THEN
+    in_range := false;
+    FOR i IN 0 .. jsonb_array_length(s.closed_ranges) - 1 LOOP
+      IF (s.closed_ranges->i->>'from')::date <= d AND d <= (s.closed_ranges->i->>'to')::date THEN
+        in_range := true;
+        EXIT;
+      END IF;
+    END LOOP;
+    is_open_today := NOT in_range;
+  ELSE
+    is_open_today := true;
+  END IF;
+
+  IF is_open_today THEN
+    slots := s.weekly_hours->day_key;
+    IF slots IS NOT NULL AND jsonb_typeof(slots) = 'array' AND jsonb_array_length(slots) > 0 THEN
+      is_open_today := false;
+      FOR j IN 0 .. jsonb_array_length(slots) - 1 LOOP
+        slot := slots->j;
+        BEGIN
+          slot_start := (slot->>'start')::time;
+          slot_end := (slot->>'end')::time;
+          IF t >= slot_start AND t < slot_end THEN
+            is_open_today := true;
+            EXIT;
+          END IF;
+        EXCEPTION WHEN OTHERS THEN
+          NULL;
+        END;
+      END LOOP;
+    ELSE
+      is_open_today := false;
+    END IF;
+  END IF;
+
+  IF NOT is_open_today AND NOT s.accept_orders_when_closed THEN
+    RETURN jsonb_build_object(
+      'ok', true,
+      'can_accept', false,
+      'is_open_now', false,
+      'after_cutoff', after_cutoff,
+      'next_fulfillment_date', NULL,
+      'message', 'Negozio chiuso. Ordini non accettati in questo momento.'
+    );
+  END IF;
+
+  prep_days := s.preparation_days;
+  IF after_cutoff THEN
+    start_date := d + 1 + prep_days;
+  ELSIF is_open_today THEN
+    start_date := d + prep_days;
+  ELSE
+    start_date := d + 1 + prep_days;
+  END IF;
+
+  FOR i IN 1 .. 30 LOOP
+    current_day_key := day_keys[EXTRACT(DOW FROM start_date)::int + 1];
+    IF NOT (
+      (jsonb_typeof(s.closed_dates) = 'array' AND to_char(start_date, 'YYYY-MM-DD') = ANY(ARRAY(SELECT jsonb_array_elements_text(s.closed_dates))))
+      OR (jsonb_typeof(s.closed_ranges) = 'array' AND EXISTS (
+        SELECT 1 FROM jsonb_array_elements(s.closed_ranges) AS r(e)
+        WHERE (e->>'from')::date <= start_date AND start_date <= (e->>'to')::date
+      ))
+      OR (s.weekly_hours->current_day_key IS NULL OR jsonb_array_length(COALESCE(s.weekly_hours->current_day_key, '[]'::jsonb)) = 0)
+    ) THEN
+      EXIT;
+    END IF;
+    start_date := start_date + 1;
+  END LOOP;
+
+  next_date := start_date;
+
+  IF next_date = d THEN
+    msg := '';
+  ELSE
+    range_reason := NULL;
+    IF jsonb_typeof(s.closed_ranges) = 'array' THEN
+      FOR i IN 0 .. jsonb_array_length(s.closed_ranges) - 1 LOOP
+        IF (s.closed_ranges->i->>'from')::date <= d AND d <= (s.closed_ranges->i->>'to')::date AND s.closed_ranges->i->>'reason' IS NOT NULL AND s.closed_ranges->i->>'reason' <> '' THEN
+          range_reason := s.closed_ranges->i->>'reason';
+          EXIT;
+        END IF;
+      END LOOP;
+    END IF;
+    IF range_reason IS NOT NULL THEN
+      msg := '⚠️ Siamo chiusi (' || range_reason || '). Il tuo ordine verrà evaso il ' || to_char(next_date, 'DD/MM/YYYY') || '.';
+    ELSIF after_cutoff THEN
+      msg := '⚠️ Ordine ricevuto fuori orario. Verrà evaso il ' || to_char(next_date, 'DD/MM/YYYY') || '.';
+    ELSE
+      msg := '⚠️ Il negozio è chiuso in questo momento. Il tuo ordine verrà evaso il ' || to_char(next_date, 'DD/MM/YYYY') || '.';
+    END IF;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'ok', true,
+    'can_accept', can_accept,
+    'is_open_now', is_open_today,
+    'after_cutoff', after_cutoff,
+    'next_fulfillment_date', to_char(next_date, 'YYYY-MM-DD'),
+    'message', COALESCE(msg, '')
+  );
+END;
+$$;
 
 -- ============================================================
--- 📦  STORAGE BUCKETS
+-- 📦 STORAGE BUCKETS
 -- ============================================================
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -863,7 +1072,6 @@ INSERT INTO public.store_settings (singleton_key)
 VALUES (true)
 ON CONFLICT (singleton_key) DO NOTHING;
 
-
 -- ============================================================
 -- 🔓 GRANTS (required for PostgREST access)
 -- ============================================================
@@ -897,6 +1105,7 @@ GRANT USAGE, SELECT ON SEQUENCES TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reserve_order_stock(uuid) TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.release_order_stock(uuid) TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.cleanup_expired_reservations() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_fulfillment_preview() TO anon, authenticated, service_role;
 
 -- Legacy aliases grants (for backward compatibility)
 GRANT EXECUTE ON FUNCTION public.reserveorderstock(uuid) TO anon, authenticated, service_role;
@@ -938,7 +1147,6 @@ from auth.users u
 left join public.profiles p on p.id = u.id
 where p.id is null
 on conflict (id) do nothing;
-
 
 -- PATCH: profiles - allow user to read own profile
 alter table public.profiles enable row level security;
@@ -986,42 +1194,6 @@ begin
   end if;
 end $$;
 
-
--- OPTIONAL: DEMO SEED - categories
-insert into public.categories (name, slug, is_active, sort_order)
-values
-  ('Frutta e Verdura', 'frutta-verdura', true, 1),
-  ('Dispensa', 'dispensa', true, 2),
-  ('Bevande', 'bevande', true, 3)
-on conflict (slug) do update set
-  name = excluded.name,
-  is_active = excluded.is_active,
-  sort_order = excluded.sort_order;
-
-
--- PATCH: categories.slug for stable URLs + idempotent seeds
-alter table public.categories
-add column if not exists slug text;
-
-update public.categories
-set slug = lower(regexp_replace(trim(name), '\s+', '-', 'g'))
-where slug is null;
-
-alter table public.categories
-alter column slug set not null;
-
-do $$
-begin
-  if not exists (
-    select 1 from pg_indexes
-    where schemaname='public'
-      and tablename='categories'
-      and indexname='categories_slug_unique'
-  ) then
-    create unique index categories_slug_unique on public.categories(slug);
-  end if;
-end $$;
-
 -- OPTIONAL: DEMO SEED - categories
 insert into public.categories (name, slug, is_active, sort_order)
 values
@@ -1056,17 +1228,6 @@ begin
     create unique index products_slug_unique on public.products(slug);
   end if;
 end $$;
-
--- OPTIONAL: DEMO SEED - categories
-insert into public.categories (name, slug, is_active, sort_order)
-values
-  ('Frutta e Verdura', 'frutta-verdura', true, 1),
-  ('Dispensa', 'dispensa', true, 2),
-  ('Bevande', 'bevande', true, 3)
-on conflict (slug) do update set
-  name = excluded.name,
-  is_active = excluded.is_active,
-  sort_order = excluded.sort_order;
 
 -- OPTIONAL: DEMO SEED - products (with stable images)
 insert into public.products (
@@ -1216,6 +1377,11 @@ alter table public.store_settings
   add column if not exists opening_hours text,
   add column if not exists maps_link text;
 
+  -- Ensure store_settings singleton row exists (based on singleton_key)
+insert into public.store_settings (singleton_key)
+values (true)
+on conflict (singleton_key) do nothing;
+
 -- PATCH: store_settings flag to enable demo seed
 alter table public.store_settings
 add column if not exists seed_demo_enabled boolean not null default false;
@@ -1346,8 +1512,55 @@ on public.products
 for each row
 execute function public.products_set_slug();
 
+-- =====================================================
+-- PRODUCTS: archived flag
+-- =====================================================
+ALTER TABLE public.products
+ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false;
+
+-- =====================================================
+-- ORDER_ITEMS: block archived products (DB-first)
+-- =====================================================
+create or replace function public.tg_block_archived_products_on_order_items()
+returns trigger
+language plpgsql
+as $$
+declare
+  v_archived boolean;
+begin
+  select p.archived
+    into v_archived
+  from public.products p
+  where p.id = new.product_id;
+
+  if v_archived is null then
+    return new;
+  end if;
+
+  if v_archived = true then
+    raise exception 'PRODUCT_UNAVAILABLE: product % is archived', new.product_id
+      using errcode = 'P0001';
+  end if;
+
+  return new;
+end;
+$$;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_trigger
+    where tgname = 'trg_block_archived_products_order_items'
+  ) then
+    create trigger trg_block_archived_products_order_items
+    before insert or update of product_id
+    on public.order_items
+    for each row
+    execute function public.tg_block_archived_products_on_order_items();
+  end if;
+end $$;
+
 -- ============================================================
 -- ✅ SETUP COMPLETE
 -- ============================================================
-
-

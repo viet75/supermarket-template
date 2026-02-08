@@ -153,6 +153,23 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Impossibile caricare le impostazioni del negozio' }, { status: 500 })
         }
 
+        // Validazione evasione: orari, cutoff, chiusure (stessa RPC usata dalla UI)
+        const { data: fpData, error: fpErr } = await supabaseServiceRole.rpc('get_fulfillment_preview')
+        const fp = (Array.isArray(fpData) ? fpData[0] : fpData) as { can_accept?: boolean; message?: string; next_fulfillment_date?: string | null } | null
+        let fulfillmentDate: string | null = null
+        let fulfillmentMessage = ''
+        if (!fpErr && fp) {
+            if (fp.can_accept === false) {
+                const storeClosedMsg = fp.message ?? 'Negozio chiuso. Ordini non accettati.'
+                return NextResponse.json(
+                    { ok: false, code: 'STORE_CLOSED', message: storeClosedMsg, error: storeClosedMsg },
+                    { status: 409, headers: { 'Cache-Control': 'no-store' } }
+                )
+            }
+            fulfillmentDate = fp.next_fulfillment_date && /^\d{4}-\d{2}-\d{2}$/.test(String(fp.next_fulfillment_date)) ? String(fp.next_fulfillment_date) : null
+            fulfillmentMessage = fp.message ? String(fp.message) : ''
+        }
+
         // Costruisci baseUrl dal dominio della richiesta corrente (funziona sia in Preview che Production)
         const url = new URL(req.url)
         const baseUrl = `${url.protocol}//${url.host}`
@@ -279,6 +296,36 @@ export async function POST(req: Request) {
             }
         }
 
+        // ✅ Verifica esistenza prodotti: evita FK order_items_product_id_fkey (carrelli vecchi/cached)
+        const requestedIds = [...new Set(items.map((it) => it.id))]
+        const { data: existingProducts, error: existingErr } = await supabaseServiceRole
+            .from('products')
+            .select('id')
+            .in('id', requestedIds)
+
+        if (existingErr) {
+            console.error('❌ Errore verifica prodotti:', existingErr)
+            return NextResponse.json(
+                { error: 'Errore verifica prodotti' },
+                { status: 500, headers: { 'Cache-Control': 'no-store' } }
+            )
+        }
+
+        const existingSet = new Set((existingProducts ?? []).map((p: { id: string }) => p.id))
+        const missing = requestedIds.filter((id) => !existingSet.has(id))
+
+        if (missing.length > 0) {
+            console.warn('⚠️ Product IDs mancanti nel DB:', missing)
+            return NextResponse.json(
+                {
+                    error: 'Alcuni prodotti nel carrello non sono più disponibili. Svuota il carrello e riprova.',
+                    code: 'PRODUCTS_NOT_FOUND',
+                    missing_product_ids: missing,
+                },
+                { status: 400, headers: { 'Cache-Control': 'no-store' } }
+            )
+        }
+
         // Calcola totali (ignora delivery_fee dal frontend, usa quello calcolato lato server)
         const safeSubtotal = parseDec(body.subtotal, 'subtotal')
         const total = round2(safeSubtotal + deliveryFee)
@@ -297,6 +344,7 @@ export async function POST(req: Request) {
                 status: 'pending',
                 distance_km: round2(distanceKm),
                 stock_reserved: false, // Forzato a false: verrà settato a true solo da reserveOrderStock dopo decrement riuscito
+                ...(fulfillmentDate && { fulfillment_date: fulfillmentDate }),
             })
             .select('id')
             .single()
@@ -313,26 +361,59 @@ export async function POST(req: Request) {
         const newOrderId = orderData.id
         let stockCommitted = false // Track if reserveOrderStock succeeded
 
-        // --- Inserimento degli order_items --- //
-        for (const item of items) {
-            const { id: productId, quantity, price } = item
+        // --- Inserimento order_items (bulk) --- //
+        // QA prodotto archiviato: (1) due browser; (2) A aggiunge prodotto al carrello; (3) B imposta products.archived=true; (4) A conferma ordine → 409 PRODUCTS_NOT_AVAILABLE, carrello riconciliato.
+        const orderItemsRows = items.map((it) => ({
+            order_id: newOrderId,
+            product_id: it.id,
+            quantity: it.quantity,
+            price: it.price,
+        }))
 
-            const { error: itemError } = await supabaseServiceRole
-                .from('order_items')
-                .insert({
-                    order_id: newOrderId,
-                    product_id: productId,
-                    quantity: quantity,
-                    price: price,
-                })
+        const { error: itemsInsertErr } = await supabaseServiceRole
+            .from('order_items')
+            .insert(orderItemsRows)
 
-            if (itemError) {
-                console.error('Errore inserimento item:', itemError)
+        if (itemsInsertErr) {
+            console.error('❌ Errore inserimento order_items:', itemsInsertErr)
+
+            // Cleanup: elimina ordine (cascade se FK con on delete cascade, altrimenti elimina items e poi ordine)
+            try {
+                await supabaseServiceRole.from('order_items').delete().eq('order_id', newOrderId)
+            } catch { /* ignore */ }
+            try {
+                await supabaseServiceRole.from('orders').delete().eq('id', newOrderId)
+            } catch { /* ignore */ }
+
+            const errMsg = String((itemsInsertErr as { message?: string })?.message ?? '')
+            const errCode = (itemsInsertErr as { code?: string })?.code
+            const isProductUnavailable =
+                errMsg.includes('PRODUCT_UNAVAILABLE') || errCode === 'P0001'
+
+            if (isProductUnavailable) {
                 return NextResponse.json(
-                    { error: 'Errore durante il salvataggio degli articoli' },
-                    { status: 500 }
+                    {
+                        ok: false,
+                        code: 'PRODUCTS_NOT_AVAILABLE',
+                        message: 'Alcuni prodotti non sono più disponibili. Abbiamo aggiornato il carrello.',
+                    },
+                    { status: 409, headers: { 'Cache-Control': 'no-store' } }
                 )
             }
+            if (errCode === '23503') {
+                return NextResponse.json(
+                    {
+                        error: 'Alcuni prodotti nel carrello non sono più disponibili. Svuota il carrello e riprova.',
+                        code: 'PRODUCTS_NOT_FOUND',
+                    },
+                    { status: 400, headers: { 'Cache-Control': 'no-store' } }
+                )
+            }
+
+            return NextResponse.json(
+                { error: 'Errore durante il salvataggio degli articoli' },
+                { status: 500, headers: { 'Cache-Control': 'no-store' } }
+            )
         }
 
         // Riserva stock dopo l'inserimento di tutti gli order_items
@@ -529,6 +610,8 @@ export async function POST(req: Request) {
                     delivery_fee: deliveryFee,
                     total: total,
                     distance_km: round2(distanceKm),
+                    fulfillment_date: fulfillmentDate ?? undefined,
+                    fulfillment_message: fulfillmentMessage,
                     ...(checkoutUrl ? { checkoutUrl } : {}),
                 },
                 { headers: { 'Cache-Control': 'no-store' } }

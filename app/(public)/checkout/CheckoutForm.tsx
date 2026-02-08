@@ -22,6 +22,25 @@ const PAYMENT_METHOD_CONFIG: Record<PaymentMethod, { icon: string; label: string
 
 const CAP_ERR = "CAP non valido. Inserisci 5 cifre (es: 74123)."
 
+const isCapComplete = (cap: string) => String(cap ?? '').trim().length === 5
+const isCapInvalidFull = (cap: string) => {
+    const c = String(cap ?? '').trim()
+    if (c.length !== 5) return false
+    return !/^\d{5}$/.test(c) || c === '00000'
+}
+const isCapPartial = (cap: string) => {
+    const c = String(cap ?? '').trim()
+    return c.length > 0 && c.length < 5
+}
+
+export type FulfillmentPreview = {
+    can_accept: boolean
+    is_open_now: boolean
+    after_cutoff: boolean
+    next_fulfillment_date: string | null
+    message: string
+}
+
 export default function CheckoutForm({ settings }: Props) {
     const router = useRouter()
     const [mounted, setMounted] = useState(false)
@@ -98,6 +117,10 @@ export default function CheckoutForm({ settings }: Props) {
     const [previewDistanceKm, setPreviewDistanceKm] = useState<number | null>(null)
     const [loadingPreview, setLoadingPreview] = useState(false)
 
+    // Fulfillment: orari, cutoff, chiusure (single source of truth da RPC)
+    const [fulfillment, setFulfillment] = useState<FulfillmentPreview | null>(null)
+    const [loadingFulfillment, setLoadingFulfillment] = useState(true)
+
     // Reset valori backend quando cambia l'indirizzo
     useEffect(() => {
         setBackendDeliveryFee(null)
@@ -105,16 +128,24 @@ export default function CheckoutForm({ settings }: Props) {
         setBackendDistanceKm(null)
         setPreviewDeliveryFee(null)
         setPreviewDistanceKm(null)
-        
-        // Valida formato CAP prima di resettare errorMessage
-        const capTrimmed = addr.cap ? String(addr.cap).trim() : ''
-        const isCapValid = /^\d{5}$/.test(capTrimmed) && capTrimmed !== '00000'
-        
-        // Resetta errorMessage solo se il CAP è valido o vuoto (per permettere la validazione successiva)
-        // Se il CAP non è valido, la validazione nell'useEffect successivo imposterà l'errore
-        if (isCapValid || !addr.cap) {
-            setErrorMessage(null)
-            setDistanceError(null)
+
+        const capPartial = isCapPartial(addr.cap)
+        const capInvalidFull = isCapInvalidFull(addr.cap)
+        const capTrimmed = String(addr.cap ?? '').trim()
+
+        if (capPartial) {
+            setDistanceError((prev) => (prev === CAP_ERR ? null : prev))
+            setErrorMessage((prev) => (prev === CAP_ERR ? null : prev))
+            return
+        }
+        if (capTrimmed === '') {
+            setDistanceError((prev) => (prev === CAP_ERR ? null : prev))
+            setErrorMessage((prev) => (prev === CAP_ERR ? null : prev))
+            return
+        }
+        if (isCapComplete(addr.cap) && !capInvalidFull) {
+            setDistanceError((prev) => (prev === CAP_ERR ? null : prev))
+            setErrorMessage((prev) => (prev === CAP_ERR ? null : prev))
         }
     }, [addr.line1, addr.city, addr.cap])
 
@@ -122,13 +153,14 @@ export default function CheckoutForm({ settings }: Props) {
     useEffect(() => {
         if (!addr.line1 || !addr.city || !addr.cap) return
 
-        // Valida formato CAP prima di procedere
-        const capTrimmed = String(addr.cap).trim()
-        if (!/^\d{5}$/.test(capTrimmed) || capTrimmed === '00000') {
+        if (isCapPartial(addr.cap)) {
             setIsAddressValid(false)
-            const capError = "CAP non valido. Inserisci un CAP a 5 cifre."
-            setDistanceError(capError)
-            updateErrorMessage(capError)
+            return
+        }
+        if (isCapInvalidFull(addr.cap)) {
+            setIsAddressValid(false)
+            setDistanceError(CAP_ERR)
+            updateErrorMessage(CAP_ERR)
             setDistanceKm(0)
             return
         }
@@ -238,22 +270,29 @@ export default function CheckoutForm({ settings }: Props) {
     // 🔧 Preview del delivery fee (calcolata lato server)
     useEffect(() => {
         if (!settings.delivery_enabled) return
-        
-        // Calcola capInvalid come prima cosa nell'effetto
-        const capTrimmed = addr.cap ? String(addr.cap).trim() : ''
-        const capInvalid = capTrimmed && (!/^\d{5}$/.test(capTrimmed) || capTrimmed === '00000')
-        
-        // Se capInvalid è true -> gestisci errore CAP e return immediato
-        if (capInvalid) {
+
+        const capPartial = isCapPartial(addr.cap)
+        const capInvalidFull = isCapInvalidFull(addr.cap)
+
+        if (capPartial) {
+            setPreviewDistanceKm(null)
+            setPreviewDeliveryFee(null)
+            setLoadingPreview(false)
+            setDistanceError((prev) => (prev === CAP_ERR ? null : prev))
+            setErrorMessage((prev) => (prev === CAP_ERR ? null : prev))
+            return
+        }
+
+        if (capInvalidFull) {
             setDistanceError(CAP_ERR)
             updateErrorMessage(CAP_ERR)
             setPreviewDistanceKm(null)
             setPreviewDeliveryFee(null)
             setIsAddressValid(false)
             setLoadingPreview(false)
-            return // Non eseguire altri reset, non fare fetch
+            return
         }
-        
+
         if (!addr.line1 || !addr.city || !addr.cap) {
             setPreviewDeliveryFee(null)
             setPreviewDistanceKm(null)
@@ -349,10 +388,41 @@ export default function CheckoutForm({ settings }: Props) {
         return () => clearTimeout(handler)
     }, [addr.line1, addr.city, addr.cap, settings.delivery_enabled])
 
+    useEffect(() => {
+        let cancelled = false
+        setLoadingFulfillment(true)
+        fetch('/api/fulfillment/preview', { cache: 'no-store' })
+            .then((res) => res.json())
+            .then((data) => {
+                if (cancelled) return
+                if (data?.ok === true) {
+                    setFulfillment({
+                        can_accept: !!data.can_accept,
+                        is_open_now: !!data.is_open_now,
+                        after_cutoff: !!data.after_cutoff,
+                        next_fulfillment_date: data.next_fulfillment_date ?? null,
+                        message: data.message ?? '',
+                    })
+                } else {
+                    setFulfillment(null)
+                }
+            })
+            .catch(() => {
+                if (!cancelled) setFulfillment(null)
+            })
+            .finally(() => {
+                if (!cancelled) setLoadingFulfillment(false)
+            })
+        return () => { cancelled = true }
+    }, [])
+
     const validation = useMemo(() => {
         // Se la consegna è disabilitata, l'indirizzo è sempre valido (non serve validare distanza)
         if (!settings.delivery_enabled) {
             return { ok: true }
+        }
+        if (isCapPartial(addr.cap)) {
+            return { ok: false, reason: 'Inserisci il CAP completo (5 cifre)' }
         }
         // Se la consegna è abilitata ma l'indirizzo non è completo, non è ancora valido
         if (!addr.line1 || !addr.city || !addr.cap) {
@@ -384,13 +454,16 @@ export default function CheckoutForm({ settings }: Props) {
         setMsg(null)
         setSaving(true) // 🔹 feedback immediato
 
-        // Se esiste errorMessage, blocca subito il submit e mostra l'errore
+        if (fulfillment?.can_accept === false) {
+            setMsg({ type: 'error', text: fulfillment.message || 'Negozio chiuso. Ordini non accettati in questo momento.' })
+            setSaving(false)
+            return
+        }
         if (errorMessage) {
             setMsg({ type: 'error', text: errorMessage })
             setSaving(false)
             return
         }
-
         if (items.length === 0) {
             setMsg({ type: 'error', text: 'Carrello vuoto' })
             setSaving(false)
@@ -442,6 +515,38 @@ export default function CheckoutForm({ settings }: Props) {
                 let data: any = null
                 try { data = JSON.parse(text) } catch { }
 
+                if (res.status === 400 && data?.code === 'PRODUCTS_NOT_FOUND') {
+                    const message =
+                        data?.error ??
+                        'Alcuni prodotti nel carrello non sono più disponibili. Ti riportiamo al catalogo.'
+                    setMsg({ type: 'error', text: `⚠️ ${message}` })
+                    clearCart()
+                    router.push('/')
+                    router.refresh()
+                    setSaving(false)
+                    return
+                }
+                if (res.status === 409 && data?.code === 'STORE_CLOSED') {
+                    setMsg({ type: 'error', text: data?.error ?? 'Ordini non accettati in questo momento.' })
+                    setSaving(false)
+                    return
+                }
+                if (res.status === 409 && data?.code === 'PRODUCTS_NOT_AVAILABLE') {
+                    const message = data?.message ?? 'Alcuni prodotti non sono più disponibili. Abbiamo aggiornato il carrello.'
+                    setMsg({ type: 'error', text: `⚠️ ${message}` })
+                    try {
+                        const prodRes = await fetch('/api/products', { cache: 'no-store' })
+                        if (prodRes.ok) {
+                            const { items: products } = await prodRes.json()
+                            reconcileWithProducts(products ?? [])
+                        }
+                    } catch {
+                        /* best-effort */
+                    }
+                    router.refresh()
+                    setSaving(false)
+                    return
+                }
                 if (res.status === 409 && data?.code === 'STOCK_INSUFFICIENT') {
                     const message = data?.message ?? 'Alcuni prodotti non sono più disponibili. Abbiamo aggiornato il carrello.'
                     setMsg({ type: 'error', text: `⚠️ ${message}` })
@@ -490,7 +595,7 @@ export default function CheckoutForm({ settings }: Props) {
             setMsg({ type: 'error', text: e?.message ?? 'Errore imprevisto' })
             setSaving(false)
         }
-    }, [items, addr, subtotal, pay, settings, validation, clearCart, reconcileWithProducts, router, backendTotal, errorMessage, previewDistanceKm])
+    }, [items, addr, subtotal, pay, settings, validation, fulfillment, clearCart, reconcileWithProducts, router, backendTotal, errorMessage, previewDistanceKm])
 
     if (!mounted) return <Skeleton />
     if (!hydrated && items.length === 0) return <Skeleton />
@@ -566,7 +671,7 @@ export default function CheckoutForm({ settings }: Props) {
                                 setAddr({ ...addr, cap: val })
                             }}
                         />
-                        {errorMessage && errorMessage.includes("CAP non valido") && (
+                        {isCapInvalidFull(addr.cap) && errorMessage && errorMessage.includes("CAP non valido") && (
                             <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                                 {errorMessage}
                             </p>
@@ -686,6 +791,22 @@ export default function CheckoutForm({ settings }: Props) {
                     </div>
                 </div>
 
+                {loadingFulfillment && (
+                    <div className="p-3 mb-3 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                        ⏳ Verifica orari e disponibilità…
+                    </div>
+                )}
+                {!loadingFulfillment && fulfillment && fulfillment.can_accept === false && (
+                    <div className="p-3 mb-3 text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-800">
+                        ⚠️ {fulfillment.message || 'Negozio chiuso. Ordini non accettati in questo momento.'}
+                    </div>
+                )}
+                {!loadingFulfillment && fulfillment?.can_accept !== false && fulfillment?.message && (
+                    <div className="p-3 mb-3 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 rounded-lg border border-amber-200 dark:border-amber-800">
+                        ⚠️ {fulfillment.message}
+                    </div>
+                )}
+
                 {errorMessage && (
                     <div className="p-3 mb-3 text-sm text-white bg-red-500 dark:bg-red-600 rounded-lg">
                         {errorMessage}
@@ -695,10 +816,10 @@ export default function CheckoutForm({ settings }: Props) {
                 <button
                     type="button"
                     onClick={confirmOrder}
-                    disabled={saving || !validation.ok}
+                    disabled={saving || !validation.ok || fulfillment?.can_accept === false}
 
                     className={`w-full rounded-xl font-semibold px-4 py-3 transition 
-    ${validation.ok && addr.firstName && addr.lastName
+    ${validation.ok && addr.firstName && addr.lastName && fulfillment?.can_accept !== false
                             ? 'bg-green-600 hover:bg-green-700 text-white'
                             : 'bg-gray-300 dark:bg-zinc-700 text-gray-600 dark:text-gray-400 cursor-not-allowed'}`}
                 >

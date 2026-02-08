@@ -97,11 +97,64 @@ sono gestite **esclusivamente dal pannello admin**.
 
 ---
 
+## 🕐 Store hours & closures
+
+Orari di apertura, cutoff orario e giorni di chiusura sono gestiti in **DB-first**: la RPC `get_fulfillment_preview()` è l’unica fonte di verità per UI e API ordini.
+
+### Configurazione (Admin)
+
+In **Admin → Impostazioni consegna** (sezione “Orari e chiusure”):
+
+- **Cutoff orario** (es. `19:00`): dopo quest’ora gli ordini vengono evasi dal giorno successivo (o dal primo giorno utile).
+- **Accetta ordini quando chiuso**: se attivo, fuori orario/chiusura gli ordini sono accettati e slittano al primo giorno utile; se disattivo, il checkout viene bloccato.
+- **Timezone** (es. `Europe/Rome`): usata per “ora corrente” e date.
+- **Giorni di preparazione**: giorni aggiuntivi prima dell’evasione (0 = stesso giorno).
+- **Date di chiusura**: una data per riga, formato `YYYY-MM-DD` (es. festivi).
+- **Orari settimanali (JSON)**: chiavi `0` (domenica) … `6` (sabato); valore `null` = chiuso, oppure intervallo `"09:00-19:00"`.
+
+### Esempio `weekly_hours` (orari settimanali)
+
+```json
+{
+  "0": null,
+  "1": "09:00-19:00",
+  "2": "09:00-19:00",
+  "3": "09:00-19:00",
+  "4": "09:00-19:00",
+  "5": "09:00-19:00",
+  "6": "09:00-13:00"
+}
+```
+
+Domenica chiuso, lun–ven 9–19, sabato 9–13.
+
+### Esempio `closed_dates`
+
+Una data per riga (es. in Admin come textarea):
+
+```
+2025-12-25
+2025-01-01
+```
+
+### Comportamento
+
+- In **checkout** il cliente vede un messaggio (es. “Ordine evaso dal DD/MM/YYYY”) e non può confermare se il negozio non accetta ordini.
+- In **POST /api/orders** viene chiamata la stessa RPC: se `can_accept === false` si risponde con **409** e `code: "STORE_CLOSED"`.
+- La data di evasione (`next_fulfillment_date`) viene salvata in `orders.fulfillment_date` (tipo `date`).
+
+---
+
 ## 🗄 Database setup (ONE-SHOT)
 
 Il progetto è progettato per essere installato su
 **un progetto Supabase completamente vuoto**
 tramite **un unico script SQL**.
+
+**Patch per DB già esistenti:**  
+Se hai un DB già creato con una versione precedente dello `setup.sql`, esegui la patch  
+`supabase/patches/2026-02-07-store-hours.sql`  
+(Supabase → SQL Editor → incolla ed esegui) per aggiungere `weekly_hours`, chiusure, cutoff e risolvere l’errore *column "weekly_hours" does not exist* (es. 500 su GET `/api/admin/settings/delivery`).
 
 ### Step obbligatori
 
@@ -373,3 +426,19 @@ Licenza commerciale.
 Supporto via Gumroad
 Bugfix inclusi
 Sviluppo custom escluso
+
+Gestione Orari e Chiusure
+
+Orari settimanali a fasce
+
+Cutoff configurabile
+
+Ferie con intervalli
+
+Accetta e slitta (default)
+
+Messaggio pre-checkout
+
+fulfillment_date salvata su ogni ordine
+
+(Serve per vendere il template.)

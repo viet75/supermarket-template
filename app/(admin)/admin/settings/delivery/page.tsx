@@ -1,6 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import WeeklyHoursEditor, {
+  type WeeklyHours,
+  parseWeeklyHours,
+} from '../components/WeeklyHoursEditor'
 
 type DeliverySettings = {
   delivery_enabled: boolean
@@ -9,6 +13,13 @@ type DeliverySettings = {
   delivery_extra_fee_per_km: number
   delivery_max_km: number
   payment_methods?: string[]
+  cutoff_time?: string | null
+  accept_orders_when_closed?: boolean
+  timezone?: string | null
+  preparation_days?: number
+  closed_dates?: string[] | null
+  weekly_hours?: Record<string, { start: string; end: string }[]> | null
+  closed_message?: string | null
 }
 
 function numToDisplay(value: number | null | undefined): string {
@@ -22,6 +33,22 @@ function parseOptionalNumber(v: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+const YYYY_MM_DD = /^\d{4}-\d{2}-\d{2}$/
+
+/** Estrae date valide YYYY-MM-DD da testo (newline, spazi, tab, virgole). Deduplica e ordina. */
+function parseClosedDates(input: string): string[] {
+  const tokens = input.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean)
+  const valid = tokens.filter((t) => YYYY_MM_DD.test(t))
+  const unique = [...new Set(valid)]
+  unique.sort((a, b) => a.localeCompare(b))
+  return unique
+}
+
+/** Formatta l'array di date per la textarea (una per riga). */
+function formatClosedDates(dates: string[]): string {
+  return Array.isArray(dates) ? dates.join('\n') : ''
+}
+
 export default function DeliverySettingsPage() {
   const [settings, setSettings] = useState<DeliverySettings | null>(null)
   const [paymentMethods, setPaymentMethods] = useState<string[]>([])
@@ -29,6 +56,13 @@ export default function DeliverySettingsPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [cutoffTime, setCutoffTime] = useState('19:00')
+  const [acceptWhenClosed, setAcceptWhenClosed] = useState(true)
+  const [timezone, setTimezone] = useState('Europe/Rome')
+  const [preparationDays, setPreparationDays] = useState(0)
+  const [closedDatesText, setClosedDatesText] = useState('')
+  const [closedMessage, setClosedMessage] = useState('')
+  const [weeklyHours, setWeeklyHours] = useState<WeeklyHours>(() => parseWeeklyHours(null))
 
   // Valori visualizzati per i campi numerici: vuoto se 0, altrimenti stringa
   const [numDisplay, setNumDisplay] = useState({
@@ -56,6 +90,13 @@ export default function DeliverySettingsPage() {
           delivery_extra_fee_per_km: numToDisplay(s?.delivery_extra_fee_per_km),
           delivery_max_km: numToDisplay(s?.delivery_max_km),
         })
+        setCutoffTime(s?.cutoff_time ?? '19:00')
+        setAcceptWhenClosed(s?.accept_orders_when_closed !== false)
+        setTimezone(s?.timezone ?? 'Europe/Rome')
+        setPreparationDays(typeof s?.preparation_days === 'number' ? s.preparation_days : 0)
+        setClosedDatesText(formatClosedDates(Array.isArray(s?.closed_dates) ? s.closed_dates : []))
+        setClosedMessage(typeof s?.closed_message === 'string' ? s.closed_message : '')
+        setWeeklyHours(parseWeeklyHours(s?.weekly_hours))
         setLoading(false)
       })
       .catch(() => {
@@ -102,8 +143,11 @@ export default function DeliverySettingsPage() {
       )
       return
     }
+    setSuccess(false)
     setSaving(true)
     setError(null)
+
+    const closedDates = parseClosedDates(closedDatesText)
 
     const payload = {
       ...settings,
@@ -112,35 +156,56 @@ export default function DeliverySettingsPage() {
       delivery_extra_fee_per_km: extraFee ?? 0,
       delivery_max_km: maxKm,
       payment_methods: paymentMethods,
+      cutoff_time: cutoffTime.trim() || '19:00',
+      accept_orders_when_closed: acceptWhenClosed,
+      timezone: timezone.trim() || 'Europe/Rome',
+      preparation_days: preparationDays,
+      closed_dates: closedDates,
+      closed_message: closedMessage.trim() || null,
+      weekly_hours: weeklyHours,
     }
 
     try {
+      console.log('[delivery onSave] payload', payload)
       const res = await fetch('/api/admin/settings/delivery', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
 
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const data = await res.json()
+        console.log('[delivery onSave] error response', data)
         throw new Error(data?.error || 'Errore salvataggio')
       }
 
-      const data = await res.json()
-      setSettings(data.settings)
-      if (Array.isArray(data.settings?.payment_methods)) {
-        setPaymentMethods(data.settings.payment_methods)
+      const s = data?.settings
+      if (!s) {
+        console.log('[delivery onSave] missing settings in response', data)
+        throw new Error('Risposta non valida')
       }
-      const s = data.settings
+      setSettings(s)
+      if (Array.isArray(s.payment_methods)) {
+        setPaymentMethods(s.payment_methods)
+      }
       setNumDisplay({
-        delivery_base_km: numToDisplay(s?.delivery_base_km),
-        delivery_base_fee: numToDisplay(s?.delivery_base_fee),
-        delivery_extra_fee_per_km: numToDisplay(s?.delivery_extra_fee_per_km),
-        delivery_max_km: numToDisplay(s?.delivery_max_km),
+        delivery_base_km: numToDisplay(s.delivery_base_km),
+        delivery_base_fee: numToDisplay(s.delivery_base_fee),
+        delivery_extra_fee_per_km: numToDisplay(s.delivery_extra_fee_per_km),
+        delivery_max_km: numToDisplay(s.delivery_max_km),
       })
+      setCutoffTime(s.cutoff_time ?? '19:00')
+      setAcceptWhenClosed(s.accept_orders_when_closed !== false)
+      setTimezone(s.timezone ?? 'Europe/Rome')
+      setPreparationDays(typeof s.preparation_days === 'number' ? s.preparation_days : 0)
+      setClosedDatesText(formatClosedDates(Array.isArray(s.closed_dates) ? s.closed_dates : []))
+      setClosedMessage(typeof s.closed_message === 'string' ? s.closed_message : '')
+      setWeeklyHours(parseWeeklyHours(s.weekly_hours))
       setSuccess(true)
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Errore salvataggio'
+      console.log('[delivery onSave] error', e)
+      setError(message)
     } finally {
       setSaving(false)
     }
@@ -230,6 +295,77 @@ export default function DeliverySettingsPage() {
             className="w-full border rounded px-3 py-2"
           />
         </div>
+      </div>
+
+      {/* Sezione Orari e chiusure */}
+      <div className="space-y-4 border-t border-gray-200 dark:border-gray-700 pt-6">
+        <h2 className="text-xl font-semibold">Orari e chiusure</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Cutoff orario, giorni di chiusura e primo giorno utile per evasione ordini. Se il negozio è chiuso puoi accettare ordini e slittare al primo giorno aperto.
+        </p>
+        <div>
+          <label className="block text-sm mb-1">Cutoff orario (es. 19:00)</label>
+          <input
+            type="text"
+            placeholder="19:00"
+            value={cutoffTime}
+            onChange={(e) => { setCutoffTime(e.target.value); setSuccess(false) }}
+            className="w-full border rounded px-3 py-2 dark:bg-gray-800 dark:border-gray-600"
+          />
+        </div>
+        <label className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            checked={acceptWhenClosed}
+            onChange={(e) => { setAcceptWhenClosed(e.target.checked); setSuccess(false) }}
+          />
+          <span>Accetta ordini quando il negozio è chiuso (slitta al primo giorno utile)</span>
+        </label>
+        <div>
+          <label className="block text-sm mb-1">Timezone (es. Europe/Rome)</label>
+          <input
+            type="text"
+            placeholder="Europe/Rome"
+            value={timezone}
+            onChange={(e) => { setTimezone(e.target.value); setSuccess(false) }}
+            className="w-full border rounded px-3 py-2 dark:bg-gray-800 dark:border-gray-600"
+          />
+        </div>
+        <div>
+          <label className="block text-sm mb-1">Giorni di preparazione (0 = stesso giorno)</label>
+          <input
+            type="number"
+            min={0}
+            value={preparationDays}
+            onChange={(e) => { setPreparationDays(Number(e.target.value) || 0); setSuccess(false) }}
+            className="w-full border rounded px-3 py-2 dark:bg-gray-800 dark:border-gray-600"
+          />
+        </div>
+        <div>
+          <label className="block text-sm mb-1">Date di chiusura (YYYY-MM-DD, separate da riga, spazio o virgola)</label>
+          <textarea
+            rows={3}
+            placeholder="2025-12-25 2025-01-01"
+            value={closedDatesText}
+            onChange={(e) => { setClosedDatesText(e.target.value); setSuccess(false) }}
+            className="w-full border rounded px-3 py-2 font-mono text-sm dark:bg-gray-800 dark:border-gray-600"
+          />
+        </div>
+        <div>
+          <label className="block text-sm mb-1">Messaggio chiusura (opzionale)</label>
+          <input
+            type="text"
+            placeholder="Es. Siamo in ferie"
+            value={closedMessage}
+            onChange={(e) => { setClosedMessage(e.target.value); setSuccess(false) }}
+            className="w-full border rounded px-3 py-2 dark:bg-gray-800 dark:border-gray-600"
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Se valorizzato, verrà mostrato quando gli ordini sono bloccati.</p>
+        </div>
+        <WeeklyHoursEditor
+          value={weeklyHours}
+          onChange={(next) => { setWeeklyHours(next); setSuccess(false) }}
+        />
       </div>
 
       {/* Sezione Metodi di pagamento */}

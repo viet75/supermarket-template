@@ -129,13 +129,15 @@ export async function DELETE(req: NextRequest) {
 
         if (orderError) throw orderError
 
+        // QA: Browser A carrello con prodotto, Browser B archivia prodotto, Browser A conferma ordine → 409 PRODUCTS_NOT_AVAILABLE, carrello riconciliato.
         if (count && count > 0) {
-            // Prodotto collegato a ordini → archivia
+            // Prodotto collegato a ordini → archivia (archived=true per trigger DB order_items)
             const { error: archiveError } = await supabase
                 .from('products')
                 .update({
                     is_active: false,
                     deleted_at: new Date().toISOString(),
+                    archived: true,
                 })
                 .eq('id', id)
 
@@ -143,11 +145,12 @@ export async function DELETE(req: NextRequest) {
 
             return NextResponse.json({ status: 'archived' })
         } else {
-            // Soft delete normale
+            // Soft delete normale (archived=true per trigger DB order_items)
             const { error: deleteError } = await supabase
                 .from('products')
                 .update({
                     deleted_at: new Date().toISOString(),
+                    archived: true,
                 })
                 .eq('id', id)
 

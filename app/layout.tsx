@@ -6,6 +6,10 @@ export const metadata: Metadata = {
   title: 'Supermarket Template',
   description: 'Template PWA per supermercati con pannello admin',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/icons/icon-192x192.png',
+    apple: '/icons/apple-touch-icon.png',
+  },
 }
 
 export const viewport: Viewport = {
@@ -17,9 +21,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="it">
       <head>
-        {/* 🔹 Manifest e icone PWA */}
+        {/* 🔹 Manifest e icone PWA (icon + apple da metadata.icons) */}
         <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="Supermarket Template" />
