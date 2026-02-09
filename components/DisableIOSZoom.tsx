@@ -25,10 +25,42 @@ export default function DisableIOSZoom() {
 
     const opts = { passive: false, capture: true } as const
 
+    let locked = false
+    let scrollY = 0
+
+    const lockScroll = () => {
+      if (locked) return
+      locked = true
+      scrollY = window.scrollY
+      document.body.style.position = 'fixed'
+      document.body.style.top = `-${scrollY}px`
+      document.body.style.left = '0'
+      document.body.style.right = '0'
+      document.body.style.width = '100%'
+    }
+
+    const unlockScroll = () => {
+      if (!locked) return
+      locked = false
+      const top = document.body.style.top
+      document.body.style.position = ''
+      document.body.style.top = ''
+      document.body.style.left = ''
+      document.body.style.right = ''
+      document.body.style.width = ''
+      const y = top ? Math.abs(parseInt(top, 10)) : scrollY
+      window.scrollTo(0, y)
+    }
+
     const onTouch = (e: TouchEvent) => {
       if (e.touches.length > 1 && !isFormControlOrEditable(e.target)) {
         e.preventDefault()
+        lockScroll()
       }
+    }
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) unlockScroll()
     }
 
     const onGesture = (e: Event) => {
@@ -41,6 +73,8 @@ export default function DisableIOSZoom() {
 
     document.addEventListener('touchstart', onTouch, opts)
     document.addEventListener('touchmove', onTouch, opts)
+    document.addEventListener('touchend', onTouchEnd, opts)
+    document.addEventListener('touchcancel', onTouchEnd, opts)
     document.addEventListener('gesturestart', onGesture, opts)
     document.addEventListener('gesturechange', onGesture, opts)
     document.addEventListener('gestureend', onGesture, opts)
@@ -49,10 +83,13 @@ export default function DisableIOSZoom() {
     return () => {
       document.removeEventListener('touchstart', onTouch, opts)
       document.removeEventListener('touchmove', onTouch, opts)
+      document.removeEventListener('touchend', onTouchEnd, opts)
+      document.removeEventListener('touchcancel', onTouchEnd, opts)
       document.removeEventListener('gesturestart', onGesture, opts)
       document.removeEventListener('gesturechange', onGesture, opts)
       document.removeEventListener('gestureend', onGesture, opts)
       document.removeEventListener('dblclick', onDblclick, opts)
+      unlockScroll()
     }
   }, [])
 
