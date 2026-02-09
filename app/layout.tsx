@@ -14,6 +14,11 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
   themeColor: '#22c55e',
   colorScheme: 'light dark',
 }
@@ -27,7 +32,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="Supermarket Template" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 
         {/* 🔹 Theme color per Android */}
         <meta name="theme-color" content="#10C157" />
