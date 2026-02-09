@@ -25,6 +25,20 @@ export default function DisableIOSZoom() {
 
     const opts = { passive: false, capture: true } as const
 
+    const isZoomed = () => {
+      const vv = window.visualViewport
+      if (!vv) return false
+      return Math.abs(vv.scale - 1) > 0.01
+    }
+
+    const onOrientationChange = () => {
+      // Se l'utente ruota mentre la pagina è zoomata, Safari ricalcola il viewport e può "esplodere".
+      // Reload controllato per tornare a scale=1.
+      if (isZoomed()) {
+        setTimeout(() => window.location.reload(), 50)
+      }
+    }
+
     let locked = false
     let scrollY = 0
     let prevTouchAction = ''
@@ -83,6 +97,7 @@ export default function DisableIOSZoom() {
     document.addEventListener('gesturechange', onGesture, opts)
     document.addEventListener('gestureend', onGesture, opts)
     document.addEventListener('dblclick', onDblclick, opts)
+    window.addEventListener('orientationchange', onOrientationChange)
 
     return () => {
       document.removeEventListener('touchstart', onTouch, opts)
@@ -93,6 +108,7 @@ export default function DisableIOSZoom() {
       document.removeEventListener('gesturechange', onGesture, opts)
       document.removeEventListener('gestureend', onGesture, opts)
       document.removeEventListener('dblclick', onDblclick, opts)
+      window.removeEventListener('orientationchange', onOrientationChange)
       unlockScroll()
     }
   }, [])
