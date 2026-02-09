@@ -1,5 +1,6 @@
 import './globals.css'
 import type { Metadata, Viewport } from 'next'
+import DisableIOSZoom from '@/components/DisableIOSZoom'
 import ClientRefresher from '@/components/ClientRefresher'
 
 export const metadata: Metadata = {
@@ -26,7 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="Supermarket Template" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 
         {/* 🔹 Theme color per Android */}
         <meta name="theme-color" content="#10C157" />
@@ -103,21 +104,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-startup-image" href="/icons/apple-splash-2732-2048.png"
           media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
 
-        {/* 🔹 Blocca pinch-zoom su iOS */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-                document.addEventListener('touchmove', function(event) {
-                  if (event.scale !== 1) { event.preventDefault(); }
-                }, { passive: false });
-              }
-            `,
-          }}
-        />
       </head>
 
       <body>
+        <DisableIOSZoom />
         <ClientRefresher />
         {children}
       </body>
