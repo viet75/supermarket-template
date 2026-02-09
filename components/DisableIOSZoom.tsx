@@ -27,10 +27,13 @@ export default function DisableIOSZoom() {
 
     let locked = false
     let scrollY = 0
+    let prevTouchAction = ''
 
     const lockScroll = () => {
       if (locked) return
       locked = true
+      prevTouchAction = document.documentElement.style.touchAction
+      document.documentElement.style.touchAction = 'pan-x pan-y'
       scrollY = window.scrollY
       document.body.style.position = 'fixed'
       document.body.style.top = `-${scrollY}px`
@@ -48,6 +51,7 @@ export default function DisableIOSZoom() {
       document.body.style.left = ''
       document.body.style.right = ''
       document.body.style.width = ''
+      document.documentElement.style.touchAction = prevTouchAction
       const y = top ? Math.abs(parseInt(top, 10)) : scrollY
       window.scrollTo(0, y)
     }
