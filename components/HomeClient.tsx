@@ -45,6 +45,8 @@ export default function HomeClient() {
                     .from('products')
                     .select('id,name,price,price_sale,unit_type,images,category_id,is_active')
                     .eq('is_active', true)
+                    .is('deleted_at', null)
+                    .eq('archived', false)  // coerenza con trigger DB: prodotti archiviati non ordinabili
                     .order('created_at', { ascending: false })
                 if (prodErr) console.error('Prodotti ERR', prodErr)
 

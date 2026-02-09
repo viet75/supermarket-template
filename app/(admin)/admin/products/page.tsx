@@ -490,9 +490,14 @@ export default function ProductsAdminPage() {
                                                 className="rounded-md border border-green-300 text-green-700 px-3 py-1.5 hover:bg-green-50"
                                                 onClick={async () => {
                                                     try {
+                                                        // QA: Ripristino -> archived=false, deleted_at=null, is_active=false (bozza, non visibile). Poi attiva visibilità (Modifica -> "Attivo") -> is_active=true; verifica ordinabilità.
                                                         const { error } = await sb
                                                             .from('products')
-                                                            .update({ deleted_at: null })
+                                                            .update({ 
+                                                                deleted_at: null,
+                                                                archived: false,
+                                                                is_active: false
+                                                            })
                                                             .eq('id', p.id)
 
                                                         if (error) {
@@ -614,9 +619,14 @@ export default function ProductsAdminPage() {
                                                 className="flex-1 rounded-md border border-green-300 text-green-700 px-3 py-2 hover:bg-green-50 text-sm"
                                                 onClick={async () => {
                                                     try {
+                                                        // QA: Ripristino -> archived=false, deleted_at=null, is_active=false (bozza, non visibile). Poi attiva visibilità (Modifica -> "Attivo") -> is_active=true; verifica ordinabilità.
                                                         const { data, error } = await sb
                                                             .from('products')
-                                                            .update({ deleted_at: null })
+                                                            .update({ 
+                                                                deleted_at: null,
+                                                                archived: false,
+                                                                is_active: false
+                                                            })
                                                             .eq('id', p.id)
                                                             .select()
                                                             .single()

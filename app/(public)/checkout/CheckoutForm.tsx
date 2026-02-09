@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import Skeleton from '@/components/Skeleton'
 import type { StoreSettings, PaymentMethod, OrderItem, OrderAddress, OrderPayload } from '@/lib/types'
 import { validateDelivery, allowedPaymentMethods } from '@/lib/delivery'
@@ -604,13 +605,23 @@ export default function CheckoutForm({ settings }: Props) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <section className="space-y-6 rounded-2xl border border-gray-200 dark:border-zinc-800 p-6 shadow-md bg-white dark:bg-zinc-900">
                 {msg && (
-                    <div
-                        className={`rounded-md p-3 text-sm flex items-center justify-center ${msg.type === 'error'
-                            ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-800'
-                            : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-800'
-                            }`}
-                    >
-                        {msg.type === 'error' ? '⚠️' : '✅'} {msg.text}
+                    <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
+                        <div
+                            className={`rounded-md p-3 text-sm flex items-center justify-center flex-1 min-w-0 ${msg.type === 'error'
+                                ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-800'
+                                : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-800'
+                                }`}
+                        >
+                            {msg.type === 'error' ? '⚠️' : '✅'} {msg.text}
+                        </div>
+                        {msg.type === 'error' && msg.text.includes('aggiornato il carrello') && (
+                            <Link
+                                href="/cart"
+                                className="shrink-0 rounded-md border border-red-300 dark:border-red-800 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-4 py-2 text-sm font-medium hover:bg-red-200 dark:hover:bg-red-800/50 transition-colors text-center"
+                            >
+                                Vai al carrello
+                            </Link>
+                        )}
                     </div>
                 )}
 

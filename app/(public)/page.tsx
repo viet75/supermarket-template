@@ -18,17 +18,19 @@ export default async function Page() {
     console.error('❌ Errore caricamento categorie:', categoriesError)
   }
 
-  // prodotti
-  let products: any[] | null = null
-  let productsError: any = null
+    // prodotti
+    let products: any[] | null = null
+    let productsError: any = null
 
-  try {
-    // Seleziona tutte le colonne disponibili
-    const result = await sb
-      .from('products')
-      .select('*')
-      .is('deleted_at', null)
-      .order('name', { ascending: true })
+    try {
+        // Seleziona tutte le colonne disponibili
+        const result = await sb
+            .from('products')
+            .select('*')
+            .is('deleted_at', null)
+            .eq('is_active', true)
+            .eq('archived', false)  // coerenza con trigger DB: prodotti archiviati non ordinabili
+            .order('name', { ascending: true })
 
     products = result.data
     productsError = result.error
