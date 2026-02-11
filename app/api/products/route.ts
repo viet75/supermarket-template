@@ -45,7 +45,6 @@ export async function GET() {
             .eq('is_active', true)        // <-- fix: usa is_active
             .eq('archived', false)        // <-- fix: esclude prodotti archiviati (bloccati da trigger DB)
             .is('deleted_at', null)
-            .eq('archived', false)         // <-- coerenza con trigger DB: prodotti archiviati non ordinabili
             .order('created_at', { ascending: false });
 
         if (error) throw error;

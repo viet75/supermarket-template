@@ -53,10 +53,6 @@ export async function PUT(req: Request, context: any) {
         if (typeof body.image_url !== 'undefined') update.image_url = body.image_url ?? null
         if (typeof body.images !== 'undefined') update.images = Array.isArray(body.images) ? body.images : null
         if (typeof body.category_id !== 'undefined') update.category_id = body.category_id ?? null
-<<<<<<< HEAD
-        // is_active = visibilità nello shop; archived = ordinabilità (trigger DB blocca order_items se archived=true). Nessuna deduzione tra i due.
-        if (typeof body.is_active === 'boolean') update.is_active = body.is_active
-=======
         // is_active=false → archived=true così il trigger DB blocca order_items. QA: B archivia, A conferma ordine → 409, carrello riconciliato.
         // is_active=true → archived=false per garantire coerenza quando si ripristina un prodotto
         if (typeof body.is_active === 'boolean') {
@@ -69,7 +65,6 @@ export async function PUT(req: Request, context: any) {
                 update.archived = false
             }
         }
->>>>>>> b68aeab (restore backup + admin restore fix + current updates)
         if (typeof body.archived === 'boolean') update.archived = body.archived
         if (typeof body.sort_order !== 'undefined') update.sort_order = mustNumber(body.sort_order, 'sort_order')
 

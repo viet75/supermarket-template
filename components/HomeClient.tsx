@@ -45,13 +45,8 @@ export default function HomeClient() {
                     .from('products')
                     .select('id,name,price,price_sale,unit_type,images,category_id,is_active')
                     .eq('is_active', true)
-<<<<<<< HEAD
-                    .is('deleted_at', null)
-                    .eq('archived', false)  // coerenza con trigger DB: prodotti archiviati non ordinabili
-=======
                     .eq('archived', false)  // <-- fix: esclude prodotti archiviati (bloccati da trigger DB)
                     .is('deleted_at', null)  // <-- fix: esclude prodotti soft-deleted
->>>>>>> b68aeab (restore backup + admin restore fix + current updates)
                     .order('created_at', { ascending: false })
                 if (prodErr) console.error('Prodotti ERR', prodErr)
 
