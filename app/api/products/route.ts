@@ -43,6 +43,7 @@ export async function GET() {
                 'id,name,description,price,price_sale,unit_type,category_id,stock,stock_unlimited,image_url,images,is_active,deleted_at,created_at'
             )
             .eq('is_active', true)        // <-- fix: usa is_active
+            .eq('archived', false)        // <-- fix: esclude prodotti archiviati (bloccati da trigger DB)
             .is('deleted_at', null)
             .eq('archived', false)         // <-- coerenza con trigger DB: prodotti archiviati non ordinabili
             .order('created_at', { ascending: false });

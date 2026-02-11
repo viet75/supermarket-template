@@ -22,6 +22,7 @@ export default async function Page() {
     let products: any[] | null = null
     let productsError: any = null
 
+<<<<<<< HEAD
     try {
         // Seleziona tutte le colonne disponibili
         const result = await sb
@@ -31,6 +32,17 @@ export default async function Page() {
             .eq('is_active', true)
             .eq('archived', false)  // coerenza con trigger DB: prodotti archiviati non ordinabili
             .order('name', { ascending: true })
+=======
+  try {
+    // Seleziona tutte le colonne disponibili
+    const result = await sb
+      .from('products')
+      .select('*')
+      .eq('is_active', true)      // <-- fix: mostra solo prodotti attivi
+      .eq('archived', false)       // <-- fix: esclude prodotti archiviati (bloccati da trigger DB)
+      .is('deleted_at', null)      // <-- fix: esclude prodotti soft-deleted
+      .order('name', { ascending: true })
+>>>>>>> b68aeab (restore backup + admin restore fix + current updates)
 
     products = result.data
     productsError = result.error

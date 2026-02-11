@@ -490,6 +490,7 @@ export default function ProductsAdminPage() {
                                                 className="rounded-md border border-green-300 text-green-700 px-3 py-1.5 hover:bg-green-50"
                                                 onClick={async () => {
                                                     try {
+<<<<<<< HEAD
                                                         // QA: Ripristino -> archived=false, deleted_at=null, is_active=false (bozza, non visibile). Poi attiva visibilità (Modifica -> "Attivo") -> is_active=true; verifica ordinabilità.
                                                         const { error } = await sb
                                                             .from('products')
@@ -497,6 +498,16 @@ export default function ProductsAdminPage() {
                                                                 deleted_at: null,
                                                                 archived: false,
                                                                 is_active: false
+=======
+                                                        // QA: Ripristino prodotto - deve includere archived=false, is_active=true, deleted_at=null
+                                                        // per evitare che il trigger DB blocchi order_items su prodotti ripristinati
+                                                        const { error } = await sb
+                                                            .from('products')
+                                                            .update({
+                                                                deleted_at: null,
+                                                                archived: false,
+                                                                is_active: true,
+>>>>>>> b68aeab (restore backup + admin restore fix + current updates)
                                                             })
                                                             .eq('id', p.id)
 
@@ -619,6 +630,7 @@ export default function ProductsAdminPage() {
                                                 className="flex-1 rounded-md border border-green-300 text-green-700 px-3 py-2 hover:bg-green-50 text-sm"
                                                 onClick={async () => {
                                                     try {
+<<<<<<< HEAD
                                                         // QA: Ripristino -> archived=false, deleted_at=null, is_active=false (bozza, non visibile). Poi attiva visibilità (Modifica -> "Attivo") -> is_active=true; verifica ordinabilità.
                                                         const { data, error } = await sb
                                                             .from('products')
@@ -626,6 +638,16 @@ export default function ProductsAdminPage() {
                                                                 deleted_at: null,
                                                                 archived: false,
                                                                 is_active: false
+=======
+                                                        // QA: Ripristino prodotto - deve includere archived=false, is_active=true, deleted_at=null
+                                                        // per evitare che il trigger DB blocchi order_items su prodotti ripristinati
+                                                        const { data, error } = await sb
+                                                            .from('products')
+                                                            .update({
+                                                                deleted_at: null,
+                                                                archived: false,
+                                                                is_active: true,
+>>>>>>> b68aeab (restore backup + admin restore fix + current updates)
                                                             })
                                                             .eq('id', p.id)
                                                             .select()
