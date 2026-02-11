@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabaseClient } from '@/lib/supabaseClient'
 import SearchBar from '@/components/SearchBar'
 import CategoryChips from '@/components/CategoryChips'
@@ -20,6 +20,9 @@ type Product = {
     category_id?: string | null
 }
 
+const THRESHOLD = 6
+const REVEAL_TOP = 8
+
 export default function HomeClient() {
     const [products, setProducts] = useState<Product[]>([])
     const [categories, setCategories] = useState<Category[]>([])
@@ -30,6 +33,38 @@ export default function HomeClient() {
     const qDebounced = useDebouncedValue(q, 300)
 
     const [toast, setToast] = useState<string | null>(null)
+
+    const [barHidden, setBarHidden] = useState(false)
+    const lastScrollYRef = useRef(0)
+    const barHiddenRef = useRef(false)
+    const [debugInfo, setDebugInfo] = useState({ scrollY: 0, delta: 0, barHidden: false })
+    const rafIdRef = useRef<number | null>(null)
+
+    useEffect(() => {
+        const onScroll = () => {
+            if (rafIdRef.current != null) return
+            rafIdRef.current = requestAnimationFrame(() => {
+                rafIdRef.current = null
+                const scrollY = window.scrollY
+                const delta = scrollY - lastScrollYRef.current
+                let newBarHidden = barHiddenRef.current
+                if (scrollY <= REVEAL_TOP) newBarHidden = false
+                else if (delta > THRESHOLD) newBarHidden = true
+                else if (delta < -THRESHOLD) newBarHidden = false
+                lastScrollYRef.current = scrollY
+                barHiddenRef.current = newBarHidden
+                setBarHidden(newBarHidden)
+                if (process.env.NODE_ENV !== 'production') {
+                    setDebugInfo({ scrollY, delta, barHidden: newBarHidden })
+                }
+            })
+        }
+        window.addEventListener('scroll', onScroll, { passive: true })
+        return () => {
+            window.removeEventListener('scroll', onScroll)
+            if (rafIdRef.current != null) cancelAnimationFrame(rafIdRef.current)
+        }
+    }, [])
 
     useEffect(() => {
         const load = async () => {
@@ -94,6 +129,14 @@ export default function HomeClient() {
                         ))}
                     </div>
                 </div>
+                {process.env.NODE_ENV !== 'production' && (
+                    <div
+                        className="fixed bottom-2 left-2 z-[9999] bg-black/70 text-white text-xs px-2 py-1 rounded"
+                        aria-hidden
+                    >
+                        scrollY {debugInfo.scrollY} · delta {debugInfo.delta} · barHidden {String(debugInfo.barHidden)}
+                    </div>
+                )}
             </>
         )
     }
@@ -130,6 +173,15 @@ export default function HomeClient() {
             <CartBar onCheckout={() => location.assign('/checkout')} />
 
             {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+
+            {process.env.NODE_ENV !== 'production' && (
+                <div
+                    className="fixed bottom-2 left-2 z-[9999] bg-black/70 text-white text-xs px-2 py-1 rounded"
+                    aria-hidden
+                >
+                    scrollY {debugInfo.scrollY} · delta {debugInfo.delta} · barHidden {String(debugInfo.barHidden)}
+                </div>
+            )}
         </>
     )
 }
