@@ -69,7 +69,7 @@ export default function HomeClient() {
         </div>
       </div>
 
-      {/* Categorie smart sticky (gestite SOLO dal container) */}
+      {/* Categorie: qui NON passiamo show (fallback true nel container) */}
       <CategoryChipsContainer activeId={cat} onChange={setCat} />
 
       {loading ? (

@@ -18,11 +18,11 @@ type RealtimePostgresChangesPayload<T = Record<string, any>> = {
 export default function CategoryChipsContainer({
   activeId,
   onChange,
-  show,
+  show = true, // ✅ opzionale: default = visibile
 }: {
   activeId: string | null
   onChange: (id: string | null) => void
-  show: boolean
+  show?: boolean
 }) {
   const [categories, setCategories] = useState<Category[]>([])
 
@@ -49,8 +49,10 @@ export default function CategoryChipsContainer({
       }
     }
 
+    // Prima chiamata
     load()
 
+    // 🔁 Realtime: ricarica sempre se cambia qualcosa
     const channel = supabase
       .channel('realtime:categories')
       .on(
@@ -60,6 +62,7 @@ export default function CategoryChipsContainer({
       )
       .subscribe()
 
+    // 🔹 Polling fallback
     const interval = setInterval(load, 30000)
 
     return () => {
@@ -70,11 +73,9 @@ export default function CategoryChipsContainer({
 
   return (
     <div
-      style={{ contain: 'layout paint' }}
       className={[
-        'overflow-hidden',
-        'transition-[max-height,opacity] duration-200 ease-out',
-        show ? 'max-h-[96px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none',
+        'transition-[transform,opacity] duration-200 ease-out will-change-transform',
+        show ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none',
       ].join(' ')}
     >
       <CategoryChips categories={categories} activeId={activeId} onChange={onChange} />
