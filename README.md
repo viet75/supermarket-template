@@ -427,18 +427,36 @@ Supporto via Gumroad
 Bugfix inclusi
 Sviluppo custom escluso
 
-Gestione Orari e Chiusure
+🕒 Gestione Orari e Chiusure (Avanzata)
 
-Orari settimanali a fasce
+Orari settimanali configurabili a fasce multiple
+(es. 09:00–13:00 / 17:00–21:00)
 
-Cutoff configurabile
+Supporto riapertura nella stessa giornata
+Ordine tra due fasce → evasione nello stesso giorno
 
-Ferie con intervalli
+Cutoff giornaliero configurabile
+Ordini dopo l’orario limite → primo giorno utile
 
-Accetta e slitta (default)
+Ferie e chiusure straordinarie
 
-Messaggio pre-checkout
+Date singole
+
+Intervalli con motivo personalizzato
+
+Modalità “Accetta e slitta” (default)
+Se il negozio è chiuso, l’ordine viene accettato e programmato al primo giorno utile
+
+Messaggio dinamico pre-checkout
+Mostra in tempo reale:
+
+apertura futura
+
+riapertura pomeridiana
+
+ordine fuori orario
+
+ferie con motivo
 
 fulfillment_date salvata su ogni ordine
-
-(Serve per vendere il template.)
+Calcolata lato database (DB-first logic)

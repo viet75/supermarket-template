@@ -1562,10 +1562,9 @@ begin
 end $$;
 
 -- ============================================================
--- PATCH 2026-02-11: Fulfillment preview – weekly_hours before_opening fix
--- Distinguish between:
--- A) Fully closed day (no slots)
--- B) Day with slots but current time < first slot start
+-- PATCH 2026-02-14: Fulfillment preview – handle "between slots" same-day
+-- Fix case: e.g. weekly_hours = 09-13 and 17-21, order at 16 => fulfill TODAY (reopens 17:00)
+-- Includes previous before_opening fix (2026-02-11)
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.get_fulfillment_preview()
 RETURNS jsonb
@@ -1592,6 +1591,10 @@ DECLARE
   day_has_slots boolean := false;     -- weekly_hours[day_key] ha almeno 1 fascia
   before_opening boolean := false;    -- ora < prima fascia del giorno
   first_slot_start time := NULL;      -- prima fascia del giorno (start minimo)
+
+  -- ✅ NUOVO: gestione "tra due fasce" nello stesso giorno
+  between_slots boolean := false;     -- ora tra una fascia finita e la prossima che inizia oggi
+  next_slot_start time := NULL;       -- prossima fascia oggi (start minimo > ora)
 
   after_cutoff boolean := false;
   can_accept boolean := true;
@@ -1675,10 +1678,11 @@ BEGIN
     END IF;
   END IF;
 
-  -- 2) day_has_slots + calcolo open_now + first_slot_start (min start)
+  -- 2) day_has_slots + calcolo open_now + first_slot_start (min start) + next_slot_start (min start > now)
   is_open_today := false;
   day_has_slots := false;
   first_slot_start := NULL;
+  next_slot_start := NULL;
 
   IF day_not_closed THEN
     slots := s.weekly_hours->day_key;
@@ -1697,6 +1701,13 @@ BEGIN
             first_slot_start := slot_start;
           END IF;
 
+          -- ✅ prossima fascia oggi (la più vicina dopo l'ora attuale)
+          IF t < slot_start THEN
+            IF next_slot_start IS NULL OR slot_start < next_slot_start THEN
+              next_slot_start := slot_start;
+            END IF;
+          END IF;
+
           -- open now
           IF t >= slot_start AND t < slot_end THEN
             is_open_today := true;
@@ -1711,9 +1722,13 @@ BEGIN
   -- 3) before_opening: giorno non chiuso + ha slot + ora < first_slot_start
   before_opening := (day_not_closed AND day_has_slots AND first_slot_start IS NOT NULL AND t < first_slot_start);
 
+  -- ✅ 3b) between_slots: giorno non chiuso + ha slot + non open_now + esiste prossima fascia oggi
+  -- (es. 16:00 tra 13:00 e 17:00 => next_slot_start=17:00)
+  between_slots := (day_not_closed AND day_has_slots AND (NOT is_open_today) AND next_slot_start IS NOT NULL AND first_slot_start IS NOT NULL AND t >= first_slot_start);
+
   -- 4) Blocco accettazione ordini:
-  --    se non è open_now MA è "before_opening" -> accetta comunque (non serve accept_orders_when_closed)
-  IF (NOT is_open_today) AND (NOT before_opening) AND (NOT s.accept_orders_when_closed) THEN
+  --    se non è open_now MA è "before_opening" o "between_slots" -> accetta comunque
+  IF (NOT is_open_today) AND (NOT before_opening) AND (NOT between_slots) AND (NOT s.accept_orders_when_closed) THEN
     RETURN jsonb_build_object(
       'ok', true,
       'can_accept', false,
@@ -1725,14 +1740,11 @@ BEGIN
   END IF;
 
   -- 5) Determina start_date mantenendo intatte cutoff/prep_days:
-  --    - after_cutoff: sempre domani + prep_days
-  --    - open_now OR before_opening: oggi + prep_days
-  --    - altrimenti: domani + prep_days
   prep_days := s.preparation_days;
 
   IF after_cutoff THEN
     start_date := d + 1 + prep_days;
-  ELSIF is_open_today OR before_opening THEN
+  ELSIF is_open_today OR before_opening OR between_slots THEN
     start_date := d + prep_days;
   ELSE
     start_date := d + 1 + prep_days;
@@ -1760,10 +1772,12 @@ BEGIN
 
   next_date := start_date;
 
-  -- 7) Messaggistica: se oggi è il fulfillment day ma il negozio apre più tardi
+  -- 7) Messaggistica: se oggi è il fulfillment day ma il negozio apre più tardi / riapre più tardi
   IF next_date = d THEN
     IF before_opening THEN
       msg := 'Il negozio apre alle ' || to_char(first_slot_start, 'HH24:MI') || '. Il tuo ordine verrà evaso oggi.';
+    ELSIF between_slots THEN
+      msg := 'Il negozio riapre alle ' || to_char(next_slot_start, 'HH24:MI') || '. Il tuo ordine verrà evaso oggi.';
     ELSE
       msg := '';
     END IF;
@@ -1807,3 +1821,5 @@ NOTIFY pgrst, 'reload schema';
 -- ============================================================
 -- ✅ SETUP COMPLETE
 -- ============================================================
+
+
