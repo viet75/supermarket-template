@@ -17,9 +17,32 @@ export default function Header() {
 
   const menuRef = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
+  const headerRef = useRef<HTMLElement>(null)
 
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
+
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+
+    const update = () => {
+      const h = el.getBoundingClientRect().height
+      document.documentElement.style.setProperty('--app-header-h', `${h}px`)
+    }
+
+    update()
+
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+
+    window.addEventListener('resize', update, { passive: true })
+
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', update)
+    }
+  }, [])
 
   // posizione dropdown (fixed) ancorata al bottone
   const [pos, setPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 })
@@ -160,7 +183,10 @@ export default function Header() {
   )
 
   return (
-    <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+    <header
+      ref={headerRef}
+      className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm"
+    >
       <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
         {process.env.NEXT_PUBLIC_STORE_NAME ?? 'Supermarket Template'}
       </h1>

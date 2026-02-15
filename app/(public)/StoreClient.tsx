@@ -41,10 +41,14 @@ export default function StoreClient({
     return result
   }, [products, activeCategory, search])
 
-  // container scrollabile (unico scroll della pagina)
-  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const scrollRef = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    // prende lo scroll host creato dal layout pubblico
+    scrollRef.current =
+      (window as any).__PUBLIC_SCROLL_EL__ ??
+      (document.getElementById('public-scroll') as HTMLElement | null)
+  }, [])
 
-  // smart sticky: hide on scroll down, show on scroll up
   const showCategories = useSmartStickyScroll(scrollRef, {
     threshold: 20,
     revealAtTopPx: 24,
@@ -53,14 +57,13 @@ export default function StoreClient({
   })
 
   return (
-    <div ref={scrollRef} className="h-dvh overflow-y-auto overscroll-contain">
+    <>
       {/* HEADER sticky (NO blur: elimina fascia trasparente) */}
-      <div className="sticky top-0 z-50 bg-white shadow-[0_6px_16px_rgba(0,0,0,0.08)]">
-
+      <div className="sticky top-[var(--app-header-h,0px)] z-50 bg-white dark:bg-gray-950 shadow-[0_6px_16px_rgba(0,0,0,0.10)] dark:shadow-[0_6px_16px_rgba(0,0,0,0.55)]">
         {/* Search */}
         <div className="flex justify-center px-4 pt-4 pb-2">
           <div className="relative w-full max-w-2xl">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500">
               🔍
             </span>
             <input
@@ -68,7 +71,15 @@ export default function StoreClient({
               placeholder="Cerca prodotto..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-full border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-inset focus:ring-green-500"
+              className="
+                w-full pl-10 pr-4 py-2 rounded-full
+                border border-gray-300 dark:border-white/10
+                bg-white dark:bg-white/5
+                text-gray-900 dark:text-gray-100
+                placeholder:text-gray-400 dark:placeholder:text-gray-500
+                shadow-sm
+                focus:outline-none focus:ring-2 focus:ring-inset focus:ring-green-500
+              "
             />
           </div>
         </div>
@@ -79,7 +90,7 @@ export default function StoreClient({
             <CategoryChipsContainer
               activeId={activeCategory}
               onChange={setActiveCategory}
-              show={true}
+              show
             />
           </div>
         )}
@@ -95,6 +106,6 @@ export default function StoreClient({
           </p>
         )}
       </div>
-    </div>
+    </>
   )
 }

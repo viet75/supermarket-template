@@ -11,14 +11,14 @@ type Props = {
 export default function CategoryChips({ categories, activeId, onChange }: Props) {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
 
-  // ✅ Mostra sfumature solo quando servono (overflow + posizione scroll)
+  // Mostra sfumature solo quando servono (overflow + posizione scroll)
   const [fadeLeft, setFadeLeft] = useState(false)
   const [fadeRight, setFadeRight] = useState(false)
 
   const base =
     'px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200'
 
-  // ✅ Dark mode: chip “glass” più leggibili (contrasto + hover)
+  // Dark mode: chip “glass” più leggibili
   const inactive =
     'border border-gray-200/80 dark:border-white/10 ' +
     'bg-white/70 dark:bg-white/5 ' +
@@ -41,14 +41,14 @@ export default function CategoryChips({ categories, activeId, onChange }: Props)
       const { scrollLeft, scrollWidth, clientWidth } = el
       const max = Math.max(0, scrollWidth - clientWidth)
 
-      // overflow? se max === 0 nessun fade
+      // Se non c'è overflow, nessun fade
       if (max <= 1) {
         setFadeLeft(false)
         setFadeRight(false)
         return
       }
 
-      // soglie per evitare tremolio
+      // Soglie anti-tremolio
       setFadeLeft(scrollLeft > 2)
       setFadeRight(scrollLeft < max - 2)
     }
@@ -61,16 +61,14 @@ export default function CategoryChips({ categories, activeId, onChange }: Props)
       })
     }
 
-    // iniziale (dopo render)
     schedule()
 
     el.addEventListener('scroll', schedule, { passive: true })
 
-    // ✅ reagisci a resize layout + cambio contenuto (categorie)
+    // Reagisci a resize + cambi layout/categorie
     const ro = new ResizeObserver(schedule)
     ro.observe(el)
 
-    // anche quando cambiano font/viewport ecc.
     window.addEventListener('resize', schedule, { passive: true })
 
     return () => {
@@ -83,7 +81,7 @@ export default function CategoryChips({ categories, activeId, onChange }: Props)
 
   return (
     <div className="relative">
-      {/* Fade sinistra: solo se serve */}
+      {/* Fade sinistra */}
       {fadeLeft && (
         <div
           className="
@@ -95,7 +93,7 @@ export default function CategoryChips({ categories, activeId, onChange }: Props)
         />
       )}
 
-      {/* Fade destra: solo se serve */}
+      {/* Fade destra */}
       {fadeRight && (
         <div
           className="
