@@ -856,6 +856,265 @@ BEGIN
     'message', COALESCE(msg, '')
   );
 END;
+-- ============================================================
+-- PATCH 2026-02-14: Fulfillment preview – handle "between slots" same-day
+-- Fix case: e.g. weekly_hours = 09-13 and 17-21, order at 16 => fulfill TODAY (reopens 17:00)
+-- Includes previous before_opening fix (2026-02-11)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.get_fulfillment_preview()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+DECLARE
+  s RECORD;
+  tz text;
+  now_local timestamp;
+  d date;
+  t time;
+  dow int;
+  day_key text;
+  cutoff_t time;
+
+  -- stato "open now" (output is_open_now)
+  is_open_today boolean := false;
+
+  -- nuove flag per distinguere i casi
+  day_not_closed boolean := true;     -- non in closed_dates/ranges
+  day_has_slots boolean := false;     -- weekly_hours[day_key] ha almeno 1 fascia
+  before_opening boolean := false;    -- ora < prima fascia del giorno
+  first_slot_start time := NULL;      -- prima fascia del giorno (start minimo)
+
+  -- ✅ NUOVO: gestione "tra due fasce" nello stesso giorno
+  between_slots boolean := false;     -- ora tra una fascia finita e la prossima che inizia oggi
+  next_slot_start time := NULL;       -- prossima fascia oggi (start minimo > ora)
+
+  after_cutoff boolean := false;
+  can_accept boolean := true;
+
+  start_date date;
+  next_date date;
+  prep_days int;
+
+  slots jsonb;
+  slot jsonb;
+  slot_start time;
+  slot_end time;
+
+  i int;
+  j int;
+  msg text;
+  in_range boolean;
+  range_reason text;
+  current_day_key text;
+  day_keys text[] := ARRAY['sun','mon','tue','wed','thu','fri','sat'];
+BEGIN
+  SELECT
+    COALESCE(timezone, 'Europe/Rome') AS timezone,
+    COALESCE(cutoff_time, '19:00') AS cutoff_time,
+    COALESCE(weekly_hours, '{"mon":[{"start":"09:00","end":"19:30"}],"tue":[{"start":"09:00","end":"19:30"}],"wed":[{"start":"09:00","end":"19:30"}],"thu":[{"start":"09:00","end":"19:30"}],"fri":[{"start":"09:00","end":"19:30"}],"sat":[{"start":"09:00","end":"13:00"}],"sun":[]}'::jsonb) AS weekly_hours,
+    COALESCE(closed_dates, '[]'::jsonb) AS closed_dates,
+    COALESCE(closed_ranges, '[]'::jsonb) AS closed_ranges,
+    COALESCE(accept_orders_when_closed, true) AS accept_orders_when_closed,
+    COALESCE(preparation_days, 0) AS preparation_days
+  INTO s
+  FROM public.store_settings
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'ok', true,
+      'can_accept', true,
+      'is_open_now', true,
+      'after_cutoff', false,
+      'next_fulfillment_date', to_char(now()::date, 'YYYY-MM-DD'),
+      'message', ''
+    );
+  END IF;
+
+  tz := s.timezone;
+  now_local := (now() AT TIME ZONE tz);
+  d := now_local::date;
+  t := now_local::time;
+  dow := EXTRACT(DOW FROM now_local)::int;
+  day_key := day_keys[dow + 1];
+
+  BEGIN
+    cutoff_t := (trim(s.cutoff_time))::time;
+  EXCEPTION WHEN OTHERS THEN
+    cutoff_t := '19:00'::time;
+  END;
+
+  IF t >= cutoff_t THEN
+    after_cutoff := true;
+  END IF;
+
+  -- 1) day_not_closed: controlla closed_dates / closed_ranges
+  day_not_closed := true;
+
+  IF jsonb_typeof(s.closed_dates) = 'array'
+     AND to_char(d, 'YYYY-MM-DD') = ANY(ARRAY(SELECT jsonb_array_elements_text(s.closed_dates)))
+  THEN
+    day_not_closed := false;
+  ELSIF jsonb_typeof(s.closed_ranges) = 'array' THEN
+    in_range := false;
+    FOR i IN 0 .. jsonb_array_length(s.closed_ranges) - 1 LOOP
+      IF (s.closed_ranges->i->>'from')::date <= d
+         AND d <= (s.closed_ranges->i->>'to')::date
+      THEN
+        in_range := true;
+        EXIT;
+      END IF;
+    END LOOP;
+    IF in_range THEN
+      day_not_closed := false;
+    END IF;
+  END IF;
+
+  -- 2) day_has_slots + calcolo open_now + first_slot_start (min start) + next_slot_start (min start > now)
+  is_open_today := false;
+  day_has_slots := false;
+  first_slot_start := NULL;
+  next_slot_start := NULL;
+
+  IF day_not_closed THEN
+    slots := s.weekly_hours->day_key;
+
+    IF slots IS NOT NULL AND jsonb_typeof(slots) = 'array' AND jsonb_array_length(slots) > 0 THEN
+      day_has_slots := true;
+
+      FOR j IN 0 .. jsonb_array_length(slots) - 1 LOOP
+        slot := slots->j;
+        BEGIN
+          slot_start := (slot->>'start')::time;
+          slot_end := (slot->>'end')::time;
+
+          -- min start del giorno
+          IF first_slot_start IS NULL OR slot_start < first_slot_start THEN
+            first_slot_start := slot_start;
+          END IF;
+
+          -- ✅ prossima fascia oggi (la più vicina dopo l'ora attuale)
+          IF t < slot_start THEN
+            IF next_slot_start IS NULL OR slot_start < next_slot_start THEN
+              next_slot_start := slot_start;
+            END IF;
+          END IF;
+
+          -- open now
+          IF t >= slot_start AND t < slot_end THEN
+            is_open_today := true;
+          END IF;
+        EXCEPTION WHEN OTHERS THEN
+          NULL;
+        END;
+      END LOOP;
+    END IF;
+  END IF;
+
+  -- 3) before_opening: giorno non chiuso + ha slot + ora < first_slot_start
+  before_opening := (day_not_closed AND day_has_slots AND first_slot_start IS NOT NULL AND t < first_slot_start);
+
+  -- ✅ 3b) between_slots: giorno non chiuso + ha slot + non open_now + esiste prossima fascia oggi
+  -- (es. 16:00 tra 13:00 e 17:00 => next_slot_start=17:00)
+  between_slots := (day_not_closed AND day_has_slots AND (NOT is_open_today) AND next_slot_start IS NOT NULL AND first_slot_start IS NOT NULL AND t >= first_slot_start);
+
+  -- 4) Blocco accettazione ordini:
+  --    se non è open_now MA è "before_opening" o "between_slots" -> accetta comunque
+  IF (NOT is_open_today) AND (NOT before_opening) AND (NOT between_slots) AND (NOT s.accept_orders_when_closed) THEN
+    RETURN jsonb_build_object(
+      'ok', true,
+      'can_accept', false,
+      'is_open_now', false,
+      'after_cutoff', after_cutoff,
+      'next_fulfillment_date', NULL,
+      'message', 'Negozio chiuso. Ordini non accettati in questo momento.'
+    );
+  END IF;
+
+  -- 5) Determina start_date mantenendo intatte cutoff/prep_days:
+  prep_days := s.preparation_days;
+
+  IF after_cutoff THEN
+    start_date := d + 1 + prep_days;
+  ELSIF is_open_today OR before_opening OR between_slots THEN
+    start_date := d + prep_days;
+  ELSE
+    start_date := d + 1 + prep_days;
+  END IF;
+
+  -- 6) Trova primo giorno utile (chiusure + day senza slot)
+  FOR i IN 1 .. 30 LOOP
+    current_day_key := day_keys[EXTRACT(DOW FROM start_date)::int + 1];
+
+    IF NOT (
+      (jsonb_typeof(s.closed_dates) = 'array'
+        AND to_char(start_date, 'YYYY-MM-DD') = ANY(ARRAY(SELECT jsonb_array_elements_text(s.closed_dates))))
+      OR (jsonb_typeof(s.closed_ranges) = 'array' AND EXISTS (
+        SELECT 1 FROM jsonb_array_elements(s.closed_ranges) AS r(e)
+        WHERE (e->>'from')::date <= start_date AND start_date <= (e->>'to')::date
+      ))
+      OR (s.weekly_hours->current_day_key IS NULL
+          OR jsonb_array_length(COALESCE(s.weekly_hours->current_day_key, '[]'::jsonb)) = 0)
+    ) THEN
+      EXIT;
+    END IF;
+
+    start_date := start_date + 1;
+  END LOOP;
+
+  next_date := start_date;
+
+  -- 7) Messaggistica: se oggi è il fulfillment day ma il negozio apre più tardi / riapre più tardi
+  IF next_date = d THEN
+    IF before_opening THEN
+      msg := 'Il negozio apre alle ' || to_char(first_slot_start, 'HH24:MI') || '. Il tuo ordine verrà evaso oggi.';
+    ELSIF between_slots THEN
+      msg := 'Il negozio riapre alle ' || to_char(next_slot_start, 'HH24:MI') || '. Il tuo ordine verrà evaso oggi.';
+    ELSE
+      msg := '';
+    END IF;
+  ELSE
+    range_reason := NULL;
+    IF jsonb_typeof(s.closed_ranges) = 'array' THEN
+      FOR i IN 0 .. jsonb_array_length(s.closed_ranges) - 1 LOOP
+        IF (s.closed_ranges->i->>'from')::date <= d
+           AND d <= (s.closed_ranges->i->>'to')::date
+           AND s.closed_ranges->i->>'reason' IS NOT NULL
+           AND s.closed_ranges->i->>'reason' <> ''
+        THEN
+          range_reason := s.closed_ranges->i->>'reason';
+          EXIT;
+        END IF;
+      END LOOP;
+    END IF;
+
+    IF range_reason IS NOT NULL THEN
+      msg := '⚠️ Siamo chiusi (' || range_reason || '). Il tuo ordine verrà evaso il ' || to_char(next_date, 'DD/MM/YYYY') || '.';
+    ELSIF after_cutoff THEN
+      msg := '⚠️ Ordine ricevuto fuori orario. Verrà evaso il ' || to_char(next_date, 'DD/MM/YYYY') || '.';
+    ELSE
+      msg := '⚠️ Il negozio è chiuso in questo momento. Il tuo ordine verrà evaso il ' || to_char(next_date, 'DD/MM/YYYY') || '.';
+    END IF;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'ok', true,
+    'can_accept', can_accept,
+    'is_open_now', is_open_today,
+    'after_cutoff', after_cutoff,
+    'next_fulfillment_date', to_char(next_date, 'YYYY-MM-DD'),
+    'message', COALESCE(msg, '')
+  );
+END;
+$$;
+
+-- Reload PostgREST schema cache (Supabase)
+NOTIFY pgrst, 'reload schema';
+-- ============================================================
+-- ✅ SETUP COMPLETE
 $$;
 
 -- ============================================================
@@ -1071,6 +1330,10 @@ END $$;
 INSERT INTO public.store_settings (singleton_key)
 VALUES (true)
 ON CONFLICT (singleton_key) DO NOTHING;
+  -- Ensure store_settings singleton row exists (based on singleton_key)
+insert into public.store_settings (singleton_key)
+values (true)
+on conflict (singleton_key) do nothing;
 
 -- ============================================================
 -- 🔓 GRANTS (required for PostgREST access)
@@ -1562,264 +1825,6 @@ begin
 end $$;
 
 -- ============================================================
--- PATCH 2026-02-14: Fulfillment preview – handle "between slots" same-day
--- Fix case: e.g. weekly_hours = 09-13 and 17-21, order at 16 => fulfill TODAY (reopens 17:00)
--- Includes previous before_opening fix (2026-02-11)
--- ============================================================
-CREATE OR REPLACE FUNCTION public.get_fulfillment_preview()
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-STABLE
-SET search_path = public
-AS $$
-DECLARE
-  s RECORD;
-  tz text;
-  now_local timestamp;
-  d date;
-  t time;
-  dow int;
-  day_key text;
-  cutoff_t time;
 
-  -- stato "open now" (output is_open_now)
-  is_open_today boolean := false;
-
-  -- nuove flag per distinguere i casi
-  day_not_closed boolean := true;     -- non in closed_dates/ranges
-  day_has_slots boolean := false;     -- weekly_hours[day_key] ha almeno 1 fascia
-  before_opening boolean := false;    -- ora < prima fascia del giorno
-  first_slot_start time := NULL;      -- prima fascia del giorno (start minimo)
-
-  -- ✅ NUOVO: gestione "tra due fasce" nello stesso giorno
-  between_slots boolean := false;     -- ora tra una fascia finita e la prossima che inizia oggi
-  next_slot_start time := NULL;       -- prossima fascia oggi (start minimo > ora)
-
-  after_cutoff boolean := false;
-  can_accept boolean := true;
-
-  start_date date;
-  next_date date;
-  prep_days int;
-
-  slots jsonb;
-  slot jsonb;
-  slot_start time;
-  slot_end time;
-
-  i int;
-  j int;
-  msg text;
-  in_range boolean;
-  range_reason text;
-  current_day_key text;
-  day_keys text[] := ARRAY['sun','mon','tue','wed','thu','fri','sat'];
-BEGIN
-  SELECT
-    COALESCE(timezone, 'Europe/Rome') AS timezone,
-    COALESCE(cutoff_time, '19:00') AS cutoff_time,
-    COALESCE(weekly_hours, '{"mon":[{"start":"09:00","end":"19:30"}],"tue":[{"start":"09:00","end":"19:30"}],"wed":[{"start":"09:00","end":"19:30"}],"thu":[{"start":"09:00","end":"19:30"}],"fri":[{"start":"09:00","end":"19:30"}],"sat":[{"start":"09:00","end":"13:00"}],"sun":[]}'::jsonb) AS weekly_hours,
-    COALESCE(closed_dates, '[]'::jsonb) AS closed_dates,
-    COALESCE(closed_ranges, '[]'::jsonb) AS closed_ranges,
-    COALESCE(accept_orders_when_closed, true) AS accept_orders_when_closed,
-    COALESCE(preparation_days, 0) AS preparation_days
-  INTO s
-  FROM public.store_settings
-  LIMIT 1;
-
-  IF NOT FOUND THEN
-    RETURN jsonb_build_object(
-      'ok', true,
-      'can_accept', true,
-      'is_open_now', true,
-      'after_cutoff', false,
-      'next_fulfillment_date', to_char(now()::date, 'YYYY-MM-DD'),
-      'message', ''
-    );
-  END IF;
-
-  tz := s.timezone;
-  now_local := (now() AT TIME ZONE tz);
-  d := now_local::date;
-  t := now_local::time;
-  dow := EXTRACT(DOW FROM now_local)::int;
-  day_key := day_keys[dow + 1];
-
-  BEGIN
-    cutoff_t := (trim(s.cutoff_time))::time;
-  EXCEPTION WHEN OTHERS THEN
-    cutoff_t := '19:00'::time;
-  END;
-
-  IF t >= cutoff_t THEN
-    after_cutoff := true;
-  END IF;
-
-  -- 1) day_not_closed: controlla closed_dates / closed_ranges
-  day_not_closed := true;
-
-  IF jsonb_typeof(s.closed_dates) = 'array'
-     AND to_char(d, 'YYYY-MM-DD') = ANY(ARRAY(SELECT jsonb_array_elements_text(s.closed_dates)))
-  THEN
-    day_not_closed := false;
-  ELSIF jsonb_typeof(s.closed_ranges) = 'array' THEN
-    in_range := false;
-    FOR i IN 0 .. jsonb_array_length(s.closed_ranges) - 1 LOOP
-      IF (s.closed_ranges->i->>'from')::date <= d
-         AND d <= (s.closed_ranges->i->>'to')::date
-      THEN
-        in_range := true;
-        EXIT;
-      END IF;
-    END LOOP;
-    IF in_range THEN
-      day_not_closed := false;
-    END IF;
-  END IF;
-
-  -- 2) day_has_slots + calcolo open_now + first_slot_start (min start) + next_slot_start (min start > now)
-  is_open_today := false;
-  day_has_slots := false;
-  first_slot_start := NULL;
-  next_slot_start := NULL;
-
-  IF day_not_closed THEN
-    slots := s.weekly_hours->day_key;
-
-    IF slots IS NOT NULL AND jsonb_typeof(slots) = 'array' AND jsonb_array_length(slots) > 0 THEN
-      day_has_slots := true;
-
-      FOR j IN 0 .. jsonb_array_length(slots) - 1 LOOP
-        slot := slots->j;
-        BEGIN
-          slot_start := (slot->>'start')::time;
-          slot_end := (slot->>'end')::time;
-
-          -- min start del giorno
-          IF first_slot_start IS NULL OR slot_start < first_slot_start THEN
-            first_slot_start := slot_start;
-          END IF;
-
-          -- ✅ prossima fascia oggi (la più vicina dopo l'ora attuale)
-          IF t < slot_start THEN
-            IF next_slot_start IS NULL OR slot_start < next_slot_start THEN
-              next_slot_start := slot_start;
-            END IF;
-          END IF;
-
-          -- open now
-          IF t >= slot_start AND t < slot_end THEN
-            is_open_today := true;
-          END IF;
-        EXCEPTION WHEN OTHERS THEN
-          NULL;
-        END;
-      END LOOP;
-    END IF;
-  END IF;
-
-  -- 3) before_opening: giorno non chiuso + ha slot + ora < first_slot_start
-  before_opening := (day_not_closed AND day_has_slots AND first_slot_start IS NOT NULL AND t < first_slot_start);
-
-  -- ✅ 3b) between_slots: giorno non chiuso + ha slot + non open_now + esiste prossima fascia oggi
-  -- (es. 16:00 tra 13:00 e 17:00 => next_slot_start=17:00)
-  between_slots := (day_not_closed AND day_has_slots AND (NOT is_open_today) AND next_slot_start IS NOT NULL AND first_slot_start IS NOT NULL AND t >= first_slot_start);
-
-  -- 4) Blocco accettazione ordini:
-  --    se non è open_now MA è "before_opening" o "between_slots" -> accetta comunque
-  IF (NOT is_open_today) AND (NOT before_opening) AND (NOT between_slots) AND (NOT s.accept_orders_when_closed) THEN
-    RETURN jsonb_build_object(
-      'ok', true,
-      'can_accept', false,
-      'is_open_now', false,
-      'after_cutoff', after_cutoff,
-      'next_fulfillment_date', NULL,
-      'message', 'Negozio chiuso. Ordini non accettati in questo momento.'
-    );
-  END IF;
-
-  -- 5) Determina start_date mantenendo intatte cutoff/prep_days:
-  prep_days := s.preparation_days;
-
-  IF after_cutoff THEN
-    start_date := d + 1 + prep_days;
-  ELSIF is_open_today OR before_opening OR between_slots THEN
-    start_date := d + prep_days;
-  ELSE
-    start_date := d + 1 + prep_days;
-  END IF;
-
-  -- 6) Trova primo giorno utile (chiusure + day senza slot)
-  FOR i IN 1 .. 30 LOOP
-    current_day_key := day_keys[EXTRACT(DOW FROM start_date)::int + 1];
-
-    IF NOT (
-      (jsonb_typeof(s.closed_dates) = 'array'
-        AND to_char(start_date, 'YYYY-MM-DD') = ANY(ARRAY(SELECT jsonb_array_elements_text(s.closed_dates))))
-      OR (jsonb_typeof(s.closed_ranges) = 'array' AND EXISTS (
-        SELECT 1 FROM jsonb_array_elements(s.closed_ranges) AS r(e)
-        WHERE (e->>'from')::date <= start_date AND start_date <= (e->>'to')::date
-      ))
-      OR (s.weekly_hours->current_day_key IS NULL
-          OR jsonb_array_length(COALESCE(s.weekly_hours->current_day_key, '[]'::jsonb)) = 0)
-    ) THEN
-      EXIT;
-    END IF;
-
-    start_date := start_date + 1;
-  END LOOP;
-
-  next_date := start_date;
-
-  -- 7) Messaggistica: se oggi è il fulfillment day ma il negozio apre più tardi / riapre più tardi
-  IF next_date = d THEN
-    IF before_opening THEN
-      msg := 'Il negozio apre alle ' || to_char(first_slot_start, 'HH24:MI') || '. Il tuo ordine verrà evaso oggi.';
-    ELSIF between_slots THEN
-      msg := 'Il negozio riapre alle ' || to_char(next_slot_start, 'HH24:MI') || '. Il tuo ordine verrà evaso oggi.';
-    ELSE
-      msg := '';
-    END IF;
-  ELSE
-    range_reason := NULL;
-    IF jsonb_typeof(s.closed_ranges) = 'array' THEN
-      FOR i IN 0 .. jsonb_array_length(s.closed_ranges) - 1 LOOP
-        IF (s.closed_ranges->i->>'from')::date <= d
-           AND d <= (s.closed_ranges->i->>'to')::date
-           AND s.closed_ranges->i->>'reason' IS NOT NULL
-           AND s.closed_ranges->i->>'reason' <> ''
-        THEN
-          range_reason := s.closed_ranges->i->>'reason';
-          EXIT;
-        END IF;
-      END LOOP;
-    END IF;
-
-    IF range_reason IS NOT NULL THEN
-      msg := '⚠️ Siamo chiusi (' || range_reason || '). Il tuo ordine verrà evaso il ' || to_char(next_date, 'DD/MM/YYYY') || '.';
-    ELSIF after_cutoff THEN
-      msg := '⚠️ Ordine ricevuto fuori orario. Verrà evaso il ' || to_char(next_date, 'DD/MM/YYYY') || '.';
-    ELSE
-      msg := '⚠️ Il negozio è chiuso in questo momento. Il tuo ordine verrà evaso il ' || to_char(next_date, 'DD/MM/YYYY') || '.';
-    END IF;
-  END IF;
-
-  RETURN jsonb_build_object(
-    'ok', true,
-    'can_accept', can_accept,
-    'is_open_now', is_open_today,
-    'after_cutoff', after_cutoff,
-    'next_fulfillment_date', to_char(next_date, 'YYYY-MM-DD'),
-    'message', COALESCE(msg, '')
-  );
-END;
-$$;
-
--- Reload PostgREST schema cache (Supabase)
-NOTIFY pgrst, 'reload schema';
--- ============================================================
--- ✅ SETUP COMPLETE
--- ============================================================
 
 

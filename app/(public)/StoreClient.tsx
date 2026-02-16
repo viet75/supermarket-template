@@ -59,7 +59,15 @@ export default function StoreClient({
   return (
     <>
       {/* HEADER sticky (NO blur: elimina fascia trasparente) */}
-      <div className="sticky top-[var(--app-header-h,0px)] z-50 bg-white dark:bg-gray-950 shadow-[0_6px_16px_rgba(0,0,0,0.10)] dark:shadow-[0_6px_16px_rgba(0,0,0,0.55)]">
+      <div
+        className="
+    sticky top-[var(--app-header-h,0px)] z-50
+    bg-white/95 dark:bg-gray-900/92
+    supports-[backdrop-filter]:backdrop-blur-md
+    border-b border-gray-200/70 dark:border-white/10
+    shadow-sm
+  "
+      >
         {/* Search */}
         <div className="flex justify-center px-4 pt-4 pb-2">
           <div className="relative w-full max-w-2xl">
@@ -72,14 +80,14 @@ export default function StoreClient({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="
-                w-full pl-10 pr-4 py-2 rounded-full
-                border border-gray-300 dark:border-white/10
-                bg-white dark:bg-white/5
-                text-gray-900 dark:text-gray-100
-                placeholder:text-gray-400 dark:placeholder:text-gray-500
-                shadow-sm
-                focus:outline-none focus:ring-2 focus:ring-inset focus:ring-green-500
-              "
+          w-full pl-10 pr-4 py-2 rounded-full
+          border border-gray-300 dark:border-white/10
+          bg-white dark:bg-gray-800/60
+          text-gray-900 dark:text-gray-100
+          placeholder:text-gray-400 dark:placeholder:text-gray-500
+          shadow-sm
+          focus:outline-none focus:ring-2 focus:ring-inset focus:ring-green-500
+        "
             />
           </div>
         </div>
@@ -87,14 +95,11 @@ export default function StoreClient({
         {/* Categorie (montate solo quando visibili: zero fascia residua) */}
         {showCategories && (
           <div className="px-4 pb-2">
-            <CategoryChipsContainer
-              activeId={activeCategory}
-              onChange={setActiveCategory}
-              show
-            />
+            <CategoryChipsContainer activeId={activeCategory} onChange={setActiveCategory} show />
           </div>
         )}
       </div>
+
 
       {/* Content */}
       <div className="px-4 pb-24">
