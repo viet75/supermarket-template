@@ -24,8 +24,14 @@ export default function ProductDetailCTA({ product, heroImage }: Props) {
   const addItem = useCartStore((s) => s.addItem)
 
   const p = product as unknown as ProductMinimal
+  const stockRaw = p.stock
+  const stock =
+    stockRaw == null ? null
+    : typeof stockRaw === 'number' ? stockRaw
+    : (Number(stockRaw) || 0)
+  const pForStock = { ...p, stock }
   const step = p.unit_type === 'per_kg' ? 0.5 : 1
-  const stockNum = toDisplayStock(p)
+  const stockNum = toDisplayStock(pForStock as any)
   const isUnlimited = stockNum === null
   const outOfStock = !isUnlimited && stockNum === 0
 

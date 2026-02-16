@@ -460,3 +460,23 @@ ferie con motivo
 
 fulfillment_date salvata su ogni ordine
 Calcolata lato database (DB-first logic)
+
+📦 Indicatore stock nelle card prodotto
+
+Ogni prodotto mostra:
+
+Testo preciso: Disponibili: X unità / kg
+
+Barra visiva di disponibilità
+
+Il testo è il valore reale e preciso letto dal database.
+
+La barra è solo indicativa e serve come riferimento visivo rapido.
+
+Scala utilizzata:
+
+Prodotti a unità → scala visiva basata su 30 unità
+
+Prodotti a peso → scala visiva basata su 20 kg
+
+Questo non influisce sulla logica di acquisto o sui controlli di stock, che restano sempre basati sul valore reale.
