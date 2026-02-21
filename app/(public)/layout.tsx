@@ -1,6 +1,7 @@
 import Header from '@/components/Header'
 import PublicScrollShell from '@/components/PublicScrollShell'
 import { getStoreSettings } from '@/lib/getStoreSettings'
+import ScrollToTopOnRouteChange from './ScrollToTopOnRouteChange'
 
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
     const s = await getStoreSettings()
@@ -35,6 +36,7 @@ export default async function PublicLayout({ children }: { children: React.React
             }
         >
             <main className="min-h-screen w-full mx-auto px-3 md:px-4 lg:px-6 pb-24 md:pb-10 bg-white dark:bg-gray-900 transition-colors">
+                <ScrollToTopOnRouteChange />
                 {children}
             </main>
         </PublicScrollShell>

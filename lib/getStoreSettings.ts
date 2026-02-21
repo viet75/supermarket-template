@@ -7,6 +7,7 @@ export async function getStoreSettings(): Promise<StoreSettings | null> {
     const { data, error } = await supabaseServiceRole
         .from('store_settings')
         .select('*')
+        .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle()
 

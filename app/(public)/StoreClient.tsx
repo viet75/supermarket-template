@@ -46,7 +46,7 @@ export default function StoreClient({
     // prende lo scroll host creato dal layout pubblico
     scrollRef.current =
       (window as any).__PUBLIC_SCROLL_EL__ ??
-      (document.getElementById('public-scroll') as HTMLElement | null)
+      (document.getElementById('public-scroll-container') as HTMLElement | null)
   }, [])
 
   const showCategories = useSmartStickyScroll(scrollRef, {
@@ -102,7 +102,7 @@ export default function StoreClient({
 
 
       {/* Content */}
-      <div className="px-4 pb-24">
+      <div className="px-1 sm:px-2 md:px-4 pb-24">
         {filteredProducts.length > 0 ? (
           <ProductsGrid products={filteredProducts} />
         ) : (

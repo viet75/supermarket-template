@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Skeleton from '@/components/Skeleton'
 import type { StoreSettings, PaymentMethod, OrderItem, OrderAddress, OrderPayload } from '@/lib/types'
-import { validateDelivery, allowedPaymentMethods } from '@/lib/delivery'
+import { validateDelivery, allowedPaymentMethods, normalizeDeliveryMaxKm } from '@/lib/delivery'
 import { geocodeAddress, computeDistanceFromStore } from '@/lib/geo'
 import { useCartStore } from '@/stores/cartStore'
 import { formatPrice } from '@/lib/pricing'
@@ -32,6 +32,19 @@ const isCapInvalidFull = (cap: string) => {
 const isCapPartial = (cap: string) => {
     const c = String(cap ?? '').trim()
     return c.length > 0 && c.length < 5
+}
+
+const normalizeSpaces = (s: string) => s.replace(/\s+/g, ' ').trim()
+
+// Richiede: almeno 1 parola + numero civico (es: "Via Roma 10", "machiavelli 21")
+const looksLikeFullStreetAddress = (line1: string) => {
+  const s = normalizeSpaces(String(line1 ?? ''))
+  if (s.length < 6) return false
+  // almeno 1 cifra (numero civico)
+  if (!/\d/.test(s)) return false
+  // almeno 4 lettere consecutive (evita "via 1")
+  if (!/[a-zA-ZÀ-ÿ]{4,}/.test(s)) return false
+  return true
 }
 
 export type FulfillmentPreview = {
@@ -82,10 +95,10 @@ export default function CheckoutForm({ settings }: Props) {
         }
         const errorLower = newError.toLowerCase()
         // Priorità: se contiene "CAP non valido" o parole chiave CAP -> mostra solo quello
-        if (newError.includes("CAP non valido") || 
-            errorLower.includes("cap") || 
-            errorLower.includes("postal") || 
-            errorLower.includes("codice postale") || 
+        if (newError.includes("CAP non valido") ||
+            errorLower.includes("cap") ||
+            errorLower.includes("postal") ||
+            errorLower.includes("codice postale") ||
             errorLower.includes("corrisponde")) {
             setErrorMessage(newError)
             return
@@ -122,6 +135,17 @@ export default function CheckoutForm({ settings }: Props) {
     const [fulfillment, setFulfillment] = useState<FulfillmentPreview | null>(null)
     const [loadingFulfillment, setLoadingFulfillment] = useState(true)
 
+    // ============================================================
+    // GATE UNICO: quando il checkout è disabilitato, NON fare geocode
+    // (né distanza client, né preview server che a sua volta geocoda)
+    // ============================================================
+    const canComputeGeo = useMemo(() => {
+        if (!settings.delivery_enabled) return false
+        if (loadingFulfillment) return false
+        if (fulfillment?.can_accept === false) return false
+        return true
+    }, [settings.delivery_enabled, loadingFulfillment, fulfillment?.can_accept])
+
     // Reset valori backend quando cambia l'indirizzo
     useEffect(() => {
         setBackendDeliveryFee(null)
@@ -152,6 +176,14 @@ export default function CheckoutForm({ settings }: Props) {
 
     // 🔧 Calcolo automatico della distanza con Google Maps
     useEffect(() => {
+        // HARD STOP: checkout disabilitato => nessuna chiamata geocode
+        if (!canComputeGeo) {
+            setLoadingDistance(false)
+            setDistanceKm(0)
+            setIsAddressValid(false)
+            return
+        }
+
         if (!addr.line1 || !addr.city || !addr.cap) return
 
         if (isCapPartial(addr.cap)) {
@@ -163,6 +195,17 @@ export default function CheckoutForm({ settings }: Props) {
             setDistanceError(CAP_ERR)
             updateErrorMessage(CAP_ERR)
             setDistanceKm(0)
+            return
+        }
+
+        // ✅ Non geocodare se manca un indirizzo "completo" con numero civico
+        if (!looksLikeFullStreetAddress(addr.line1)) {
+            setIsAddressValid(false)
+            setDistanceKm(0)
+            // neutro mentre digita: niente errore rosso
+            setDistanceError(null)
+            // opzionale: non forzare errorMessage mentre digita
+            // updateErrorMessage(null)
             return
         }
 
@@ -181,9 +224,10 @@ export default function CheckoutForm({ settings }: Props) {
                     if (validCache) {
                         setDistanceKm(km)
                         const validation = validateDelivery(km, settings)
-                        if (km > settings.delivery_max_km) {
+                        const maxKmSafe = normalizeDeliveryMaxKm(settings.delivery_max_km)
+                        if (maxKmSafe !== null && km > maxKmSafe) {
                             setIsAddressValid(false)
-                            const radiusError = `La consegna non è disponibile per questo indirizzo (${km.toFixed(1)} km, massimo ${settings.delivery_max_km} km).`
+                            const radiusError = `La consegna non è disponibile per questo indirizzo (${km.toFixed(1)} km, massimo ${maxKmSafe} km).`
                             setDistanceError(radiusError)
                             updateErrorMessage(radiusError)
                         } else {
@@ -200,7 +244,7 @@ export default function CheckoutForm({ settings }: Props) {
                 try {
                     const geocodeUrl = `/api/geocode?q=${encodeURIComponent(full)}&zip=${encodeURIComponent(addr.cap)}&city=${encodeURIComponent(addr.city)}`
                     const geocodeRes = await fetch(geocodeUrl)
-                    
+
                     let geocodeData: any = null
                     try {
                         const text = await geocodeRes.text()
@@ -229,9 +273,10 @@ export default function CheckoutForm({ settings }: Props) {
                     const km = computeDistanceFromStore(settings, coords)
                     setDistanceKm(km)
                     const validation = validateDelivery(km, settings)
-                    if (km > settings.delivery_max_km) {
+                    const maxKmSafe = normalizeDeliveryMaxKm(settings.delivery_max_km)
+                    if (maxKmSafe !== null && km > maxKmSafe) {
                         setIsAddressValid(false)
-                        const radiusError = `La consegna non è disponibile per questo indirizzo (${km.toFixed(1)} km, massimo ${settings.delivery_max_km} km).`
+                        const radiusError = `La consegna non è disponibile per questo indirizzo (${km.toFixed(1)} km, massimo ${maxKmSafe} km).`
                         setDistanceError(radiusError)
                         updateErrorMessage(radiusError)
                     } else {
@@ -266,11 +311,17 @@ export default function CheckoutForm({ settings }: Props) {
         }, 600) // leggero debounce per digitazione
 
         return () => clearTimeout(handler)
-    }, [addr, settings])
+    }, [addr, settings, canComputeGeo])
 
     // 🔧 Preview del delivery fee (calcolata lato server)
     useEffect(() => {
-        if (!settings.delivery_enabled) return
+        // HARD STOP: checkout disabilitato => niente preview (che potrebbe chiamare geocode lato server)
+        if (!canComputeGeo) {
+            setPreviewDistanceKm(null)
+            setPreviewDeliveryFee(null)
+            setLoadingPreview(false)
+            return
+        }
 
         const capPartial = isCapPartial(addr.cap)
         const capInvalidFull = isCapInvalidFull(addr.cap)
@@ -300,13 +351,22 @@ export default function CheckoutForm({ settings }: Props) {
             return
         }
 
+        // ✅ Non fare preview server finché non c'è numero civico
+        if (!looksLikeFullStreetAddress(addr.line1)) {
+            setPreviewDeliveryFee(null)
+            setPreviewDistanceKm(null)
+            setIsAddressValid(false)
+            setLoadingPreview(false)
+            return
+        }
+
         const handler = setTimeout(async () => {
             setLoadingPreview(true)
-            
+
             // Se capInvalid è false -> pulisci SOLO l'errore CAP se era impostato
             setDistanceError((prev) => (prev === CAP_ERR ? null : prev))
             setErrorMessage((prev) => (prev === CAP_ERR ? null : prev))
-            
+
             try {
                 const res = await fetch('/api/delivery/preview', {
                     method: 'POST',
@@ -326,9 +386,9 @@ export default function CheckoutForm({ settings }: Props) {
                         try {
                             const errorData = JSON.parse(text)
                             const errorText = errorData.error || ''
-                            
+
                             const errorTextLower = errorText.toLowerCase()
-                            
+
                             // Se contiene "fuori dal raggio" mostra solo quello
                             if (errorText.includes("fuori dal raggio") || errorText.includes("non è disponibile")) {
                                 setDistanceError(errorText)
@@ -361,7 +421,7 @@ export default function CheckoutForm({ settings }: Props) {
                 }
 
                 const data = await res.json()
-                
+
                 // Se data.ok === false, gestisci errore e return
                 if (data.ok === false) {
                     setDistanceError(data.error)
@@ -372,7 +432,7 @@ export default function CheckoutForm({ settings }: Props) {
                     setLoadingPreview(false)
                     return
                 }
-                
+
                 setPreviewDeliveryFee(data.delivery_fee ?? null)
                 setPreviewDistanceKm(data.distance_km ?? null)
                 // Se il delivery preview ha successo, resetta errorMessage (ma mantieni errori "fuori raggio" se presenti)
@@ -387,9 +447,14 @@ export default function CheckoutForm({ settings }: Props) {
         }, 600) // debounce per evitare troppe chiamate
 
         return () => clearTimeout(handler)
-    }, [addr.line1, addr.city, addr.cap, settings.delivery_enabled])
+    }, [addr.line1, addr.city, addr.cap, settings.delivery_enabled, canComputeGeo])
 
     useEffect(() => {
+        if (!settings.delivery_enabled) {
+            setLoadingFulfillment(false)
+            setFulfillment(null)
+            return
+        }
         let cancelled = false
         setLoadingFulfillment(true)
         fetch('/api/fulfillment/preview', { cache: 'no-store' })
@@ -415,7 +480,7 @@ export default function CheckoutForm({ settings }: Props) {
                 if (!cancelled) setLoadingFulfillment(false)
             })
         return () => { cancelled = true }
-    }, [])
+    }, [settings.delivery_enabled])
 
     const validation = useMemo(() => {
         // Se la consegna è disabilitata, l'indirizzo è sempre valido (non serve validare distanza)
@@ -455,6 +520,17 @@ export default function CheckoutForm({ settings }: Props) {
         setMsg(null)
         setSaving(true) // 🔹 feedback immediato
 
+        // ============================================================
+        // GUARD: consegna disabilitata → blocca subito (priorità assoluta)
+        // ============================================================
+        if (!settings.delivery_enabled) {
+            setMsg({
+                type: 'error',
+                text: 'Le consegne sono temporaneamente disabilitate.',
+            })
+            setSaving(false)
+            return
+        }
         if (fulfillment?.can_accept === false) {
             setMsg({ type: 'error', text: fulfillment.message || 'Negozio chiuso. Ordini non accettati in questo momento.' })
             setSaving(false)
@@ -511,59 +587,14 @@ export default function CheckoutForm({ settings }: Props) {
             })
 
             if (!res.ok) {
-                const text = await res.text()
-                console.error('❌ API error /api/orders:', text)
-                let data: any = null
-                try { data = JSON.parse(text) } catch { }
-
-                if (res.status === 400 && data?.code === 'PRODUCTS_NOT_FOUND') {
-                    const message =
-                        data?.error ??
-                        'Alcuni prodotti nel carrello non sono più disponibili. Ti riportiamo al catalogo.'
-                    setMsg({ type: 'error', text: `⚠️ ${message}` })
-                    clearCart()
-                    router.push('/')
-                    router.refresh()
-                    setSaving(false)
-                    return
+                let apiMsg = `Errore API (${res.status})`
+                try {
+                    const data = await res.json()
+                    apiMsg = data?.message || data?.error || apiMsg
+                } catch {
+                    // ignore JSON parse errors
                 }
-                if (res.status === 409 && data?.code === 'STORE_CLOSED') {
-                    setMsg({ type: 'error', text: data?.error ?? 'Ordini non accettati in questo momento.' })
-                    setSaving(false)
-                    return
-                }
-                if (res.status === 409 && data?.code === 'PRODUCTS_NOT_AVAILABLE') {
-                    const message = data?.message ?? 'Alcuni prodotti non sono più disponibili. Abbiamo aggiornato il carrello.'
-                    setMsg({ type: 'error', text: `⚠️ ${message}` })
-                    try {
-                        const prodRes = await fetch('/api/products', { cache: 'no-store' })
-                        if (prodRes.ok) {
-                            const { items: products } = await prodRes.json()
-                            reconcileWithProducts(products ?? [])
-                        }
-                    } catch {
-                        /* best-effort */
-                    }
-                    router.refresh()
-                    setSaving(false)
-                    return
-                }
-                if (res.status === 409 && data?.code === 'STOCK_INSUFFICIENT') {
-                    const message = data?.message ?? 'Alcuni prodotti non sono più disponibili. Abbiamo aggiornato il carrello.'
-                    setMsg({ type: 'error', text: `⚠️ ${message}` })
-                    try {
-                        const prodRes = await fetch('/api/products', { cache: 'no-store' })
-                        if (prodRes.ok) {
-                            const { items: products } = await prodRes.json()
-                            reconcileWithProducts(products ?? [])
-                        }
-                    } catch {
-                        /* best-effort */
-                    }
-                    router.refresh()
-                } else {
-                    setMsg({ type: 'error', text: data?.error ?? `Errore API (${res.status})` })
-                }
+                setMsg({ type: 'error', text: apiMsg })
                 setSaving(false)
                 return
             }
@@ -711,11 +742,13 @@ export default function CheckoutForm({ settings }: Props) {
                     <div className="mt-4">
                         <h2 className="text-lg font-semibold mb-1 text-gray-900 dark:text-gray-100">📏 Distanza</h2>
                         <div className="w-full rounded-lg border border-gray-300 dark:border-zinc-800 px-3 py-2 text-sm bg-gray-50 dark:bg-zinc-900 text-gray-900 dark:text-gray-100">
-                            {loadingDistance
-                                ? "Calcolo in corso..."
-                                : distanceKm > 0
-                                    ? `${distanceKm} km`
-                                    : "Inserisci indirizzo per calcolare"}
+                            {!canComputeGeo
+                                ? "Disponibile quando il checkout è attivo"
+                                : loadingDistance
+                                    ? "Calcolo in corso..."
+                                    : distanceKm > 0
+                                        ? `${distanceKm} km`
+                                        : "Inserisci indirizzo per calcolare"}
                         </div>
                         {errorMessage && (
                             <p className="text-xs text-red-600 dark:text-red-400 mt-1">
@@ -802,23 +835,31 @@ export default function CheckoutForm({ settings }: Props) {
                     </div>
                 </div>
 
-                {loadingFulfillment && (
+                {/* ============================================================ */}
+                {/* GUARD UI: consegna disabilitata */}
+                {/* ============================================================ */}
+                {!settings.delivery_enabled && (
+                    <div className="p-3 mb-3 text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-800">
+                        ⚠️ Le consegne sono temporaneamente disabilitate.
+                    </div>
+                )}
+                {settings.delivery_enabled && loadingFulfillment && (
                     <div className="p-3 mb-3 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
                         ⏳ Verifica orari e disponibilità…
                     </div>
                 )}
-                {!loadingFulfillment && fulfillment && fulfillment.can_accept === false && (
+                {settings.delivery_enabled && !loadingFulfillment && fulfillment && fulfillment.can_accept === false && (
                     <div className="p-3 mb-3 text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-800">
                         ⚠️ {fulfillment.message || 'Negozio chiuso. Ordini non accettati in questo momento.'}
                     </div>
                 )}
-                {!loadingFulfillment && fulfillment?.can_accept !== false && fulfillment?.message && (
+                {settings.delivery_enabled && !loadingFulfillment && fulfillment?.can_accept !== false && fulfillment?.message && (
                     <div className="p-3 mb-3 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 rounded-lg border border-amber-200 dark:border-amber-800">
                         ⚠️ {fulfillment.message}
                     </div>
                 )}
 
-                {errorMessage && (
+                {settings.delivery_enabled && errorMessage && (
                     <div className="p-3 mb-3 text-sm text-white bg-red-500 dark:bg-red-600 rounded-lg">
                         {errorMessage}
                     </div>
@@ -827,10 +868,19 @@ export default function CheckoutForm({ settings }: Props) {
                 <button
                     type="button"
                     onClick={confirmOrder}
-                    disabled={saving || !validation.ok || fulfillment?.can_accept === false}
+                    disabled={
+                        saving ||
+                        !validation.ok ||
+                        fulfillment?.can_accept === false ||
+                        !settings.delivery_enabled
+                    }
 
                     className={`w-full rounded-xl font-semibold px-4 py-3 transition 
-    ${validation.ok && addr.firstName && addr.lastName && fulfillment?.can_accept !== false
+    ${validation.ok &&
+                        addr.firstName &&
+                        addr.lastName &&
+                        fulfillment?.can_accept !== false &&
+                        settings.delivery_enabled
                             ? 'bg-green-600 hover:bg-green-700 text-white'
                             : 'bg-gray-300 dark:bg-zinc-700 text-gray-600 dark:text-gray-400 cursor-not-allowed'}`}
                 >

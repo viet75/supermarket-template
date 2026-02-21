@@ -3,6 +3,7 @@ import CheckoutForm from './CheckoutForm'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export default async function CheckoutPage() {
     const settings = await getStoreSettings() // legge da store_settings lato server

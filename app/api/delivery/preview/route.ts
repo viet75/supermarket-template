@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getStoreSettings } from '@/lib/getStoreSettings'
 import { computeDistanceFromStore } from '@/lib/geo'
-import { calculateDeliveryFee } from '@/lib/delivery'
+import { calculateDeliveryFee, normalizeDeliveryMaxKm } from '@/lib/delivery'
 import type { StoreSettings } from '@/lib/types'
 
 export const runtime = 'nodejs'
@@ -94,10 +94,9 @@ export async function POST(req: Request) {
             const baseKm = Number(settingsData.delivery_base_km ?? 0)
             const baseFee = Number(settingsData.delivery_base_fee ?? settings.delivery_fee_base ?? 0)
             const extraFeePerKm = Number(settingsData.delivery_extra_fee_per_km ?? settings.delivery_fee_per_km ?? 0)
-            const maxKm = Number(settings.delivery_max_km ?? 0)
+            const maxKmSafe = normalizeDeliveryMaxKm(settings.delivery_max_km)
 
-            // Validazione raggio massimo
-            if (distanceKm > maxKm) {
+            if (maxKmSafe !== null && distanceKm > maxKmSafe) {
                 return NextResponse.json({ error: '⚠️ Indirizzo fuori dal raggio di consegna' }, { status: 400 })
             }
 
@@ -107,7 +106,7 @@ export async function POST(req: Request) {
                     baseKm,
                     baseFee,
                     extraFeePerKm,
-                    maxKm,
+                    maxKm: maxKmSafe,
                 })
             } catch (error: any) {
                 return NextResponse.json({ error: error.message || 'Errore calcolo delivery fee' }, { status: 400 })

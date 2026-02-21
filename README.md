@@ -333,6 +333,68 @@ Numero: 4242 4242 4242 4242
 Scadenza: qualsiasi futura
 CVC: qualsiasi
 
+🔧 Prima configurazione consegna (OBBLIGATORIO)
+
+Per motivi di sicurezza, la consegna è disabilitata di default dopo una nuova installazione del database.
+
+Questo comportamento evita che il negozio accetti ordini prima di essere configurato.
+
+🛑 Comportamento iniziale previsto
+
+Subito dopo l'installazione:
+
+❌ Checkout bloccato
+
+❌ Pulsante "Conferma ordine" disabilitato
+
+⚠️ Messaggio mostrato al cliente:
+
+Le consegne sono temporaneamente disabilitate
+
+Questo è normale.
+
+✅ Come abilitare la consegna
+
+Vai in:
+
+Admin → Impostazioni consegna
+
+Configura almeno:
+
+Distanza inclusa (km)
+
+Distanza massima (km)
+
+Poi abilita:
+
+☑ Abilita consegna a domicilio
+
+Salva.
+
+La consegna sarà immediatamente attiva.
+
+🛡️ Sicurezza
+
+Questo sistema protegge da:
+
+ordini accidentali dopo installazione
+
+negozio non configurato
+
+clienti fuori zona
+
+🧠 Architettura
+
+Il blocco è implementato su 3 livelli:
+
+UI (CheckoutForm)
+
+API (/api/orders)
+
+Database trigger (guard_orders_delivery_enabled)
+
+Anche in caso di bypass client, l'ordine viene bloccato dal database.
+
 🗂 Supabase Storage
 
 Il bucket product-images viene creato automaticamente da setup.sql.

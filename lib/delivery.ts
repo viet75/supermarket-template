@@ -6,6 +6,13 @@ function round2(n: number) {
     return Math.round(n * 100) / 100
 }
 
+/** null/undefined/NaN/non finito => null; altrimenti numero finito (per delivery_max_km). Illimitato se null. */
+export function normalizeDeliveryMaxKm(value: unknown): number | null {
+    if (value == null || value === '') return null
+    const n = Number(value)
+    return n !== n || !Number.isFinite(n) ? null : n
+}
+
 /**
  * Calcola il costo della consegna in base alla distanza e alle impostazioni del negozio
  * Funzione pura per il calcolo della delivery fee
@@ -21,9 +28,10 @@ export function calculateDeliveryFee({
     baseKm: number
     baseFee: number
     extraFeePerKm: number
-    maxKm: number
+    maxKm: number | null
 }): number {
-    if (distanceKm > maxKm) {
+    const max = normalizeDeliveryMaxKm(maxKm)
+    if (max !== null && distanceKm > max) {
         throw new Error('Fuori zona di consegna')
     }
 
@@ -67,10 +75,12 @@ export function validateDelivery(distanceKm: number, s: StoreSettings): { ok: bo
     if (!s.delivery_enabled) {
         return { ok: false, reason: 'Consegna disabilitata' }
     }
-    if (s.delivery_max_km && (Number(distanceKm) || 0) > s.delivery_max_km) {
+    const km = Math.max(0, Number(distanceKm) || 0)
+    const maxKmSafe = normalizeDeliveryMaxKm((s as any).delivery_max_km)
+    if (maxKmSafe !== null && km > maxKmSafe) {
         return {
             ok: false,
-            reason: `⚠️ L’indirizzo è fuori dal raggio massimo di consegna (${s.delivery_max_km} km)`,
+            reason: `⚠️ L’indirizzo è fuori dal raggio massimo di consegna (${maxKmSafe} km)`,
         }
     }
     return { ok: true }

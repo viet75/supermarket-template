@@ -17,6 +17,7 @@ type Product = {
   image_url?: string | null
   images?: any[] | null
   stock?: number | string | null
+  stock_baseline?: number | string | null
   stock_unit?: number | null
   unit_type?: 'per_unit' | 'per_kg' | null
   slug?: string | null
@@ -51,17 +52,14 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
   }, [p?.image_url, p?.images, (p as any)?.image])
 
   const stockNum = toDisplayStock(p as any)
-  const stockColorClass = useMemo(() => {
-    if (stockNum === null) return 'text-gray-500 dark:text-gray-400'
-    if (stockNum === 0) return 'text-red-600 dark:text-red-400'
-    if (stockNum <= 3) return 'text-orange-600 dark:text-orange-400'
-    if (stockNum <= 10) return 'text-yellow-600 dark:text-yellow-400'
-    return 'text-green-600 dark:text-green-400'
-  }, [stockNum])
   const isUnlimited = stockNum === null
   const outOfStock = !isUnlimited && stockNum === 0
 
-  const productKey = p.slug?.trim() ? p.slug.trim() : String(p.id)
+  // Usa sempre slug se presente e non vuoto, altrimenti id
+  const productKey = useMemo(() => {
+    const slug = p.slug?.trim()
+    return slug && slug.length > 0 ? slug : String(p.id)
+  }, [p.slug, p.id])
   const href = useMemo(() => `/product/${encodeURIComponent(productKey)}`, [productKey])
   const goToDetail = useCallback(() => {
     vtNavigate(() => router.push(href))
@@ -75,7 +73,7 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
       tabIndex={0}
       className="
         rounded-2xl border border-gray-200 dark:border-zinc-800
-        bg-white dark:bg-zinc-900 p-3 shadow-sm relative
+        bg-white dark:bg-zinc-900 p-2 sm:p-3 shadow-sm relative
         transition-transform hover:scale-[1.02] hover:shadow-md
         flex flex-col cursor-pointer
       "
@@ -145,7 +143,17 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
             )}
           </div>
 
-          <StockIndicator product={p as any} className="mt-2" stockTextClassName={stockColorClass} />
+          <StockIndicator
+            product={p as any}
+            className="mt-2"
+            stockBaseline={
+              p.stock_baseline == null
+                ? null
+                : typeof p.stock_baseline === 'number'
+                  ? p.stock_baseline
+                  : Number(p.stock_baseline) || null
+            }
+          />
 
           {/* CTA SEMPRE IN FONDO */}
           <div className="mt-auto pt-3">

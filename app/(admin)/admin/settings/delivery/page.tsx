@@ -245,6 +245,14 @@ export default function DeliverySettingsPage() {
         <span>Abilita consegna a domicilio</span>
       </label>
 
+      {!settings.delivery_enabled && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-3 text-sm text-amber-800 dark:text-amber-200">
+          La consegna a domicilio è disabilitata. I clienti non possono completare il checkout.
+          <br />
+          Per accettare ordini: abilita la consegna e configura almeno <b>distanza inclusa (km)</b> e <b>distanza massima (km)</b>.
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4">
         <div>
           <label className="block text-sm mb-1">Distanza inclusa (km)</label>

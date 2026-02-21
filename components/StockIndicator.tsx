@@ -6,39 +6,54 @@ import { toDisplayStock, getUnitLabel } from '@/lib/stock'
 type Props = {
   product: {
     stock?: number | string | null
+    stock_baseline?: number | string | null
     stock_unlimited?: boolean | null
     unit_type?: 'per_unit' | 'per_kg' | null
   } & Record<string, any>
   className?: string
-  // massimo stock "di riferimento" per la barra; se non passato usa una euristica
-  maxForBar?: number
+  stockBaseline?: number | null
   /** classe colore testo stock (es. da ProductCard: verde/giallo/arancione/rosso) */
   stockTextClassName?: string
 }
 
-export default function StockIndicator({ product, className, maxForBar, stockTextClassName }: Props) {
+export default function StockIndicator({ product, className, stockBaseline, stockTextClassName }: Props) {
   const stockNum = toDisplayStock(product as any) // null = illimitato
   const isUnlimited = stockNum === null
   const outOfStock = !isUnlimited && stockNum === 0
 
   const unitLabel = getUnitLabel(product as any)
 
-  // euristica barra: se maxForBar non passato, usa 20 (kg) o 30 (unit) come "scala"
-  const computedMax = useMemo(() => {
-    if (typeof maxForBar === 'number' && maxForBar > 0) return maxForBar
-    return product?.unit_type === 'per_kg' ? 20 : 30
-  }, [maxForBar, product?.unit_type])
+  // Estrai stockBaseline dalla prop o da product.stock_baseline (retrocompatibilità)
+  const baseline = useMemo(() => {
+    if (stockBaseline !== undefined) return stockBaseline
+    const v = (product as any)?.stock_baseline
+    if (v === null || v === undefined) return null
+    const n = Number(v)
+    return Number.isFinite(n) && n > 0 ? n : null
+  }, [stockBaseline, product])
 
-  const pct = useMemo(() => {
+  // Calcola percentuale SOLO rispetto a stockBaseline
+  const percent = useMemo(() => {
     if (isUnlimited) return 100
-    const v = Math.max(0, Math.min(1, (stockNum ?? 0) / computedMax))
-    return Math.round(v * 100)
-  }, [isUnlimited, stockNum, computedMax])
+    if (baseline !== null && baseline > 0) {
+      const v = Math.max(0, Math.min(1, (stockNum ?? 0) / baseline))
+      return Math.round(v * 100)
+    }
+    return 0
+  }, [isUnlimited, stockNum, baseline])
+
+  // Colore basato SOLO su percent (coerente con la barra)
+  const colorClass = useMemo(() => {
+    if (isUnlimited) return 'text-green-600 dark:text-green-400'
+    if (percent >= 60) return 'text-green-600 dark:text-green-400'
+    if (percent >= 30) return 'text-orange-500 dark:text-orange-400'
+    return 'text-red-600 dark:text-red-400'
+  }, [isUnlimited, percent])
 
   return (
     <div className={className ?? ''}>
       {/* TESTO STOCK */}
-      <div className={`text-xs font-medium ${stockTextClassName ?? 'text-gray-500 dark:text-gray-400'}`}>
+      <div className={`text-xs font-medium ${stockTextClassName ?? colorClass}`}>
         {isUnlimited ? (
           <span>Disponibilità: illimitata</span>
         ) : outOfStock ? (
@@ -55,7 +70,7 @@ export default function StockIndicator({ product, className, maxForBar, stockTex
             'h-full rounded-full transition-[width] duration-300',
             outOfStock ? 'bg-red-500' : 'bg-green-600',
           ].join(' ')}
-          style={{ width: `${pct}%` }}
+          style={{ width: `${percent}%` }}
           aria-hidden
         />
       </div>

@@ -22,6 +22,9 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        // Rimuovi stock_baseline se presente: deve essere gestito SOLO dal trigger DB
+        delete body.stock_baseline
+
         const { data, error } = await supabase
             .from('products')
             .insert([body])
@@ -72,6 +75,9 @@ export async function PATCH(req: NextRequest) {
                 payload.stock = normalizedStock
             }
         }
+
+        // Rimuovi stock_baseline se presente: deve essere gestito SOLO dal trigger DB
+        delete payload.stock_baseline
 
         const { data, error } = await supabase
             .from('products')

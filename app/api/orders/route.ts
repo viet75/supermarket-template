@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseServiceRole } from '@/lib/supabaseService'
 import type { OrderPayload, StoreSettings, PaymentMethod } from '@/lib/types'
 import { geocodeAddress, computeDistanceFromStore } from '@/lib/geo'
-import { calculateDeliveryFee } from '@/lib/delivery'
+import { calculateDeliveryFee, normalizeDeliveryMaxKm } from '@/lib/delivery'
 import { reserveOrderStock } from '@/lib/reserveOrderStock'
 import { release_order_stock } from '@/lib/releaseOrderStock'
 import { getStripe } from '@/lib/stripe'
@@ -153,6 +153,14 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Impossibile caricare le impostazioni del negozio' }, { status: 500 })
         }
 
+        const deliveryEnabled = settings.delivery_enabled
+        if (deliveryEnabled !== true) {
+            return NextResponse.json(
+                { code: 'DELIVERY_DISABLED', message: 'Le consegne sono temporaneamente disabilitate' },
+                { status: 409 }
+            )
+        }
+
         // Validazione evasione: orari, cutoff, chiusure (stessa RPC usata dalla UI)
         const { data: fpData, error: fpErr } = await supabaseServiceRole.rpc('get_fulfillment_preview')
         const fp = (Array.isArray(fpData) ? fpData[0] : fpData) as { can_accept?: boolean; message?: string; next_fulfillment_date?: string | null } | null
@@ -233,10 +241,9 @@ export async function POST(req: Request) {
             const baseKm = Number(settingsData.delivery_base_km ?? 0)
             const baseFee = Number(settingsData.delivery_base_fee ?? settings.delivery_fee_base ?? 0)
             const extraFeePerKm = Number(settingsData.delivery_extra_fee_per_km ?? settings.delivery_fee_per_km ?? 0)
-            const maxKm = Number(settings.delivery_max_km ?? 0)
+            const maxKmSafe = normalizeDeliveryMaxKm(settings.delivery_max_km)
 
-            // Validazione raggio massimo (già gestita da calculateDeliveryFee, ma facciamo un check preventivo)
-            if (distanceKm > maxKm) {
+            if (maxKmSafe !== null && distanceKm > maxKmSafe) {
                 return NextResponse.json({ error: '⚠️ Indirizzo fuori dal raggio di consegna' }, { status: 400 })
             }
 
@@ -246,7 +253,7 @@ export async function POST(req: Request) {
                     baseKm,
                     baseFee,
                     extraFeePerKm,
-                    maxKm,
+                    maxKm: maxKmSafe,
                 })
             } catch (error: any) {
                 return NextResponse.json({ error: error.message || 'Errore calcolo delivery fee' }, { status: 400 })

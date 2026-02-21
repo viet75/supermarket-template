@@ -40,3 +40,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env*.local
+
+# secrets
+env_supermarket-template.txt
+.env
+.env.*
