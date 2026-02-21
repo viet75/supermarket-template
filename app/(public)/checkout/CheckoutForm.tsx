@@ -656,30 +656,6 @@ export default function CheckoutForm({ settings }: Props) {
                     </div>
                 )}
 
-                <div className="md:hidden">
-                    {/* Banner fulfillment in alto (mobile: visibile senza scroll) */}
-                    {!settings.delivery_enabled && (
-                        <div className="p-3 mb-3 text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-800">
-                            ⚠️ Le consegne sono temporaneamente disabilitate.
-                        </div>
-                    )}
-                    {settings.delivery_enabled && loadingFulfillment && (
-                        <div className="p-3 mb-3 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
-                            ⏳ Verifica orari e disponibilità…
-                        </div>
-                    )}
-                    {settings.delivery_enabled && !loadingFulfillment && fulfillment && fulfillment.can_accept === false && (
-                        <div className="p-3 mb-3 text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-800">
-                            ⚠️ {fulfillment.message || 'Negozio chiuso. Ordini non accettati in questo momento.'}
-                        </div>
-                    )}
-                    {settings.delivery_enabled && !loadingFulfillment && fulfillment?.can_accept !== false && fulfillment?.message && (
-                        <div className="p-3 mb-3 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 rounded-lg border border-amber-200 dark:border-amber-800">
-                            ⚠️ {fulfillment.message}
-                        </div>
-                    )}
-                </div>
-
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">📍 Dati cliente</h2>
                 <div className="grid gap-4">
                     <div>

@@ -2722,9 +2722,9 @@ after_cutoff := (t >= cutoff_t);
     end loop;
 
     if coalesce(s.preparation_days, 0) = 0 then
-      msg := 'Il tuo ordine sarà evaso oggi.';
+      msg := 'Il tuo ordine sarà consegnato in giornata.';
     else
-      msg := 'Il tuo ordine sarà evaso il ' || to_char(next_date, 'DD/MM/YYYY') || '.';
+      msg := 'Il tuo ordine sarà consegnato il ' || to_char(next_date, 'DD/MM/YYYY') || '.';
     end if;
 
     return jsonb_build_object(
@@ -2742,7 +2742,7 @@ after_cutoff := (t >= cutoff_t);
 
     -- Se c'è una fascia futura oggi e NON ci sono giorni preparazione -> evaso oggi dalla prossima fascia
     if coalesce(s.preparation_days, 0) = 0 and has_future_slot_today and next_slot_start is not null then
-      msg := 'Negozio chiuso. Il tuo ordine sarà evaso oggi (dalle ' || to_char(next_slot_start, 'HH24:MI') || ').';
+      msg := 'Negozio chiuso. Il tuo ordine sarà consegnato oggi a partire (dalle ' || to_char(next_slot_start, 'HH24:MI') || ').';
 
       return jsonb_build_object(
         'ok', true,
@@ -2775,12 +2775,12 @@ after_cutoff := (t >= cutoff_t);
 
     -- Messaggio: con preparation_days > 0 non dire "negozio chiuso"
     if coalesce(s.preparation_days, 0) > 0 then
-      msg := 'Il tuo ordine sarà evaso il ' || to_char(next_date, 'DD/MM/YYYY') || '.';
+      msg := 'Il tuo ordine sarà consegnato il ' || to_char(next_date, 'DD/MM/YYYY') || '.';
     else
       if after_cutoff then
-        msg := 'Orario limite superato. Il tuo ordine sarà evaso il ' || to_char(next_date, 'DD/MM/YYYY') || '.';
+        msg := 'Il tuo ordine sarà consegnato il ' || to_char(next_date, 'DD/MM/YYYY') || '.';
       else
-        msg := 'Negozio chiuso. Il tuo ordine sarà evaso il ' || to_char(next_date, 'DD/MM/YYYY') || '.';
+        msg := 'Negozio chiuso. Il tuo ordine sarà consegnato il ' || to_char(next_date, 'DD/MM/YYYY') || '.';
       end if;
     end if;
 
