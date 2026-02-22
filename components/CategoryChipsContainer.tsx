@@ -84,6 +84,11 @@ export default function CategoryChipsContainer({
           'absolute inset-0 transform-gpu will-change-transform',
           'transition-[transform,opacity] duration-300 ease-in-out',
           '[-webkit-backface-visibility:hidden] [backface-visibility:hidden]',
+          'z-20 bg-white/85 dark:bg-gray-950/75 ' +
+          'supports-[backdrop-filter]:bg-white/70 supports-[backdrop-filter]:dark:bg-gray-950/55 ' +
+          'supports-[backdrop-filter]:backdrop-blur-lg ' +
+          'border-b border-black/10 dark:border-white/10 ' +
+          'shadow-[0_1px_10px_rgba(0,0,0,0.06)]',
           show ? 'translate-y-0 opacity-100' : '-translate-y-3 opacity-0 pointer-events-none',
         ].join(' ')}
       >
