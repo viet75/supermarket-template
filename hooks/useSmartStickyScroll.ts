@@ -63,6 +63,10 @@ export function useSmartStickyScroll<T extends HTMLElement>(
         if (Math.abs(dy) < minDeltaPx) return
 
         accRef.current += dy
+        // reset accumulatore quando cambia direzione (animazione più morbida)
+        if ((dy > 0 && accRef.current < 0) || (dy < 0 && accRef.current > 0)) {
+          accRef.current = dy
+        }
 
         const now = Date.now()
         const canToggle = now - lastToggleTsRef.current >= cooldownMs

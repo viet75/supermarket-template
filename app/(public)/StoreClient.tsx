@@ -93,11 +93,13 @@ export default function StoreClient({
         </div>
 
         {/* Categorie (montate solo quando visibili: zero fascia residua) */}
-        {showCategories && (
-          <div className="px-4 pb-2">
-            <CategoryChipsContainer activeId={activeCategory} onChange={setActiveCategory} show />
-          </div>
-        )}
+        <div className="px-4 pb-2">
+          <CategoryChipsContainer
+            activeId={activeCategory}
+            onChange={setActiveCategory}
+            show={showCategories}
+          />
+        </div>
       </div>
 
 

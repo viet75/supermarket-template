@@ -26,7 +26,11 @@ export default function PublicScrollShell({
   }, [])
 
   return (
-    <div ref={ref} id="public-scroll-container" className="h-dvh overflow-y-auto overscroll-contain">
+    <div
+  ref={ref}
+  id="public-scroll-container"
+  className="h-dvh overflow-y-auto overscroll-contain [overflow-anchor:none]"
+>
       {header}
       {children}
       {footer}

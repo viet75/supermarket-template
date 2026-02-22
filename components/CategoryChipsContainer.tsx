@@ -74,11 +74,21 @@ export default function CategoryChipsContainer({
   return (
     <div
       className={[
-        'transition-[transform,opacity] duration-200 ease-out will-change-transform',
-        show ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none',
+        'relative overflow-hidden [overflow-anchor:none]',
+        'transition-[height] duration-300 ease-in-out',
+        show ? 'h-11' : 'h-0',
       ].join(' ')}
     >
-      <CategoryChips categories={categories} activeId={activeId} onChange={onChange} />
+      <div
+        className={[
+          'absolute inset-0 transform-gpu will-change-transform',
+          'transition-[transform,opacity] duration-300 ease-in-out',
+          '[-webkit-backface-visibility:hidden] [backface-visibility:hidden]',
+          show ? 'translate-y-0 opacity-100' : '-translate-y-3 opacity-0 pointer-events-none',
+        ].join(' ')}
+      >
+        <CategoryChips categories={categories} activeId={activeId} onChange={onChange} />
+      </div>
     </div>
   )
 }
