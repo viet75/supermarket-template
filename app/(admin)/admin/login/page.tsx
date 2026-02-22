@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, Suspense } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { supabaseClient } from '@/lib/supabaseClient'
 
@@ -79,7 +80,20 @@ export default function LoginPage() {
                          bg-gray-100 dark:bg-gray-950 
                          text-gray-900 dark:text-gray-100">
             <Suspense fallback={<div>Loading…</div>}>
-                <LoginForm />
+                <div className="w-full max-w-sm">
+                    <Link
+                        href="/"
+                        className="inline-flex items-center gap-2 mb-3 text-sm font-medium
+                                   text-gray-700 dark:text-gray-200 hover:text-green-600 dark:hover:text-green-400
+                                   transition-colors"
+                        aria-label="Torna al negozio"
+                    >
+                        <span aria-hidden>←</span>
+                        Torna al negozio
+                    </Link>
+
+                    <LoginForm />
+                </div>
             </Suspense>
         </main>
     )

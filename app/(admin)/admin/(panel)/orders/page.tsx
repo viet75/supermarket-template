@@ -122,7 +122,7 @@ function OrderDrawer({ order, onClose }: OrderDrawerProps) {
 }
 function PaymentBadge({ status, payment_method }: { status: 'pending' | 'paid' | 'failed' | 'refunded' | null | undefined, payment_method?: string }) {
     const normalizedStatus = status || 'pending'
-    
+
     // Logica per determinare badge e stile
     let badgeStyle: string
     let badgeLabel: string
@@ -150,7 +150,7 @@ function PaymentBadge({ status, payment_method }: { status: 'pending' | 'paid' |
     }
 
     return (
-        <span 
+        <span
             className={`px-2 py-1 rounded text-xs font-medium ${badgeStyle}`}
             title={tooltip}
         >
@@ -241,7 +241,7 @@ function SyncedHorizontalScroll({ children }: { children: React.ReactNode }) {
         const bottomEl = bottomScrollRef.current
         const topEl = topScrollRef.current
         const topSpacerEl = topSpacerRef.current
-        
+
         if (!bottomEl) return
 
         // Funzione per aggiornare lo spacer
@@ -491,8 +491,8 @@ export default function OrdersAdminPage() {
                 } catch {
                     errorData = {}
                 }
-                const errorMessage = (typeof errorData === 'object' && errorData !== null && 'error' in errorData && typeof errorData.error === 'string') 
-                    ? errorData.error 
+                const errorMessage = (typeof errorData === 'object' && errorData !== null && 'error' in errorData && typeof errorData.error === 'string')
+                    ? errorData.error
                     : 'Errore durante l\'aggiornamento dello stato'
                 alert(errorMessage)
             }
@@ -541,8 +541,8 @@ export default function OrdersAdminPage() {
                 } catch {
                     errorData = {}
                 }
-                const errorMessage = (typeof errorData === 'object' && errorData !== null && 'error' in errorData && typeof errorData.error === 'string') 
-                    ? errorData.error 
+                const errorMessage = (typeof errorData === 'object' && errorData !== null && 'error' in errorData && typeof errorData.error === 'string')
+                    ? errorData.error
                     : 'Errore durante l\'aggiornamento del pagamento'
                 alert(errorMessage)
             }
