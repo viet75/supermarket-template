@@ -80,48 +80,76 @@ export default function CategoryChips({ categories, activeId, onChange }: Props)
   }, [categories.length])
 
   return (
-    <div className="relative">
-      {/* Fade sinistra */}
-      {fadeLeft && (
-        <div
-          className="
-            pointer-events-none absolute left-0 top-0 bottom-0 w-8 z-10
-            bg-gradient-to-r from-white to-transparent
-            dark:from-gray-950
-          "
-          aria-hidden
-        />
-      )}
+    <div className="relative flex items-center gap-2 pb-1">
+      {/* PINNED: non dentro lo scroller */}
+      <button
+        onClick={() => onChange(null)}
+        className={[base, activeId === null ? active : inactive].join(' ')}
+      >
+        <span className="inline-flex items-center gap-2">
+          {activeId !== null && (
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="block"
+              aria-hidden
+            >
+              <path
+                d="M15 18l-6-6 6-6"
+                stroke="currentColor"
+                strokeWidth="2.25"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
+          <span>Tutti</span>
+        </span>
+      </button>
 
-      {/* Fade destra */}
-      {fadeRight && (
-        <div
-          className="
-            pointer-events-none absolute right-0 top-0 bottom-0 w-8 z-10
-            bg-gradient-to-l from-white to-transparent
-            dark:from-gray-950
-          "
-          aria-hidden
-        />
-      )}
+      {/* SCROLL AREA: solo categorie + fade confinati qui */}
+      <div className="relative flex-1 min-w-0">
+        {/* Fade sinistra (solo area scrollabile) */}
+        {fadeLeft && (
+          <div
+            className="
+              pointer-events-none absolute left-0 top-0 bottom-0 w-8 z-10
+              bg-gradient-to-r from-white to-transparent
+              dark:from-gray-950
+            "
+            aria-hidden
+          />
+        )}
 
-      <div ref={scrollerRef} className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-        <button
-          onClick={() => onChange(null)}
-          className={[base, activeId === null ? active : inactive].join(' ')}
+        {/* Fade destra (solo area scrollabile) */}
+        {fadeRight && (
+          <div
+            className="
+              pointer-events-none absolute right-0 top-0 bottom-0 w-8 z-10
+              bg-gradient-to-l from-white to-transparent
+              dark:from-gray-950
+            "
+            aria-hidden
+          />
+        )}
+
+        <div
+          ref={scrollerRef}
+          className="flex gap-2 overflow-x-auto no-scrollbar"
         >
-          Tutti
-        </button>
-
-        {categories.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => onChange(c.id)}
-            className={[base, activeId === c.id ? active : inactive].join(' ')}
-          >
-            {c.name}
-          </button>
-        ))}
+          {categories.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => onChange(c.id)}
+              className={[base, activeId === c.id ? active : inactive].join(' ')}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   )
