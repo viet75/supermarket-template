@@ -14,6 +14,8 @@ export default function Header() {
   const badgeCount = items.length
 
   const [openMenu, setOpenMenu] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [isAuthed, setIsAuthed] = useState(false)
 
   const menuRef = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -21,6 +23,33 @@ export default function Header() {
 
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
+
+  // Admin = autenticato + email coincide con NEXT_PUBLIC_ADMIN_EMAIL (se definita)
+  useEffect(() => {
+    const supabase = supabaseClient()
+    const adminEmail = typeof process.env.NEXT_PUBLIC_ADMIN_EMAIL === 'string'
+      ? process.env.NEXT_PUBLIC_ADMIN_EMAIL.trim()
+      : ''
+
+    const updateAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      const authed = !!session?.user
+      setIsAuthed(authed)
+      if (!adminEmail) {
+        setIsAdmin(false)
+        return
+      }
+      const email = (session?.user?.email ?? '').trim().toLowerCase()
+      const allowed = adminEmail.trim().toLowerCase()
+      setIsAdmin(authed && email === allowed)
+    }
+
+    updateAuth()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      updateAuth()
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   useEffect(() => {
     const el = headerRef.current
@@ -102,8 +131,6 @@ export default function Header() {
     router.refresh()
   }
 
-  const isAdmin = true
-
   // contenuto dropdown
   const dropdown = (
     <AnimatePresence>
@@ -122,7 +149,7 @@ export default function Header() {
           className="z-[999999] w-56 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg"
           role="menu"
         >
-          {isAdmin && (
+          {isAdmin ? (
             <>
               <Link
                 href="/admin/products"
@@ -175,6 +202,31 @@ export default function Header() {
                 <span aria-hidden>🚪</span>
                 Logout
               </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/admin"
+                className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={() => setOpenMenu(false)}
+                role="menuitem"
+              >
+                Accedi
+              </Link>
+              {isAuthed && (
+                <>
+                  <div className="border-t border-gray-200 dark:border-gray-600 my-1" />
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 cursor-pointer rounded-b-xl"
+                    role="menuitem"
+                  >
+                    <span aria-hidden>🚪</span>
+                    Logout
+                  </button>
+                </>
+              )}
             </>
           )}
         </motion.div>
