@@ -50,6 +50,11 @@ export default function StockIndicator({ product, className, stockBaseline, stoc
     return 'text-red-600 dark:text-red-400'
   }, [isUnlimited, percent])
 
+  const formatKg = (n: number) => {
+    const s = (Math.round((n + Number.EPSILON) * 1000) / 1000).toFixed(3)
+    return s.replace(/\.?0+$/, '')
+  }
+
   return (
     <div className={className ?? ''}>
       {/* TESTO STOCK */}
@@ -59,7 +64,7 @@ export default function StockIndicator({ product, className, stockBaseline, stoc
         ) : outOfStock ? (
           <span>Disponibili: 0 {unitLabel}</span>
         ) : (
-          <span>Disponibili: {stockNum} {unitLabel}</span>
+          <span>Disponibili: {product.unit_type === 'per_kg' && typeof stockNum === 'number' ? formatKg(stockNum) : stockNum} {unitLabel}</span>
         )}
       </div>
 

@@ -9,10 +9,12 @@ import { validateDelivery, allowedPaymentMethods, normalizeDeliveryMaxKm } from 
 import { geocodeAddress, computeDistanceFromStore } from '@/lib/geo'
 import { useCartStore } from '@/stores/cartStore'
 import { formatPrice } from '@/lib/pricing'
+import { formatQty } from '@/lib/qty'
 
 type Props = { settings: StoreSettings }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
+const round3 = (n: number) => Math.round((n + Number.EPSILON) * 1000) / 1000
 
 // Mappa dei metodi di pagamento per rendering dinamico
 const PAYMENT_METHOD_CONFIG: Record<PaymentMethod, { icon: string; label: string }> = {
@@ -568,7 +570,8 @@ export default function CheckoutForm({ settings }: Props) {
                 id: it.id,
                 name: it.name,
                 price: Number(it.price),
-                qty: Number(it.qty) || 0,
+                qty: it.unit === 'per_kg' ? round3(Number(it.qty) || 0) : Math.round(Number(it.qty) || 0),
+                unit: it.unit,
             })) as OrderItem[],
             subtotal,
             delivery_fee: 0, // Ignorato dal backend, calcolato lato server
@@ -794,7 +797,7 @@ export default function CheckoutForm({ settings }: Props) {
                 <ul className="divide-y divide-gray-200 dark:divide-zinc-800 text-sm">
                     {items.map((it: any) => (
                         <li key={it.id} className="flex justify-between py-2 text-gray-900 dark:text-gray-100">
-                            <span>{it.name} × {it.qty}</span>
+                            <span>{it.name} × {formatQty(Number(it.qty), it.unit ?? 'per_unit', it.qty_step)}</span>
                             <span>{formatPrice(Number(it.price) * it.qty)}</span>
                         </li>
                     ))}

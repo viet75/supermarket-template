@@ -50,7 +50,7 @@ export function normalizeStock(unitType: 'per_unit' | 'per_kg' | null | undefine
 
     if (unitType === 'per_kg') {
         // per_kg: arrotonda a 3 decimali massimo (kg reali)
-        return Math.round(stock * 1000) / 1000
+        return Math.round((stock + Number.EPSILON) * 1000) / 1000
     } else {
         // per_unit: tronca a intero
         return Math.trunc(stock)

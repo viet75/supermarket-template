@@ -2,6 +2,7 @@
 
 import { useCartStore } from '@/stores/cartStore'
 import { formatPrice } from '@/lib/pricing'
+import { formatQty } from '@/lib/qty'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -47,7 +48,7 @@ export default function CartPage() {
                                 <div>
                                     <h2 className="font-semibold">{i.name}</h2>
                                     <p className="text-sm text-gray-500">
-                                        {i.unit === 'per_kg' ? `${i.qty} kg` : `x${i.qty}`}
+                                        {formatQty(Number(i.qty), i.unit ?? 'per_unit', i.qty_step)}
                                     </p>
                                     <p className="text-sm font-medium text-gray-700">
                                         {formatPrice((i.salePrice && i.salePrice < i.price ? i.salePrice : i.price) * i.qty)}

@@ -13,6 +13,9 @@ export type ProductForCart = {
   stock?: number | string | null
   stock_unit?: number | null
   unit_type?: 'per_unit' | 'per_kg' | null
+
+  // NEW (UI-only): dynamic increment step
+  qty_step?: number | string | null
 }
 
 type Props = {
@@ -29,14 +32,39 @@ export default function AddToCartControls({ p, img, onAdded }: Props) {
     return it ? it.qty : 0
   })
 
+  // Keep calculations stable for numeric(10,3) quantities (kg, etc.)
+  const round3 = (n: number) => Math.round((n + Number.EPSILON) * 1000) / 1000
+
+  // Derive decimals for display from step (e.g. 0.1 => 1, 0.25 => 2)
+  const getDecimalsFromStep = (s: number) => {
+    const t = String(s)
+    const i = t.indexOf('.')
+    return i >= 0 ? Math.min(3, t.length - i - 1) : 0
+  }
+
   const stockNum = toDisplayStock(p as any)
   const isUnlimited = stockNum === null
   const outOfStock = !isUnlimited && stockNum === 0
-  const atLimit = !isUnlimited && !outOfStock && qtyInCart >= (stockNum ?? 0)
-  const step = p.unit_type === 'per_kg' ? 0.5 : 1
+
+  // Step: prefer DB-provided qty_step (UI-only), else fallback
+  const stepRaw = (p as any).qty_step
+  const stepNum = stepRaw == null ? null : Number(String(stepRaw).replace(',', '.'))
+  const step =
+    Number.isFinite(stepNum) && (stepNum as number) > 0
+      ? (stepNum as number)
+      : (p.unit_type === 'per_kg' ? 0.1 : 1)
+
+  // Prevent exceeding stock with fractional steps (and avoid floating glitches)
+  const atLimit =
+    !isUnlimited &&
+    !outOfStock &&
+    typeof stockNum === 'number' &&
+    round3(qtyInCart + step) > round3(stockNum)
 
   const handleAdd = useCallback(() => {
     if (outOfStock) return
+    if (atLimit) return
+
     addItem({
       id: String(p.id),
       name: p.name,
@@ -45,9 +73,11 @@ export default function AddToCartControls({ p, img, onAdded }: Props) {
       qty: step,
       maxStock: stockNum,
       unit: (p.unit_type as 'per_unit' | 'per_kg') ?? 'per_unit',
+      // ✅ store the resolved numeric step (never NaN, never comma issues)
+      qty_step: step,
     })
     onAdded?.(p.name)
-  }, [addItem, p, step, img, stockNum, outOfStock, onAdded])
+  }, [addItem, p, step, img, stockNum, outOfStock, atLimit, onAdded])
 
   const handleRemove = useCallback(() => {
     removeItem(String(p.id), step)
@@ -59,6 +89,8 @@ export default function AddToCartControls({ p, img, onAdded }: Props) {
   }
 
   if (qtyInCart > 0) {
+    const decimals = p.unit_type === 'per_kg' ? getDecimalsFromStep(step) : 0
+
     return (
       <div className="flex items-center justify-between rounded-xl border border-gray-200 dark:border-zinc-800 p-1 bg-gray-50 dark:bg-zinc-900">
         <button
@@ -75,11 +107,14 @@ export default function AddToCartControls({ p, img, onAdded }: Props) {
         </button>
 
         <div className="min-w-[3rem] text-center text-sm font-medium text-gray-900 dark:text-gray-100">
-          {p.unit_type === 'per_kg' ? qtyInCart.toFixed(1) : qtyInCart}
+          {p.unit_type === 'per_kg' ? qtyInCart.toFixed(decimals) : qtyInCart}
           {!isUnlimited && typeof stockNum === 'number' ? (
             <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
               / {stockNum} {getUnitLabel(p as any)}
             </span>
+          ) : null}
+          {p.unit_type === 'per_kg' && step !== 0.1 ? (
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Incrementi di {step} kg</div>
           ) : null}
         </div>
 

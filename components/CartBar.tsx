@@ -18,7 +18,7 @@ export default function CartBar({ onCheckout }: CartBarProps) {
 
     if (!mounted) return null // Evita errori di hydration
 
-    const count = items.reduce((acc, it) => acc + it.qty, 0)
+    const count = items.length
     const total = items.reduce((acc, it) => {
         const price =
             it.salePrice && it.salePrice < it.price ? it.salePrice : it.price

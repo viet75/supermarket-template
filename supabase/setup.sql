@@ -2905,6 +2905,124 @@ return jsonb_build_object(
 end;
 $$;
 
+-- =====================================================
+-- PRODUCTS: qty_step (UI-only increment step)
+-- =====================================================
+
+-- 1) Colonna (idempotente)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name   = 'products'
+      AND column_name  = 'qty_step'
+  ) THEN
+    ALTER TABLE public.products
+      ADD COLUMN qty_step numeric(10,3);
+  END IF;
+END $$;
+
+COMMENT ON COLUMN public.products.qty_step
+IS 'UI-only increment step. Stored in kg (0.1 = 1 etto) or unit (1). Does NOT affect stock, checkout, Stripe, or RPC.';
+
+-- 2) Default (safe)
+ALTER TABLE public.products
+  ALTER COLUMN qty_step SET DEFAULT 1;
+
+-- 3) Backfill SOLO dove manca (non sovrascrive custom)
+UPDATE public.products
+SET qty_step = CASE
+  WHEN unit_type = 'per_kg' THEN 0.1
+  ELSE 1
+END
+WHERE qty_step IS NULL;
+
+-- =====================================================
+-- PRODUCTS: qty_step trigger FIX (INSERT + UPDATE)
+-- =====================================================
+
+-- 1) Trigger function (corretta)
+CREATE OR REPLACE FUNCTION public.tg_products_set_qty_step()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  -- Caso 1: prodotto a pezzi → step sempre 1
+  IF NEW.unit_type IS DISTINCT FROM 'per_kg' THEN
+    NEW.qty_step := 1;
+    RETURN NEW;
+  END IF;
+
+  -- Caso 2: prodotto a kg e admin ha impostato manualmente qty_step → non toccare
+  IF NEW.qty_step IS NOT NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- Caso 3: prodotto a kg senza qty_step → default 0.1
+  NEW.qty_step := 0.1;
+
+  RETURN NEW;
+END;
+$$;
+
+
+-- 2) Trigger (FIX: ora anche su UPDATE)
+DROP TRIGGER IF EXISTS trg_products_set_qty_step ON public.products;
+
+CREATE TRIGGER trg_products_set_qty_step
+BEFORE INSERT OR UPDATE OF unit_type, qty_step
+ON public.products
+FOR EACH ROW
+EXECUTE FUNCTION public.tg_products_set_qty_step();
+
+-- =====================================================
+-- PATCH: products.qty_step default + trigger behavior (production-safe)
+-- =====================================================
+
+-- Default coerente: lasciare NULL e far decidere al trigger in base a unit_type.
+ALTER TABLE public.products
+  ALTER COLUMN qty_step DROP DEFAULT;
+
+-- Trigger function: per_unit => 1; per_kg => keep valid; else 0.1
+CREATE OR REPLACE FUNCTION public.tg_products_set_qty_step()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  step_num numeric(10,3);
+BEGIN
+  -- per_unit (o null) => sempre 1
+  IF NEW.unit_type IS DISTINCT FROM 'per_kg' THEN
+    NEW.qty_step := 1;
+    RETURN NEW;
+  END IF;
+
+  -- per_kg: se admin ha inviato uno step valido (>0), non toccare
+  IF NEW.qty_step IS NOT NULL THEN
+    step_num := NEW.qty_step::numeric(10,3);
+    IF step_num > 0 THEN
+      NEW.qty_step := step_num;
+      RETURN NEW;
+    END IF;
+  END IF;
+
+  -- per_kg: step mancante o non valido => 0.1
+  NEW.qty_step := 0.1;
+  RETURN NEW;
+END;
+$$;
+
+-- Recreate trigger (idempotente)
+DROP TRIGGER IF EXISTS trg_products_set_qty_step ON public.products;
+
+CREATE TRIGGER trg_products_set_qty_step
+BEFORE INSERT OR UPDATE OF unit_type, qty_step
+ON public.products
+FOR EACH ROW
+EXECUTE FUNCTION public.tg_products_set_qty_step();
 -- ============================================================
 -- ✅ SETUP COMPLETE
 -- ============================================================
+

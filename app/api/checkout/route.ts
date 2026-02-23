@@ -203,19 +203,26 @@ export async function POST(req: NextRequest) {
     // genera line_items da items del frontend con conversione numerica sicura
     const line_items = items.map((it) => {
       const price = parseFloat(String(it.price).replace(',', '.')) || 0
-      const quantity = parseFloat(String(it.quantity ?? 1).replace(',', '.')) || 1
+      const qRaw = parseFloat(String(it.quantity ?? 1).replace(',', '.'))
+      const quantity = Number.isFinite(qRaw) && qRaw > 0 ? qRaw : 1
 
       // ✅ Stripe accetta solo quantità intere
       // se il prodotto è "per_kg", ingloba la quantità nel prezzo
       if (it.unit === 'per_kg') {
+        const qty3 = Math.round((quantity + Number.EPSILON) * 1000) / 1000
+        const isEttiExact =
+          Number.isInteger(Math.round(qty3 * 10)) &&
+          Math.abs(qty3 * 10 - Math.round(qty3 * 10)) < 1e-9
+        const ettoCount = Math.round(qty3 * 10)
+        const labelQty = isEttiExact ? `${ettoCount} etti` : `${qty3} kg`
         return {
           quantity: 1, // sempre 1 per i prodotti a peso
           price_data: {
             currency: 'eur',
             // prezzo totale (prezzo al kg × quantità in kg)
-            unit_amount: Math.round(price * quantity * 100),
+            unit_amount: Math.round(price * qty3 * 100),
             product_data: {
-              name: `${it.name ?? 'Prodotto'} (${quantity} kg)`,
+              name: `${it.name ?? 'Prodotto'} (${labelQty})`,
               ...(it.image_url ? { images: [it.image_url] } : {}),
             },
           },
@@ -223,13 +230,14 @@ export async function POST(req: NextRequest) {
       }
 
       // ✅ prodotti venduti "a pezzo"
+      const qtyInt = Math.max(1, Math.round(quantity))
       return {
-        quantity: Math.round(quantity),
+        quantity: qtyInt,
         price_data: {
           currency: 'eur',
           unit_amount: Math.round(price * 100),
           product_data: {
-            name: `${it.name ?? 'Prodotto'} (${quantity} pz)`,
+            name: `${it.name ?? 'Prodotto'} (${qtyInt} pz)`,
             ...(it.image_url ? { images: [it.image_url] } : {}),
           },
         },

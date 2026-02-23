@@ -20,6 +20,7 @@ type Product = {
   stock_baseline?: number | string | null
   stock_unit?: number | null
   unit_type?: 'per_unit' | 'per_kg' | null
+  qty_step?: number | string | null
   slug?: string | null
 }
 

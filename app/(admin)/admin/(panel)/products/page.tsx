@@ -106,20 +106,35 @@ export default function ProductsAdminPage() {
         }
     }, [sb])
 
+    // Helper: errore PostgREST quando la colonna qty_step non è ancora in schema cache
+    const isQtyStepSchemaError = (err: any) => {
+        const msg = String(err?.message ?? err?.error_description ?? err ?? '')
+        const code = err?.code
+        return (
+            code === 'PGRST204' ||
+            msg.includes('qty_step') ||
+            msg.includes("Could not find the 'qty_step' column")
+        )
+    }
+
     // Funzione per caricare prodotti
     const loadProducts = useCallback(async () => {
         setLoading(true)
         try {
-            const base = sb
-                .from('products')
-                .select('id, name, description, price, price_sale, image_url, images, category_id, stock, stock_unit, unit_type, is_active, created_at, sort_order, deleted_at')
-                .order('created_at', { ascending: false })
+            const selectWithQtyStep = 'id, name, description, price, price_sale, image_url, images, category_id, stock, stock_unit, unit_type, qty_step, is_active, created_at, sort_order, deleted_at'
+            const selectWithoutQtyStep = 'id, name, description, price, price_sale, image_url, images, category_id, stock, stock_unit, unit_type, is_active, created_at, sort_order, deleted_at'
 
-            const query = showArchived
-                ? base.not('deleted_at', 'is', null) // server-side: solo archiviati
-                : base.is('deleted_at', null)        // server-side: solo attivi
+            let base = sb.from('products').select(selectWithQtyStep).order('created_at', { ascending: false })
+            const query = showArchived ? base.not('deleted_at', 'is', null) : base.is('deleted_at', null)
 
-            const { data, error } = await query
+            let { data, error } = await query
+            if (error && isQtyStepSchemaError(error)) {
+                base = sb.from('products').select(selectWithoutQtyStep).order('created_at', { ascending: false })
+                const retryQuery = showArchived ? base.not('deleted_at', 'is', null) : base.is('deleted_at', null)
+                const retry = await retryQuery
+                data = retry.data
+                error = retry.error
+            }
             if (error) throw error
 
             // doppia cintura: filtro anche client-side nel caso in cui il server filtrasse male
@@ -233,6 +248,7 @@ export default function ProductsAdminPage() {
                     typeof editing?.is_active === 'boolean' ? editing.is_active : true,
                 sort_order: editing?.sort_order ?? 100,
                 unit_type: editing.unit_type,
+                qty_step: editing.unit_type === 'per_kg' ? Number(editing.qty_step ?? 1) : 1,
             }
 
             if (!editing.id) {
@@ -355,6 +371,7 @@ export default function ProductsAdminPage() {
                             is_active: true,
                             sort_order: 100,
                             unit_type: 'per_unit',
+                            qty_step: 1,
                         })
                     }
                     className="flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700"
@@ -530,6 +547,7 @@ export default function ProductsAdminPage() {
                                                             stock: displayStock,
                                                             price: p.price ?? "",
                                                             price_sale: p.price_sale ?? "",
+                                                            qty_step: (p as any).qty_step ?? (p.unit_type === 'per_kg' ? 1 : 1),
                                                         })
                                                     }}
                                                 >
@@ -666,6 +684,7 @@ export default function ProductsAdminPage() {
                                                             stock: displayStock,
                                                             price: p.price ?? "",
                                                             price_sale: p.price_sale ?? "",
+                                                            qty_step: (p as any).qty_step ?? (p.unit_type === 'per_kg' ? 1 : 1),
                                                         })
                                                     }}
                                                 >
@@ -814,11 +833,12 @@ export default function ProductsAdminPage() {
                                     </label>
                                     <select
                                         value={editing?.unit_type || 'per_unit'}
-                                        onChange={(e) =>
+                                        onChange={(e) => {
+                                            const u = e.target.value as 'per_unit' | 'per_kg'
                                             setEditing((prev) =>
-                                                prev ? { ...prev, unit_type: e.target.value as 'per_unit' | 'per_kg' } : prev
+                                                prev ? { ...prev, unit_type: u, qty_step: u === 'per_kg' ? (prev.qty_step ?? 1) : 1 } : prev
                                             )
-                                        }
+                                        }}
                                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm"
                                     >
                                         <option value="per_unit">Pezzo</option>
@@ -826,6 +846,23 @@ export default function ProductsAdminPage() {
                                     </select>
                                 </div>
 
+                                {editing?.unit_type === 'per_kg' && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700">Incremento acquisto</label>
+                                        <select
+                                            value={editing.qty_step ?? 1}
+                                            onChange={(e) =>
+                                                setEditing((prev) => (prev ? { ...prev, qty_step: Number(e.target.value) } : prev))
+                                            }
+                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm"
+                                        >
+                                            <option value={1}>1 kg</option>
+                                            <option value={0.5}>0,5 kg</option>
+                                            <option value={0.25}>0,25 kg</option>
+                                            <option value={0.1}>0,1 kg</option>
+                                        </select>
+                                    </div>
+                                )}
 
                                 {/* Immagine */}
                                 <fieldset className="rounded-xl border border-gray-200 p-3">
@@ -974,7 +1011,7 @@ export default function ProductsAdminPage() {
                                         <input
                                             type="number"
                                             min={0}
-                                            step={editing.unit_type === 'per_kg' ? 0.1 : 1}
+                                            step={editing.unit_type === 'per_kg' ? (Number(editing.qty_step) || 0.1) : 1}
                                             className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2"
 
                                             value={editing.stock ?? ''} // '' quando null (valore già in formato display)

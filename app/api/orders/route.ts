@@ -268,25 +268,27 @@ export async function POST(req: Request) {
 
 
         // Normalizza gli items con validazione robusta
-        let items: { id: string; quantity: number; price: number }[] = []
+        let items: { id: string; quantity: number; price: number; unit?: 'per_unit' | 'per_kg' }[] = []
         try {
             items = body.items.map((it: {
                 id: string
                 price?: number | string
                 qty?: number | string
                 quantity?: number | string
+                unit?: 'per_unit' | 'per_kg' | string
             }) => {
+                const unit = it.unit === 'per_kg' || it.unit === 'per_unit' ? it.unit : undefined
                 // Normalizza quantity: accetta number, string con virgola italiana, o string con punto
                 const rawQty = it.qty ?? it.quantity ?? 1
                 const normalizedQty = parseDec(rawQty, 'quantity')
-                
+                const qty = unit === 'per_kg' ? parseFloat(normalizedQty.toFixed(3)) : normalizedQty
                 // Normalizza price
                 const normalizedPrice = parseDec(it.price ?? 0, 'price')
-                
                 return {
                     id: it.id,
                     price: normalizedPrice,
-                    quantity: normalizedQty, // Usa il valore normalizzato
+                    quantity: qty,
+                    unit,
                 }
             })
         } catch (e: any) {
@@ -303,11 +305,11 @@ export async function POST(req: Request) {
             }
         }
 
-        // ✅ Verifica esistenza prodotti: evita FK order_items_product_id_fkey (carrelli vecchi/cached)
+        // ✅ Verifica esistenza prodotti e carica unit_type, qty_step, name per validazione
         const requestedIds = [...new Set(items.map((it) => it.id))]
         const { data: existingProducts, error: existingErr } = await supabaseServiceRole
             .from('products')
-            .select('id')
+            .select('id, name, unit_type, qty_step')
             .in('id', requestedIds)
 
         if (existingErr) {
@@ -318,7 +320,8 @@ export async function POST(req: Request) {
             )
         }
 
-        const existingSet = new Set((existingProducts ?? []).map((p: { id: string }) => p.id))
+        const productsById = new Map((existingProducts ?? []).map((p: any) => [p.id, p]))
+        const existingSet = new Set(productsById.keys())
         const missing = requestedIds.filter((id) => !existingSet.has(id))
 
         if (missing.length > 0) {
@@ -331,6 +334,41 @@ export async function POST(req: Request) {
                 },
                 { status: 400, headers: { 'Cache-Control': 'no-store' } }
             )
+        }
+
+        // Validazione qty_step (anti-tamper): per_kg => qty multiplo di step; per_unit => qty intero
+        const round3 = (n: number) => Math.round((n + Number.EPSILON) * 1000) / 1000
+        for (const it of items) {
+            const product = productsById.get(it.id) as { id: string; name?: string; unit_type?: string | null; qty_step?: number | null } | undefined
+            if (!product) continue
+            const unitType = product.unit_type || 'per_unit'
+            const productName = product.name || product.id
+
+            if (unitType === 'per_kg') {
+                const step = product.qty_step != null && product.qty_step > 0 ? product.qty_step : 0.1
+                const q = round3(it.quantity)
+                const s = round3(step)
+                const k = s > 0 ? q / s : 0
+                if (Math.abs(k - Math.round(k)) >= 1e-6) {
+                    return NextResponse.json(
+                        {
+                            error: `Quantità non valida per ${productName}. Seleziona multipli di ${s} kg.`,
+                            code: 'INVALID_QTY_STEP',
+                        },
+                        { status: 400, headers: { 'Cache-Control': 'no-store' } }
+                    )
+                }
+            } else {
+                if (Math.abs(it.quantity - Math.round(it.quantity)) > 1e-6) {
+                    return NextResponse.json(
+                        {
+                            error: `Quantità non valida per ${productName}. I prodotti a pezzo richiedono quantità intera.`,
+                            code: 'INVALID_QTY_UNIT',
+                        },
+                        { status: 400, headers: { 'Cache-Control': 'no-store' } }
+                    )
+                }
+            }
         }
 
         // Calcola totali (ignora delivery_fee dal frontend, usa quello calcolato lato server)
@@ -538,15 +576,20 @@ export async function POST(req: Request) {
                         const price = Number(it.price) || 0
 
                         // Stripe accetta solo quantità intere
-                        // Se il prodotto è "per_kg", ingloba la quantità nel prezzo
+                        // Se il prodotto è "per_kg", ingloba la quantità nel prezzo (label sempre in kg)
                         if (unitType === 'per_kg') {
+                            const qtyKg = Math.round((quantity + Number.EPSILON) * 1000) / 1000
+                            const qtyFormatted = new Intl.NumberFormat('it-IT', {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 3,
+                            }).format(qtyKg)
                             return {
                                 quantity: 1, // sempre 1 per i prodotti a peso
                                 price_data: {
                                     currency: 'eur',
                                     unit_amount: Math.round(price * quantity * 100),
                                     product_data: {
-                                        name: `${productName} (${quantity} kg)`,
+                                        name: `${productName} (${qtyFormatted} kg)`,
                                         ...(imageUrl ? { images: [imageUrl] } : {}),
                                     },
                                 },

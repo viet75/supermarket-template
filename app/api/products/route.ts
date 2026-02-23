@@ -40,7 +40,7 @@ export async function GET() {
         const { data, error } = await svc
             .from('products')
             .select(
-                'id,name,description,price,price_sale,unit_type,category_id,stock,stock_unlimited,image_url,images,is_active,deleted_at,created_at'
+                'id,name,description,price,price_sale,unit_type,category_id,stock,stock_unlimited,image_url,images,is_active,deleted_at,created_at,qty_step'
             )
             .eq('is_active', true)        // <-- fix: usa is_active
             .eq('archived', false)        // <-- fix: esclude prodotti archiviati (bloccati da trigger DB)
@@ -56,6 +56,7 @@ export async function GET() {
             price_sale: p.price_sale == null ? null : mustNumber(p.price_sale, 'price_sale'),
             stock: numOrNull(p.stock),
             stock_unlimited: p.stock_unlimited === true,
+            qty_step: p.qty_step == null ? null : Number(p.qty_step),
         }));
 
         return NextResponse.json(
@@ -82,6 +83,7 @@ type NewProduct = {
     is_active?: boolean;   // preferito
     description?: string | null;
     unit_type?: string | null;
+    qty_step?: number | string | null;
     category_id?: string | null;
     image_url?: string | null;
     images?: any[] | null;
@@ -138,6 +140,23 @@ export async function POST(req: NextRequest) {
             insert.sku = body.sku.trim();
         }
 
+        if (typeof body.qty_step !== 'undefined') {
+            if (body.qty_step === null || body.qty_step === '') {
+                insert.qty_step = null;
+            } else {
+                let n: number;
+                try {
+                    n = mustNumber(body.qty_step, 'qty_step');
+                } catch (err: any) {
+                    return NextResponse.json({ error: err.message }, { status: 400 });
+                }
+                if (n <= 0) {
+                    return NextResponse.json({ error: 'qty_step deve essere > 0' }, { status: 400 });
+                }
+                insert.qty_step = Math.round((n + Number.EPSILON) * 1000) / 1000;
+            }
+        }
+
         const svc = supabaseServer();
         const { data, error } = await svc.from('products').insert(insert).select('*').single();
 
@@ -155,6 +174,7 @@ export async function POST(req: NextRequest) {
             price: mustNumber(data.price, 'price'),
             price_sale: data.price_sale == null ? null : mustNumber(data.price_sale, 'price_sale'),
             stock: numOrNull(data.stock),
+            qty_step: numOrNull(data.qty_step),
         };
 
         return NextResponse.json({ product }, { status: 201 });
@@ -178,6 +198,7 @@ type UpdateProduct = {
     is_active?: boolean;
     description?: string | null;
     unit_type?: string | null;
+    qty_step?: number | string | null;
     category_id?: string | null;
     image_url?: string | null;
     images?: any[] | null;
@@ -215,7 +236,23 @@ export async function PATCH(req: NextRequest) {
         if (typeof rest.images !== 'undefined') update.images = Array.isArray(rest.images) ? rest.images : null;
         if (typeof rest.unit_type !== 'undefined') update.unit_type = rest.unit_type ?? null;
         if (typeof rest.category_id !== 'undefined') update.category_id = rest.category_id ?? null;
-        
+        if (typeof rest.qty_step !== 'undefined') {
+            if (rest.qty_step === null || rest.qty_step === '') {
+                update.qty_step = null;
+            } else {
+                let n: number;
+                try {
+                    n = mustNumber(rest.qty_step, 'qty_step');
+                } catch (err: any) {
+                    return NextResponse.json({ error: err.message }, { status: 400 });
+                }
+                if (n <= 0) {
+                    return NextResponse.json({ error: 'qty_step deve essere > 0' }, { status: 400 });
+                }
+                update.qty_step = Math.round((n + Number.EPSILON) * 1000) / 1000;
+            }
+        }
+
         // Normalizza stock (kg reali per per_kg, pezzi interi per per_unit)
         if (typeof rest.stock !== 'undefined') {
             // Recupera unit_type attuale se non viene modificato
@@ -269,6 +306,7 @@ export async function PATCH(req: NextRequest) {
             price: mustNumber(data.price, 'price'),
             price_sale: data.price_sale == null ? null : mustNumber(data.price_sale, 'price_sale'),
             stock: numOrNull(data.stock),
+            qty_step: numOrNull(data.qty_step),
         };
 
         return NextResponse.json({ product });

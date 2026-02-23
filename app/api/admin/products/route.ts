@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabaseServer'
 import { normalizeStock } from '@/lib/stock'
 
+function isQtyStepSchemaCacheError(err: any): boolean {
+    const msg = String(err?.message ?? err?.error_description ?? err ?? '')
+    const code = err?.code
+    return (
+        code === 'PGRST204' ||
+        msg.includes('qty_step') ||
+        msg.includes("Could not find the 'qty_step' column")
+    )
+}
+
 // CREATE prodotto
 export async function POST(req: NextRequest) {
     const supabase = supabaseServer()
@@ -22,15 +32,37 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        // qty_step: solo per per_kg, altrimenti 1
+        if (body.unit_type === 'per_kg') {
+            const raw = body.qty_step
+            if (raw != null && raw !== '') {
+                const n = Number(raw)
+                if (!Number.isFinite(n) || n <= 0 || n > 10) {
+                    return NextResponse.json({ error: 'qty_step deve essere un numero tra 0 e 10 (max 3 decimali)' }, { status: 400 })
+                }
+                body.qty_step = Math.round((n + Number.EPSILON) * 1000) / 1000
+            } else {
+                body.qty_step = 1
+            }
+        } else {
+            body.qty_step = 1
+        }
+
         // Rimuovi stock_baseline se presente: deve essere gestito SOLO dal trigger DB
         delete body.stock_baseline
 
-        const { data, error } = await supabase
+        let { data, error } = await supabase
             .from('products')
             .insert([body])
             .select()
             .single()
 
+        if (error && isQtyStepSchemaCacheError(error)) {
+            delete body.qty_step
+            const retry = await supabase.from('products').insert([body]).select().single()
+            data = retry.data
+            error = retry.error
+        }
         if (error) throw error
 
         return NextResponse.json({ product: data })
@@ -76,16 +108,43 @@ export async function PATCH(req: NextRequest) {
             }
         }
 
+        // qty_step: per per_kg valida e normalizza, per per_unit forza 1
+        let patchUnitType = payload.unit_type
+        if (patchUnitType === undefined) {
+            const { data: cur } = await supabase.from('products').select('unit_type').eq('id', id).single()
+            patchUnitType = cur?.unit_type ?? null
+        }
+        if (patchUnitType === 'per_kg') {
+            const raw = payload.qty_step
+            if (raw != null && raw !== '') {
+                const n = Number(raw)
+                if (!Number.isFinite(n) || n <= 0 || n > 10) {
+                    return NextResponse.json({ error: 'qty_step deve essere un numero tra 0 e 10 (max 3 decimali)' }, { status: 400 })
+                }
+                payload.qty_step = Math.round((n + Number.EPSILON) * 1000) / 1000
+            } else {
+                payload.qty_step = 1
+            }
+        } else {
+            payload.qty_step = 1
+        }
+
         // Rimuovi stock_baseline se presente: deve essere gestito SOLO dal trigger DB
         delete payload.stock_baseline
 
-        const { data, error } = await supabase
+        let { data, error } = await supabase
             .from('products')
             .update(payload)
             .eq('id', id)
             .select()
             .single()
 
+        if (error && isQtyStepSchemaCacheError(error)) {
+            delete payload.qty_step
+            const retry = await supabase.from('products').update(payload).eq('id', id).select().single()
+            data = retry.data
+            error = retry.error
+        }
         if (error) throw error
 
         return NextResponse.json({ product: data })

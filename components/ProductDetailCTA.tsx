@@ -13,7 +13,10 @@ type ProductMinimal = {
   image?: string | null
   stock?: number | string | null
   unit_type?: 'per_unit' | 'per_kg' | null
+  qty_step?: number | string | null
 }
+
+const round3 = (n: number) => Math.round((n + Number.EPSILON) * 1000) / 1000
 
 type Props = {
   product: Record<string, unknown>
@@ -30,13 +33,19 @@ export default function ProductDetailCTA({ product, heroImage }: Props) {
     : typeof stockRaw === 'number' ? stockRaw
     : (Number(stockRaw) || 0)
   const pForStock = { ...p, stock }
-  const step = p.unit_type === 'per_kg' ? 0.5 : 1
+  const stepRaw = (p as any).qty_step
+  const stepNum = stepRaw == null ? null : Number(String(stepRaw).replace(',', '.'))
+  const step =
+    Number.isFinite(stepNum) && (stepNum as number) > 0
+      ? (stepNum as number)
+      : (p.unit_type === 'per_kg' ? 0.1 : 1)
   const stockNum = toDisplayStock(pForStock as any)
   const isUnlimited = stockNum === null
   const outOfStock = !isUnlimited && stockNum === 0
 
   const handleAdd = () => {
     if (outOfStock) return
+    if (typeof stockNum === 'number' && round3(step) > round3(stockNum)) return
     addItem({
       id: String(p.id),
       name: p.name,
@@ -45,6 +54,7 @@ export default function ProductDetailCTA({ product, heroImage }: Props) {
       qty: step,
       maxStock: stockNum,
       unit: p.unit_type ?? 'per_unit',
+      qty_step: p.qty_step != null ? Number(p.qty_step) : null,
     })
   }
 

@@ -91,8 +91,6 @@ export type Order = OrderPayload & {
     payment_status: 'pending' | 'paid' | 'failed' | 'refunded'
 }
 
-
-
 // === Tipi per catalogo ===
 export type Category = {
     id: string
@@ -116,5 +114,9 @@ export type Product = {
     created_at?: string
     sort_order: number
     unit_type?: 'per_unit' | 'per_kg' | null
+
+    // NEW (UI-only): dynamic increment step (kg for per_kg, unit for per_unit)
+    qty_step?: number | null
+
     deleted_at?: string | null      // <--- aggiunto per soft delete
 }

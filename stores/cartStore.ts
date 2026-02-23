@@ -12,6 +12,7 @@ export type CartItem = {
     qty: number
     unit: 'per_unit' | 'per_kg'
     maxStock?: number | null
+    qty_step?: number | null
 }
 
 // 🔎 Helper per normalizzare quantità (accetta anche stringhe tipo "0,5")
@@ -20,7 +21,9 @@ function normalizeQty(v: any): number {
     let s = typeof v === 'string' ? v.trim() : String(v)
     s = s.replace(',', '.')
     const n = Number(s)
-    return Number.isFinite(n) ? Math.max(0, Math.round(n * 100) / 100) : 0
+    return Number.isFinite(n)
+        ? Math.max(0, Math.round((n + Number.EPSILON) * 1000) / 1000)
+        : 0
 }
 
 /** Prodotto minimo da API per reconcile (id, stock, stock_unlimited opzionale) */
@@ -88,7 +91,7 @@ export const useCartStore = create<CartState>()(
 
                     if (i >= 0) {
                         const cur = s.items[i]
-                        const target = cur.qty + q
+                        const target = normalizeQty(cur.qty + q)
                         const clamped = max === null ? target : Math.min(target, max)
 
                         const next = [...s.items]
@@ -97,6 +100,7 @@ export const useCartStore = create<CartState>()(
                             qty: clamped,
                             maxStock: max ?? cur.maxStock ?? null,
                             unit: incoming.unit ?? cur.unit ?? 'per_unit', // 👈 fix unit sempre valido
+                            qty_step: incoming.qty_step ?? cur.qty_step ?? null,
                         }
                         return { items: next }
                     }
@@ -111,6 +115,7 @@ export const useCartStore = create<CartState>()(
                                 qty: startQty,
                                 maxStock: max,
                                 unit: incoming.unit ?? 'per_unit', // 👈 fix unit sempre valido
+                                qty_step: incoming.qty_step ?? null,
                             },
                         ],
                     }
@@ -146,7 +151,7 @@ export const useCartStore = create<CartState>()(
                     if (idx === -1) return s
 
                     const cur = s.items[idx]
-                    const newQty = cur.qty - qty
+                    const newQty = normalizeQty(cur.qty - qty)
 
                     if (newQty > 0) {
                         const next = [...s.items]
@@ -169,26 +174,29 @@ export const useCartStore = create<CartState>()(
                         if (!prod) continue
 
                         const isUnlimited = prod.stock_unlimited === true || prod.stock == null
+                        const defaultQtyStep = item.unit === 'per_kg' ? 0.1 : 1
+                        const qty_step = item.qty_step != null && item.qty_step !== undefined ? item.qty_step : defaultQtyStep
                         if (isUnlimited) {
-                            next.push({ ...item, maxStock: null })
+                            next.push({ ...item, maxStock: null, qty_step })
                             continue
                         }
 
                         const stock = Number(prod.stock)
                         if (!Number.isFinite(stock)) {
-                            next.push({ ...item, maxStock: null })
+                            next.push({ ...item, maxStock: null, qty_step })
                             continue
                         }
                         if (stock <= 0) continue
 
                         const qty = normalizeQty(item.qty)
-                        const clamped = Math.min(qty, stock)
+                        const clamped = normalizeQty(Math.min(qty, stock))
                         if (clamped <= 0) continue
 
                         next.push({
                             ...item,
                             qty: clamped,
                             maxStock: stock,
+                            qty_step,
                         })
                     }
 
@@ -197,13 +205,17 @@ export const useCartStore = create<CartState>()(
         }),
         {
             name: 'cart',
-            version: 4,
+            version: 5,
             migrate: (persistedState, version) => {
                 if (persistedState && Array.isArray((persistedState as any).items)) {
-                    (persistedState as any).items = (persistedState as any).items.map((it: any) => ({
-                        ...it,
-                        unit: it.unit ?? 'per_unit', // 👈 garantiamo sempre che esista
-                    }))
+                    (persistedState as any).items = (persistedState as any).items.map((it: any) => {
+                        const unit = it.unit ?? 'per_unit'
+                        const qty_step =
+                            it.qty_step != null && it.qty_step !== undefined
+                                ? it.qty_step
+                                : (unit === 'per_kg' ? 0.1 : 1)
+                        return { ...it, unit, qty_step }
+                    })
                 }
                 return persistedState as any
             },

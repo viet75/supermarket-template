@@ -18,6 +18,8 @@ type Product = {
   unit_type?: 'per_unit' | 'per_kg'
   images?: any[]
   category_id?: string | null
+  // ✅ NEW: required to enforce step in AddToCartControls
+  qty_step?: number | null
 }
 
 export default function HomeClient() {
@@ -36,14 +38,26 @@ export default function HomeClient() {
       try {
         const { data: prods, error: prodErr } = await sb
           .from('products')
-          .select('id,name,price,price_sale,unit_type,images,category_id,is_active')
+          // ✅ include qty_step in select
+          .select('id,name,price,price_sale,unit_type,qty_step,images,category_id,is_active')
           .eq('is_active', true)
           .eq('archived', false)
           .is('deleted_at', null)
           .order('created_at', { ascending: false })
 
         if (prodErr) console.error('Prodotti ERR', prodErr)
-        setProducts(prods ?? [])
+
+        // Optional: defensive normalization for numeric columns coming as strings
+        const normalized: Product[] =
+          (prods ?? []).map((p: any) => ({
+            ...p,
+            qty_step:
+              p?.qty_step == null
+                ? null
+                : Number(String(p.qty_step).replace(',', '.')) || null,
+          })) ?? []
+
+        setProducts(normalized)
       } finally {
         setLoading(false)
       }
@@ -100,7 +114,7 @@ export default function HomeClient() {
             {filtered.map((p) => (
               <ProductCard
                 key={p.id}
-                p={p}
+                p={p as any}
                 onAdded={(name) => setToast(`${name} aggiunto al carrello`)}
               />
             ))}
