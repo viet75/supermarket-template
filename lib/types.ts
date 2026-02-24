@@ -109,6 +109,7 @@ export type Product = {
     category_id?: string | null
     stock?: number | null
     stock_baseline?: number | null
+    stock_unit?: number | null
     is_active?: boolean
     archived?: boolean              // true = bloccato per order_items (trigger DB)
     created_at?: string

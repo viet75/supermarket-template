@@ -3022,6 +3022,29 @@ BEFORE INSERT OR UPDATE OF unit_type, qty_step
 ON public.products
 FOR EACH ROW
 EXECUTE FUNCTION public.tg_products_set_qty_step();
+-- =====================================================
+-- REALTIME: enable products updates + full row payload
+-- =====================================================
+
+-- 1) Ensure products is in supabase_realtime publication
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_rel pr
+    JOIN pg_publication p ON p.oid = pr.prpubid
+    JOIN pg_class c ON c.oid = pr.prrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE p.pubname = 'supabase_realtime'
+      AND n.nspname = 'public'
+      AND c.relname = 'products'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.products;
+  END IF;
+END $$;
+
+-- 2) For UPDATE events, send full row (not only changed columns)
+ALTER TABLE public.products REPLICA IDENTITY FULL;
 -- ============================================================
 -- ✅ SETUP COMPLETE
 -- ============================================================

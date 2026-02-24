@@ -7,6 +7,17 @@ import CategoryChipsContainer from '@/components/CategoryChipsContainer'
 import ProductsGrid from '@/components/ProductsGrid'
 import { useForegroundRefresh } from '@/lib/useForegroundRefresh'
 import { useSmartStickyScroll } from '@/hooks/useSmartStickyScroll'
+import { supabaseClient } from '@/lib/supabaseClient'
+import type {
+  RealtimePostgresChangesPayload,
+  REALTIME_SUBSCRIBE_STATES,
+} from '@supabase/supabase-js'
+
+function parseNum(v: unknown): number | null {
+  if (v === null || v === undefined) return null
+  const n = Number(String(v).replace(',', '.'))
+  return Number.isFinite(n) ? n : null
+}
 
 export default function StoreClient({
   products: initialProducts,
@@ -23,6 +34,71 @@ export default function StoreClient({
   useEffect(() => {
     setProducts(initialProducts)
   }, [initialProducts])
+
+  // ✅ Realtime: update products in-place (stock, qty_step, price, etc.) without refresh
+  useEffect(() => {
+    const sb = supabaseClient()
+
+    const channel = sb
+      .channel('rt-products-store')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        (payload: RealtimePostgresChangesPayload<Product>) => {
+          const row = payload.new
+          if (!row || typeof row !== 'object' || !('id' in row) || row.id == null) return
+          const rowId = String(row.id)
+
+          // Treat product as visible only if it matches storefront rules
+          const isActive = ('is_active' in row ? row.is_active : true) === true
+          const isArchived = ('archived' in row ? row.archived : false) === true
+          const isDeleted = 'deleted_at' in row && row.deleted_at != null
+
+          const shouldBeVisible = isActive && !isArchived && !isDeleted
+
+          setProducts((prev) => {
+            const idx = prev.findIndex((p) => String(p.id) === rowId)
+
+            // Remove if not visible anymore
+            if (!shouldBeVisible) {
+              if (idx === -1) return prev
+              const next = [...prev]
+              next.splice(idx, 1)
+              return next
+            }
+
+            // Patch with numeric normalization for fields commonly returned as strings
+            const existing = idx >= 0 ? prev[idx] : ({} as Product)
+            const r = row as Product
+            const patch: Product = {
+              ...existing,
+              ...r,
+              id: rowId,
+              price: parseNum(r.price) ?? existing.price ?? 0,
+              price_sale: r.price_sale == null ? null : parseNum(r.price_sale),
+              qty_step: r.qty_step == null ? null : parseNum(r.qty_step),
+              stock: r.stock == null ? null : parseNum(r.stock),
+              stock_baseline: r.stock_baseline == null ? null : parseNum(r.stock_baseline),
+              stock_unit: r.stock_unit == null ? null : parseNum(r.stock_unit),
+            }
+
+            // If product is new to current state (rare), add it
+            if (idx === -1) return [patch, ...prev]
+
+            const next = [...prev]
+            next[idx] = patch
+            return next
+          })
+        }
+      )
+      .subscribe((_status: REALTIME_SUBSCRIBE_STATES, _err?: Error) => {
+        // Typed for enterprise; no logging in production.
+      })
+
+    return () => {
+      sb.removeChannel(channel)
+    }
+  }, [])
 
   useForegroundRefresh(() => router.refresh(), 3000)
 
@@ -101,7 +177,6 @@ export default function StoreClient({
           />
         </div>
       </div>
-
 
       {/* Content */}
       <div className="px-1 sm:px-2 md:px-4 pb-24">
