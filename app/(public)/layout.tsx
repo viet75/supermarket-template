@@ -18,9 +18,9 @@ export default async function PublicLayout({ children }: { children: React.React
             header={<Header />}
             footer={
                 hasContacts ? (
-                    <footer className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                        <div className="mx-auto max-w-screen-2xl px-4 py-6 md:py-8 space-y-2 text-sm text-gray-600 dark:text-gray-300">
-                            {store_name && <h3 className="font-semibold text-gray-900 dark:text-white">{store_name}</h3>}
+                    <footer className="border-t border-gray-200 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900/60">
+                        <div className="mx-auto max-w-screen-2xl px-4 py-6 md:py-8 space-y-2 text-sm text-gray-600 dark:text-zinc-300">
+                            {store_name && <h3 className="font-semibold text-gray-900 dark:text-zinc-100">{store_name}</h3>}
                             {address && <div>📍 {address}</div>}
                             {phone && <div>📞 {phone}</div>}
                             {email && <div>✉️ {email}</div>}
@@ -35,7 +35,7 @@ export default async function PublicLayout({ children }: { children: React.React
                 ) : null
             }
         >
-            <main className="min-h-screen w-full mx-auto px-3 md:px-4 lg:px-6 pb-24 md:pb-10 bg-white dark:bg-gray-900 transition-colors">
+            <main className="min-h-screen w-full mx-auto px-3 md:px-4 lg:px-6 pb-24 md:pb-10 bg-white dark:bg-zinc-900 transition-colors">
                 <ScrollToTopOnRouteChange />
                 {children}
             </main>

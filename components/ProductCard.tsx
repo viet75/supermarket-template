@@ -121,11 +121,11 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
 
         {/* Contenuto testuale */}
         <div className="flex flex-col flex-grow mt-3">
-          <div className="line-clamp-2 text-sm font-medium text-gray-900 dark:text-gray-100 min-h-[2.5rem]">
+          <div className="line-clamp-2 text-sm font-medium text-gray-900 dark:text-zinc-100 min-h-[2.5rem]">
             {p.name}
           </div>
 
-          <div className="text-xs text-gray-500 dark:text-gray-400 min-h-[2rem]">
+          <div className="text-xs text-gray-500 dark:text-zinc-300 min-h-[2rem]">
             {p.description ? (
               <p className="line-clamp-2">{p.description}</p>
             ) : (
@@ -134,11 +134,11 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
           </div>
 
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-base font-semibold text-gray-900 dark:text-gray-100">
+            <span className="text-base font-semibold text-gray-900 dark:text-zinc-100">
               {formatPrice(effective)} / {getUnitLabel(p as any)}
             </span>
             {sale != null && sale > 0 && sale < base && (
-              <span className="text-sm text-gray-500 dark:text-gray-400 line-through">
+              <span className="text-sm text-gray-500 dark:text-zinc-300 line-through">
                 {formatPrice(base)}
               </span>
             )}

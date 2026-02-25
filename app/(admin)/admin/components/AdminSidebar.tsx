@@ -47,9 +47,9 @@ export default function AdminSidebar() {
           aria-label="Toggle menu"
         >
           {open ? (
-            <X className="w-5 h-5 text-gray-700 dark:text-gray-200" />
+            <X className="w-5 h-5 text-gray-700 dark:text-zinc-300" />
           ) : (
-            <Menu className="w-5 h-5 text-gray-700 dark:text-gray-200" />
+            <Menu className="w-5 h-5 text-gray-700 dark:text-zinc-300" />
           )}
         </button>
 
@@ -57,7 +57,7 @@ export default function AdminSidebar() {
         <h1
           className="flex-1 min-w-0 text-center
                      text-lg font-semibold
-                     text-gray-900 dark:text-gray-100
+                     text-gray-900 dark:text-zinc-100
                      truncate px-2"
         >
           {process.env.NEXT_PUBLIC_STORE_NAME ?? 'Supermarket Template'}
@@ -77,15 +77,15 @@ export default function AdminSidebar() {
       {/* Sidebar */}
       <aside
         className={`fixed top-0 left-0 h-screen w-64
-                    bg-white dark:bg-gray-900
-                    border-r border-gray-200 dark:border-gray-700
+                    bg-white dark:bg-zinc-900
+                    border-r border-gray-200 dark:border-zinc-800
                     flex flex-col z-50 transform transition-transform duration-300 ease-in-out
                     ${open ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}
       >
         <div
           className="p-4 text-center font-semibold text-lg
-                     border-b border-gray-200 dark:border-gray-700
-                     text-gray-900 dark:text-gray-100"
+                     border-b border-gray-200 dark:border-zinc-800
+                     text-gray-900 dark:text-zinc-100"
         >
           {process.env.NEXT_PUBLIC_STORE_NAME ?? 'Supermarket Template'}
         </div>
@@ -96,7 +96,7 @@ export default function AdminSidebar() {
             return (
               <Fragment key={href}>
                 {separatorBefore && (
-                  <div className="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2" />
+                  <div className="border-t border-gray-200 dark:border-zinc-800 mt-2 pt-2" />
                 )}
                 <Link
                   href={href}
@@ -105,7 +105,7 @@ export default function AdminSidebar() {
                     ${
                       active
                         ? 'bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-200'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                        : 'text-gray-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800'
                     }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -115,7 +115,7 @@ export default function AdminSidebar() {
             )
           })}
 
-          <div className="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2">
+          <div className="border-t border-gray-200 dark:border-zinc-800 mt-2 pt-2">
             <button
               type="button"
               onClick={handleLogout}
@@ -132,7 +132,7 @@ export default function AdminSidebar() {
             - evita che il CTA bottom venga tagliato
             - mantiene anche una separazione visiva
            ============================ */}
-        <div className="border-t border-gray-200 dark:border-gray-700 mx-4" />
+        <div className="border-t border-gray-200 dark:border-zinc-800 mx-4" />
 
         <div className="px-4 pb-[calc(env(safe-area-inset-bottom)+16px)]">
           <Link
@@ -148,8 +148,8 @@ export default function AdminSidebar() {
 
         <div
           className="p-4 text-xs
-                     text-gray-400 dark:text-gray-500
-                     border-t border-gray-200 dark:border-gray-700"
+                     text-gray-400 dark:text-zinc-500
+                     border-t border-gray-200 dark:border-zinc-800"
         >
           Admin Panel v1.0
         </div>

@@ -12,7 +12,7 @@ export default function ProductsGrid({ products, className }: Props) {
     return (
         <div className={`mx-auto max-w-screen-2xl ${className ?? ''}`}>
             {products.length === 0 ? (
-                <p className="text-center text-gray-500 mt-10">
+                <p className="text-center text-gray-500 dark:text-zinc-400 mt-10">
                     Nessun prodotto trovato
                 </p>
             ) : (

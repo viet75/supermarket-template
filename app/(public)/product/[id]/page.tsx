@@ -73,7 +73,7 @@ export default async function ProductPage({ params }: Params) {
   const effective = hasSale ? priceSale : base
 
   return (
-    <div className="min-h-dvh bg-white dark:bg-gray-900">
+    <div className="min-h-dvh bg-white dark:bg-zinc-900">
       <div className="
   mx-auto
   max-w-6xl
@@ -83,14 +83,14 @@ export default async function ProductPage({ params }: Params) {
   rounded-2xl
   border
   border-gray-200
-  dark:border-gray-800
+  dark:border-zinc-800
   shadow-sm
   bg-white
-  dark:bg-gray-900
+  dark:bg-zinc-900
 ">
         <Link
           href="/"
-          className="inline-flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 mb-4"
+          className="inline-flex items-center gap-1 text-sm text-gray-600 dark:text-zinc-400 hover:text-green-600 dark:hover:text-green-400 mb-4"
         >
           ← Torna allo store
         </Link>
@@ -125,16 +125,16 @@ export default async function ProductPage({ params }: Params) {
           </div>
 
           <div className="p-4 md:p-6 flex flex-col gap-3">
-            <h1 className="text-xl md:text-2xl font-semibold text-gray-900 dark:text-gray-100">
+            <h1 className="text-xl md:text-2xl font-semibold text-gray-900 dark:text-zinc-100">
               {String(row.name ?? '')}
             </h1>
 
             <div className="flex items-baseline gap-2">
-              <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              <span className="text-lg font-semibold text-gray-900 dark:text-zinc-100">
                 {formatPrice(effective)} / {getUnitLabel(row as any)}
               </span>
               {hasSale && (
-                <span className="text-sm text-gray-500 dark:text-gray-400 line-through">
+                <span className="text-sm text-gray-500 dark:text-zinc-400 line-through">
                   {formatPrice(base)}
                 </span>
               )}
@@ -143,7 +143,7 @@ export default async function ProductPage({ params }: Params) {
             <StockIndicator product={row as any} className="mt-3" />
 
             {row.description != null && String(row.description).trim() !== '' && (
-              <div className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap">
+              <div className="text-sm text-gray-600 dark:text-zinc-300 whitespace-pre-wrap">
                 {String(row.description)}
               </div>
             )}

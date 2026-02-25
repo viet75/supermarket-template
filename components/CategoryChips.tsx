@@ -23,7 +23,7 @@ export default function CategoryChips({ categories, activeId, onChange }: Props)
     'border border-gray-200/80 dark:border-white/10 ' +
     'bg-white/70 dark:bg-white/5 ' +
     'backdrop-blur-md ' +
-    'text-gray-900 dark:text-gray-100 ' +
+    'text-gray-900 dark:text-zinc-100 ' +
     'shadow-sm hover:shadow-md hover:bg-white/90 dark:hover:bg-white/10'
 
   const active =

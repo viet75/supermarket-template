@@ -246,7 +246,7 @@ export default function Header() {
       <div className="flex items-center gap-4">
         <Link
           href="/cart"
-          className="relative text-gray-700 dark:text-gray-200 text-2xl hover:text-green-600 transition"
+          className="relative text-gray-700 dark:text-zinc-300 text-2xl hover:text-green-600 transition"
           aria-label="Carrello"
         >
           🛒
@@ -272,7 +272,7 @@ export default function Header() {
               // calcola subito posizione quando apre
               if (next) requestAnimationFrame(computePos)
             }}
-            className="flex items-center gap-1 text-gray-700 dark:text-gray-200 text-2xl hover:text-green-600 transition cursor-pointer"
+            className="flex items-center gap-1 text-gray-700 dark:text-zinc-300 text-2xl hover:text-green-600 transition cursor-pointer"
             aria-label="Profilo"
             aria-expanded={openMenu}
             aria-haspopup="menu"

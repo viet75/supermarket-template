@@ -120,7 +120,7 @@ export default function HomeClient() {
             ))}
 
             {!filtered.length && (
-              <div className="col-span-full text-center text-gray-500 py-8">
+              <div className="col-span-full text-center text-gray-500 dark:text-zinc-400 py-8">
                 Nessun prodotto trovato
               </div>
             )}

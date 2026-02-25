@@ -476,16 +476,16 @@ export default function ProductsAdminPage() {
                                             )}
                                         </div>
 
-                                        <div className="text-sm text-gray-600">
+                                        <div className="text-sm text-gray-600 dark:text-zinc-400">
                                             {formatPrice(Number(p.price))} / {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
                                             {p.price_sale ? (
-                                                <span className="ml-2 text-gray-500 line-through">
+                                                <span className="ml-2 text-gray-500 dark:text-zinc-400 line-through">
                                                     {formatPrice(Number(p.price_sale))} / {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
                                                 </span>
                                             ) : null}
                                         </div>
 
-                                        <div className="text-xs text-gray-500">
+                                        <div className="text-xs text-gray-500 dark:text-zinc-400">
                                             Stock: {toDisplayStock(p) == null ? 'illimitato' : `${toDisplayStock(p)} ${getUnitLabel(p)}`}
                                         </div>
 
@@ -606,16 +606,16 @@ export default function ProductsAdminPage() {
                                                 )}
                                             </div>
 
-                                            <div className="text-sm text-gray-600">
+                                            <div className="text-sm text-gray-600 dark:text-zinc-400">
                                                 {formatPrice(Number(p.price))} / {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
                                                 {p.price_sale ? (
-                                                    <span className="ml-2 text-gray-500 line-through">
+                                                    <span className="ml-2 text-gray-500 dark:text-zinc-400 line-through">
                                                         {formatPrice(Number(p.price_sale))} / {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
                                                     </span>
                                                 ) : null}
                                             </div>
 
-                                            <div className="text-xs text-gray-500">
+                                            <div className="text-xs text-gray-500 dark:text-zinc-400">
                                                 Stock: {toDisplayStock(p) == null ? 'illimitato' : `${toDisplayStock(p)} ${getUnitLabel(p)}`}
                                             </div>
 
@@ -828,7 +828,7 @@ export default function ProductsAdminPage() {
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-zinc-400">
                                         Unità di misura
                                     </label>
                                     <select
@@ -848,7 +848,7 @@ export default function ProductsAdminPage() {
 
                                 {editing?.unit_type === 'per_kg' && (
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700">Incremento acquisto</label>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-zinc-400">Incremento acquisto</label>
                                         <select
                                             value={editing.qty_step ?? 1}
                                             onChange={(e) =>
@@ -866,7 +866,7 @@ export default function ProductsAdminPage() {
 
                                 {/* Immagine */}
                                 <fieldset className="rounded-xl border border-gray-200 p-3">
-                                    <legend className="px-1 text-sm font-medium text-gray-700">Immagine</legend>
+                                    <legend className="px-1 text-sm font-medium text-gray-700 dark:text-zinc-400">Immagine</legend>
                                     
                                     {/* Input file nascosto */}
                                     <input

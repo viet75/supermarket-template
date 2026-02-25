@@ -16,7 +16,7 @@ export default function SearchBar({ onChange }: { onChange: (q: string) => void 
             <div
                 className="
           relative
-          rounded-xl border border-gray-200 bg-white
+          rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900
           focus-within:ring-2 focus-within:ring-brand/30 focus-within:border-brand/60
           transition
         "
@@ -25,7 +25,7 @@ export default function SearchBar({ onChange }: { onChange: (q: string) => void 
             >
                 {/* icona lente */}
                 <span
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-zinc-500"
                     aria-hidden
                 >
                     🔎
@@ -47,7 +47,7 @@ export default function SearchBar({ onChange }: { onChange: (q: string) => void 
                     className="
             w-full h-11 pl-10 pr-10 rounded-xl
             outline-none bg-transparent
-            placeholder:text-gray-400
+            placeholder:text-gray-400 dark:placeholder:text-zinc-500
           "
                 />
 
@@ -59,8 +59,8 @@ export default function SearchBar({ onChange }: { onChange: (q: string) => void 
                         className="
               absolute right-2 top-1/2 -translate-y-1/2
               h-7 w-7 rounded-lg
-              bg-gray-200 hover:bg-gray-300
-              text-gray-700
+              bg-gray-200 hover:bg-gray-300 dark:bg-zinc-700 dark:hover:bg-zinc-600
+              text-gray-700 dark:text-zinc-300
               transition
             "
                         aria-label="Pulisci ricerca"
