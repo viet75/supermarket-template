@@ -74,7 +74,20 @@ export default async function ProductPage({ params }: Params) {
 
   return (
     <div className="min-h-dvh bg-white dark:bg-gray-900">
-      <div className="mx-auto max-w-2xl px-4 py-6 pb-24">
+      <div className="
+  mx-auto
+  max-w-6xl
+  px-4
+  py-6
+  pb-24
+  rounded-2xl
+  border
+  border-gray-200
+  dark:border-gray-800
+  shadow-sm
+  bg-white
+  dark:bg-gray-900
+">
         <Link
           href="/"
           className="inline-flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 mb-4"
@@ -82,9 +95,16 @@ export default async function ProductPage({ params }: Params) {
           ← Torna allo store
         </Link>
 
-        <article className="rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
+        <article className="
+          rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden
+
+          lg:grid
+          lg:grid-cols-2
+          lg:gap-8
+          lg:items-start
+        ">
           {/* Hero image */}
-          <div className="relative aspect-square w-full overflow-hidden bg-gray-50 dark:bg-zinc-900">
+          <div className="relative aspect-square w-full overflow-hidden bg-gray-50 dark:bg-zinc-900 lg:aspect-auto">
             {hasSale && (
               <span className="absolute left-3 top-3 z-10 rounded-full bg-green-500/90 px-3 py-1 text-xs font-medium text-white shadow">
                 Offerta
@@ -93,7 +113,13 @@ export default async function ProductPage({ params }: Params) {
             <img
               src={heroImage}
               alt={String(row.name ?? '')}
-              className="h-full w-full object-cover"
+              className="
+                h-full w-full object-cover
+
+                lg:h-auto
+                lg:max-h-[70vh]
+                lg:object-contain
+              "
               style={{ viewTransitionName: `pimg-${row.id}` } as React.CSSProperties}
             />
           </div>
