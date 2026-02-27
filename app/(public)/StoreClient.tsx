@@ -125,6 +125,14 @@ export default function StoreClient({
       (document.getElementById('public-scroll-container') as HTMLElement | null)
   }, [])
 
+  // Scroll-to-top quando cambio categoria (mantiene UX attuale su search)
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    // reset immediato: evita animazioni strane e mantiene comportamento consistente
+    el.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [activeCategory])
+
   const showCategories = useSmartStickyScroll(scrollRef, {
     threshold: 20,
     revealAtTopPx: 24,
@@ -137,6 +145,7 @@ export default function StoreClient({
       {/* HEADER sticky (NO blur: elimina fascia trasparente) */}
       <div
         className="
+    relative
     sticky top-[var(--app-header-h,0px)] z-50
     bg-white/95 dark:bg-zinc-900/92
     supports-[backdrop-filter]:backdrop-blur-md
@@ -168,15 +177,29 @@ export default function StoreClient({
           </div>
         </div>
 
-        {/* Categorie (montate solo quando visibili: zero fascia residua) */}
-        <div className="px-4 pb-2">
+        <div
+          className={[
+            'absolute left-0 right-0 top-full z-50',
+            'px-4 pb-2',
+            'bg-white/95 dark:bg-zinc-900/92',
+            'supports-[backdrop-filter]:backdrop-blur-md',
+            'border-b border-gray-200/70 dark:border-zinc-800/70',
+            'transition-all duration-200 ease-out',
+            showCategories
+              ? 'opacity-100 translate-y-0 pointer-events-auto'
+              : 'opacity-0 -translate-y-2 pointer-events-none',
+          ].join(' ')}
+        >
           <CategoryChipsContainer
             activeId={activeCategory}
             onChange={setActiveCategory}
-            show={showCategories}
+            show={true}
           />
         </div>
       </div>
+
+      {/* Spacer fisso per non far coprire i prodotti dall'overlay categorie */}
+      <div className="h-[56px] md:h-[60px]" />
 
       {/* Content */}
       <div className="px-1 sm:px-2 md:px-4 pb-24">

@@ -24,7 +24,14 @@ export default async function PublicLayout({ children }: { children: React.React
                             {address && <div>📍 {address}</div>}
                             {phone && <div>📞 {phone}</div>}
                             {email && <div>✉️ {email}</div>}
-                            {opening_hours && <div>🕒 {opening_hours}</div>}
+                            {opening_hours && (
+                                <div className="flex items-start gap-2">
+                                    <span className="mt-1" aria-hidden>🕒</span>
+                                    <p className="whitespace-pre-line leading-relaxed text-gray-600 dark:text-zinc-400">
+                                        {opening_hours}
+                                    </p>
+                                </div>
+                            )}
                             {maps_link && (
                                 <a href={maps_link} target="_blank" rel="noreferrer" className="inline-block text-green-600 dark:text-green-400 hover:underline">
                                     Apri su Google Maps

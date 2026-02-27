@@ -95,26 +95,57 @@ sono gestite **esclusivamente dal pannello admin**.
 - Ordini creati come **non pagati**
 - Stato aggiornato manualmente dall’admin
 
----
 
-## 🕐 Store hours & closures
+## 🔑 Variabili ambiente (OBBLIGATORIE)
 
-Orari di apertura, cutoff orario e giorni di chiusura sono gestiti in **DB-first**: la RPC `get_fulfillment_preview()` è l’unica fonte di verità per UI e API ordini.
+Crea un file `.env.local` nella root del progetto:
 
-### Configurazione (Admin)
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
-In **Admin → Impostazioni consegna** (sezione “Orari e chiusure”):
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
-- **Cutoff orario** (es. `19:00`): dopo quest’ora gli ordini vengono evasi dal giorno successivo (o dal primo giorno utile).
-- **Accetta ordini quando chiuso**: se attivo, fuori orario/chiusura gli ordini sono accettati e slittano al primo giorno utile; se disattivo, il checkout viene bloccato.
-- **Timezone** (es. `Europe/Rome`): usata per “ora corrente” e date.
-- **Giorni di preparazione**: giorni aggiuntivi prima dell’evasione (0 = stesso giorno).
-- **Date di chiusura**: una data per riga, formato `YYYY-MM-DD` (es. festivi).
-- **Orari settimanali (JSON)**: chiavi `0` (domenica) … `6` (sabato); valore `null` = chiuso, oppure intervallo `"09:00-19:00"`.
+STRIPE_SECRET_KEY=your_stripe_secret_key
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
 
-### Esempio `weekly_hours` (orari settimanali)
+STRIPE_WEBHOOK_SECRET=your_webhook_secret
 
-```json
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+
+INTERNAL_ADMIN_KEY=your_generated_key
+
+Dove trovarle:
+
+Supabase → Project Settings → API
+
+Stripe → Developers → API keys
+
+⚠️ IMPORTANTE:
+
+Non committare mai .env.local
+
+🕐 Store hours & closures
+
+Orari di apertura, cutoff orario e giorni di chiusura sono gestiti in DB-first: la RPC get_fulfillment_preview() è l’unica fonte di verità per UI e API ordini.
+
+Configurazione (Admin)
+
+In Admin → Impostazioni consegna (sezione “Orari e chiusure”):
+
+Cutoff orario (es. 19:00): dopo quest’ora gli ordini vengono evasi dal giorno successivo (o dal primo giorno utile).
+
+Accetta ordini quando chiuso: se attivo, fuori orario/chiusura gli ordini sono accettati e slittano al primo giorno utile; se disattivo, il checkout viene bloccato.
+
+Timezone (es. Europe/Rome): usata per “ora corrente” e date.
+
+Giorni di preparazione: giorni aggiuntivi prima dell’evasione (0 = stesso giorno).
+
+Date di chiusura: una data per riga, formato YYYY-MM-DD (es. festivi).
+
+Orari settimanali (JSON): chiavi 0 (domenica) … 6 (sabato); valore null = chiuso, oppure intervallo "09:00-19:00".
+
+Esempio weekly_hours (orari settimanali)
 {
   "0": null,
   "1": "09:00-19:00",
@@ -124,61 +155,59 @@ In **Admin → Impostazioni consegna** (sezione “Orari e chiusure”):
   "5": "09:00-19:00",
   "6": "09:00-13:00"
 }
-```
 
 Domenica chiuso, lun–ven 9–19, sabato 9–13.
 
-### Esempio `closed_dates`
+Esempio closed_dates
 
 Una data per riga (es. in Admin come textarea):
 
-```
 2025-12-25
 2025-01-01
-```
+Comportamento
 
-### Comportamento
+In checkout il cliente vede un messaggio (es. “Ordine evaso dal DD/MM/YYYY”) e non può confermare se il negozio non accetta ordini.
 
-- In **checkout** il cliente vede un messaggio (es. “Ordine evaso dal DD/MM/YYYY”) e non può confermare se il negozio non accetta ordini.
-- In **POST /api/orders** viene chiamata la stessa RPC: se `can_accept === false` si risponde con **409** e `code: "STORE_CLOSED"`.
-- La data di evasione (`next_fulfillment_date`) viene salvata in `orders.fulfillment_date` (tipo `date`).
+In POST /api/orders viene chiamata la stessa RPC: se can_accept === false si risponde con 409 e code: "STORE_CLOSED".
 
----
+La data di evasione (next_fulfillment_date) viene salvata in orders.fulfillment_date (tipo date).
 
-## 🗄 Database setup (ONE-SHOT)
+🗄 Database setup (ONE-SHOT)
 
 Il progetto è progettato per essere installato su
-**un progetto Supabase completamente vuoto**
-tramite **un unico script SQL**.
+un progetto Supabase completamente vuoto
+tramite un unico script SQL.
 
-**Patch per DB già esistenti:**  
-Se hai un DB già creato con una versione precedente dello `setup.sql`, esegui la patch  
-`supabase/patches/2026-02-07-store-hours.sql`  
-(Supabase → SQL Editor → incolla ed esegui) per aggiungere `weekly_hours`, chiusure, cutoff e risolvere l’errore *column "weekly_hours" does not exist* (es. 500 su GET `/api/admin/settings/delivery`).
+Step obbligatori
 
-### Step obbligatori
+Creare un nuovo progetto Supabase
 
-1. Creare un nuovo progetto Supabase  
-2. Aprire **SQL Editor**  
-3. Incollare ed eseguire **prima di tutto** `supabase/setup.sql`
+Aprire SQL Editor
+
+Incollare ed eseguire prima di tutto supabase/setup.sql
 
 Questo script:
 
-- crea tutte le tabelle  
-- crea funzioni RPC  
-- configura RLS e policies  
-- inserisce seed demo  
-- applica patch SAFE ALTER  
+crea tutte le tabelle
 
-⚠️ Lo script è idempotente  
+crea funzioni RPC
+
+configura RLS e policies
+
+inserisce seed demo
+
+applica patch SAFE ALTER
+
+⚠️ Lo script è idempotente
 Può essere rieseguito senza errori.
 
 🌱 Dati demo (seed)
 
 Il file supabase/setup.sql inserisce automaticamente:
 
-- categorie di esempio  
-- prodotti di esempio (per_unit e per_kg)
+categorie di esempio
+
+prodotti di esempio (per_unit e per_kg)
 
 Questo permette di avere una demo funzionante immediatamente.
 
@@ -195,14 +224,15 @@ aver eseguito supabase/setup.sql su un progetto Supabase vuoto.
 
 Senza questo step:
 
-- la tabella public.profiles non esiste  
-- la promozione admin fallisce  
+la tabella public.profiles non esiste
+
+la promozione admin fallisce
 
 Step 1 — Creare utente
 
 Supabase Dashboard → Authentication → Users → Add user
 
-Nota  
+Nota
 La riga in public.profiles viene creata automaticamente
 tramite trigger DB al momento della creazione dell’utente Auth.
 
@@ -210,13 +240,13 @@ Step 2 — Assegnare ruolo admin
 
 Dopo la creazione dell’utente, promuovilo ad admin:
 
-```sql
 update public.profiles
 set role = 'admin'
 where id = (
   select id from auth.users
   where email = 'admin@test.com'
 );
+
 Da questo momento l’utente può accedere a /admin.
 
 🔐 Sicurezza e RLS
@@ -542,3 +572,82 @@ Prodotti a unità → scala visiva basata su 30 unità
 Prodotti a peso → scala visiva basata su 20 kg
 
 Questo non influisce sulla logica di acquisto o sui controlli di stock, che restano sempre basati sul valore reale.
+▲ Deploy su Vercel (Produzione)
+
+Vai su https://vercel.com
+
+Importa il repository GitHub
+
+Aggiungi tutte le variabili ambiente
+
+Deploy
+
+Il deploy è automatico ad ogni push su:
+
+master branch
+
+Dopo il deploy:
+
+il sito sarà live
+
+l’admin sarà disponibile su:
+
+/admin
+
+⚡ Aggiornamento stock in tempo reale
+
+Il template utilizza Supabase Realtime.
+
+Quando:
+
+un ordine viene creato
+
+un ordine viene annullato
+
+lo stock viene modificato
+
+la UI si aggiorna automaticamente.
+
+Non è necessario refresh manuale.
+
+⚖️ Vendita a peso (qty_step)
+
+Il sistema supporta:
+
+vendita a pezzi
+vendita a peso
+
+Esempi:
+
+0.1 → 100g
+0.25 → 250g
+0.5 → 500g
+1 → 1kg
+
+Configurabile da admin.
+
+🖼 Supabase Storage
+
+Il bucket product-images viene creato automaticamente da setup.sql.
+
+Non è necessario creare nulla manualmente.
+
+📱 Installazione PWA
+
+Su mobile:
+
+Apri il sito
+
+Premi "Aggiungi a Home"
+
+L'app sarà installata.
+
+🧾 Requisiti
+
+Node.js 18+
+
+Supabase account
+
+Stripe account
+
+Vercel account

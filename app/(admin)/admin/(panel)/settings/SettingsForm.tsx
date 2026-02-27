@@ -94,7 +94,12 @@ export default function SettingsForm({ initial, action }: Props) {
                     <input name="phone" type="tel" defaultValue={init.phone ?? ''} className={inputClass} />
                 </Field>
                 <Field label="Orari di apertura">
-                    <input name="opening_hours" type="text" defaultValue={init.opening_hours ?? ''} className={inputClass} />
+                    <textarea
+                        name="opening_hours"
+                        defaultValue={init.opening_hours ?? ''}
+                        rows={4}
+                        className={inputClass}
+                    />
                 </Field>
                 <Field label="Link Google Maps">
                     <input name="maps_link" type="url" defaultValue={init.maps_link ?? ''} className={inputClass} />

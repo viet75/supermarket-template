@@ -237,7 +237,7 @@ export default function Header() {
   return (
     <header
       ref={headerRef}
-      className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm"
+      className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-zinc-800 shadow-sm"
     >
       <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
         {process.env.NEXT_PUBLIC_STORE_NAME ?? 'Supermarket Template'}

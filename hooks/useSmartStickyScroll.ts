@@ -25,6 +25,7 @@ export function useSmartStickyScroll<T extends HTMLElement>(
   const rafRef = useRef<number | null>(null)
   const lastToggleTsRef = useRef(0)
   const showRef = useRef(true)
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     showRef.current = show
@@ -85,6 +86,12 @@ export function useSmartStickyScroll<T extends HTMLElement>(
           lastToggleTsRef.current = now
           if (!showRef.current) setShow(true)
         }
+
+        // AUTO-SHOW dopo inattività scroll (UX stile Amazon)
+        if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+        idleTimerRef.current = setTimeout(() => {
+          setShow((prev) => (prev ? prev : true))
+        }, 700)
       })
     }
 
@@ -92,6 +99,10 @@ export function useSmartStickyScroll<T extends HTMLElement>(
     return () => {
       el.removeEventListener('scroll', onScroll)
       if (rafRef.current != null) window.cancelAnimationFrame(rafRef.current)
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current)
+        idleTimerRef.current = null
+      }
     }
   }, [scrollRef, threshold, revealAtTopPx, cooldownMs, minDeltaPx])
 
