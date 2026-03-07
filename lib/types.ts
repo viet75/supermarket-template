@@ -59,6 +59,7 @@ export type OrderAddress = {
     line1: string
     city: string
     cap: string
+    phone?: string | null
     note?: string
 }
 
@@ -88,6 +89,7 @@ export type Order = OrderPayload & {
     user_id?: string | null
     first_name?: string | null
     last_name?: string | null
+    customer_phone?: string | null
     order_items: OrderItemDB[]   // ✅ non più opzionale
     payment_status: 'pending' | 'paid' | 'failed' | 'refunded'
 }
