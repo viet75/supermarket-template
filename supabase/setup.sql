@@ -3045,7 +3045,35 @@ END $$;
 
 -- 2) For UPDATE events, send full row (not only changed columns)
 ALTER TABLE public.products REPLICA IDENTITY FULL;
+
+
+-- =====================================================
+-- ORDERS: customer_phone (idempotent / SAFE ALTER)
+-- =====================================================
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name   = 'orders'
+      AND column_name  = 'customer_phone'
+  ) THEN
+    ALTER TABLE public.orders
+      ADD COLUMN customer_phone text;
+  END IF;
+END $$;
+
+COMMENT ON COLUMN public.orders.customer_phone
+IS 'Customer phone number for delivery contact. Stored as free text (e.g. +39 333 1234567).';
+-- ============================================================
+-- STORE SETTINGS - SOCIAL LINKS SUPPORT
+-- Adds JSONB column to store social media links used in footer
+-- ============================================================
+alter table public.store_settings
+  add column if not exists social_links jsonb not null default '{}'::jsonb;
+
 -- ============================================================
 -- ✅ SETUP COMPLETE
 -- ============================================================
-

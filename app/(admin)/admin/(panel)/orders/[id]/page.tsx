@@ -91,6 +91,11 @@ export default function OrderDetailPage() {
                     {(order.first_name ?? order.address?.firstName ?? '')}{' '}
                     {(order.last_name ?? order.address?.lastName ?? '')}
                 </p>
+                {order.customer_phone ? (
+                    <div className="text-sm text-gray-700 dark:text-zinc-200">
+                        📞 {order.customer_phone}
+                    </div>
+                ) : null}
                 <p className="text-gray-700 dark:text-gray-300">
                     📍 {order.address?.line1}, {order.address?.cap} {order.address?.city}
                 </p>

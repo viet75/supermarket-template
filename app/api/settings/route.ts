@@ -4,6 +4,9 @@ import { createServerClient } from '@supabase/ssr';
 import { supabaseServiceRole } from '@/lib/supabaseService';
 import type { StoreSettings, PaymentMethod } from '@/lib/types';
 
+// PATCH SQL (applicare manualmente se la colonna social_links non esiste):
+// alter table public.store_settings add column if not exists social_links jsonb not null default '{}'::jsonb;
+
 const CONTACT_WHITELIST = ['store_name', 'address', 'email', 'phone', 'opening_hours', 'maps_link'] as const;
 function hasValidInternalKey(req: Request): boolean {
     const hdr = req.headers.get('x-internal-admin-key');
@@ -71,7 +74,9 @@ export async function GET() {
         .maybeSingle();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json((data ?? null) as StoreSettings | null, { status: 200 });
+    const out = (data ?? null) as StoreSettings | null;
+    if (out && (out as any).social_links == null) (out as any).social_links = {};
+    return NextResponse.json(out, { status: 200 });
 }
 
 export async function PUT(req: Request) {
@@ -106,6 +111,19 @@ export async function PUT(req: Request) {
             const val = normalizeContact(rawBody[key]);
             patch[key] = val;
         }
+    }
+
+    if (rawBody.social_links !== undefined && rawBody.social_links !== null && typeof rawBody.social_links === 'object' && !Array.isArray(rawBody.social_links)) {
+        const sl = rawBody.social_links as Record<string, unknown>;
+        const out: Record<string, string> = {};
+        for (const k of ['instagram', 'facebook', 'whatsapp', 'tiktok', 'youtube', 'website']) {
+            const v = sl[k];
+            if (typeof v === 'string') {
+                const t = v.trim();
+                if (t) out[k] = t;
+            }
+        }
+        patch.social_links = out;
     }
 
     if (typeof rawBody.delivery_enabled === 'boolean') patch.delivery_enabled = rawBody.delivery_enabled;

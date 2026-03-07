@@ -62,6 +62,7 @@ export default function SettingsForm({ initial, action }: Props) {
                 phone: '',
                 opening_hours: '',
                 maps_link: '',
+                social_links: {},
             },
         [initial]
     );
@@ -104,6 +105,29 @@ export default function SettingsForm({ initial, action }: Props) {
                 <Field label="Link Google Maps">
                     <input name="maps_link" type="url" defaultValue={init.maps_link ?? ''} className={inputClass} />
                 </Field>
+                <div className="pt-2 mt-2 border-t border-gray-200 dark:border-zinc-700">
+                    <span className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">Social</span>
+                    <div className="space-y-3">
+                        <Field label="Instagram URL">
+                            <input name="social_instagram" type="url" defaultValue={(init.social_links as Record<string, string> | undefined)?.instagram ?? ''} className={inputClass} placeholder="https://instagram.com/..." />
+                        </Field>
+                        <Field label="Facebook URL">
+                            <input name="social_facebook" type="url" defaultValue={(init.social_links as Record<string, string> | undefined)?.facebook ?? ''} className={inputClass} placeholder="https://facebook.com/..." />
+                        </Field>
+                        <Field label="WhatsApp URL">
+                            <input name="social_whatsapp" type="url" defaultValue={(init.social_links as Record<string, string> | undefined)?.whatsapp ?? ''} className={inputClass} placeholder="https://wa.me/39333..." />
+                        </Field>
+                        <Field label="TikTok URL">
+                            <input name="social_tiktok" type="url" defaultValue={(init.social_links as Record<string, string> | undefined)?.tiktok ?? ''} className={inputClass} placeholder="https://tiktok.com/@..." />
+                        </Field>
+                        <Field label="YouTube URL">
+                            <input name="social_youtube" type="url" defaultValue={(init.social_links as Record<string, string> | undefined)?.youtube ?? ''} className={inputClass} placeholder="https://youtube.com/@..." />
+                        </Field>
+                        <Field label="Sito web URL">
+                            <input name="social_website" type="url" defaultValue={(init.social_links as Record<string, string> | undefined)?.website ?? ''} className={inputClass} placeholder="https://..." />
+                        </Field>
+                    </div>
+                </div>
             </fieldset>
 
             <div className="flex justify-end gap-3 border-t border-gray-200 dark:border-zinc-800 pt-4">

@@ -65,6 +65,7 @@ export async function GET(req: NextRequest) {
               total,
               distance_km,
               address,
+              customer_phone,
               order_items:order_items (
                 quantity,
                 price,
@@ -103,6 +104,7 @@ export async function GET(req: NextRequest) {
           total,
           distance_km,
           address,
+          customer_phone,
           order_items:order_items (
             quantity,
             price,

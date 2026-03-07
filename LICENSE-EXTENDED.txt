@@ -1,0 +1,44 @@
+SUPERMARKET PWA TEMPLATE
+Extended License
+
+Copyright (c) 2026 Angelo
+
+IMPORTANT — READ CAREFULLY:
+
+By purchasing this software, you are granted an Extended License under the following terms:
+
+PERMITTED USE:
+
+You may:
+
+• Use the template for unlimited projects
+• Use the template for multiple clients
+• Modify the template
+• Deploy unlimited instances
+
+RESTRICTIONS:
+
+You may NOT:
+
+• Resell the template itself
+• Redistribute the template source code
+• Sell the template as a template
+• Create a competing template for sale
+
+Ownership:
+
+Full ownership remains with the author.
+
+You are purchasing usage rights only.
+
+Support:
+
+Support is not included unless explicitly stated.
+
+Liability:
+
+Provided "as is", without warranty.
+
+Author:
+
+Angelo

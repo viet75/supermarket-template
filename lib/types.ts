@@ -40,6 +40,7 @@ export interface StoreSettings {
     phone?: string | null
     opening_hours?: string | null
     maps_link?: string | null
+    social_links?: Record<string, string> | null
 }
 
 // === Tipi per ordine ===

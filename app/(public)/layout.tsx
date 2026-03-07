@@ -11,6 +11,7 @@ export default async function PublicLayout({ children }: { children: React.React
     const phone = s?.phone?.trim() || ''
     const opening_hours = s?.opening_hours?.trim() || ''
     const maps_link = s?.maps_link?.trim() || ''
+    const social_links = (s?.social_links && typeof s.social_links === 'object') ? s.social_links as Record<string, string> : {}
     const hasContacts = !!(store_name || address || email || phone || opening_hours || maps_link)
 
     return (
@@ -36,6 +37,23 @@ export default async function PublicLayout({ children }: { children: React.React
                                 <a href={maps_link} target="_blank" rel="noreferrer" className="inline-block text-green-600 dark:text-green-400 hover:underline">
                                     Apri su Google Maps
                                 </a>
+                            )}
+                            {Object.keys(social_links).length > 0 && (
+                                <div className="flex flex-wrap items-center gap-2 pt-2">
+                                    <span className="text-gray-600 dark:text-zinc-400">Seguici</span>
+                                    {Object.entries(social_links).map(([key, href]) => {
+                                        const url = (key === 'whatsapp' && href && !href.startsWith('http'))
+                                            ? `https://wa.me/${href.replace(/\D/g, '')}`
+                                            : (href?.trim() || '')
+                                        if (!url) return null
+                                        const labels: Record<string, string> = { instagram: 'Instagram', facebook: 'Facebook', whatsapp: 'WhatsApp', tiktok: 'TikTok', youtube: 'YouTube', website: '🌐 Sito' }
+                                        return (
+                                            <a key={key} href={url} target="_blank" rel="noreferrer noopener" className="text-green-600 dark:text-green-400 hover:underline text-sm">
+                                                {labels[key] ?? key}
+                                            </a>
+                                        )
+                                    })}
+                                </div>
                             )}
                         </div>
                     </footer>

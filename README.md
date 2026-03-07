@@ -21,16 +21,56 @@ senza mai interagire direttamente con Stripe, Supabase o il database.
 
 ## 🚀 Demo
 
-**Demo live (produzione)**  
-👉 https://YOUR-VERCEL-DEMO.vercel.app
+### 🎬 Video Demo
 
-**Demo admin**  
+Guarda il funzionamento completo del template:
+
+👉 https://youtu.be/FVi38J3yYIo
+
+**Live Demo**
+
+👉 https://supermarketpwa.com
+
+
+### 🧪 Demo Mode
+
+La demo è configurata per simulare un supermercato locale con consegna a domicilio.
+
+Configurazione demo:
+
+Città: **Milano**  
+CAP: **20121**
+
+Per testare correttamente il checkout e la verifica di consegna, utilizza un indirizzo situato in questa area.
+
+Il sistema utilizza queste coordinate per:
+
+- calcolare automaticamente la distanza di consegna
+- verificare la copertura del servizio
+- determinare se un indirizzo è servito
+
+
+### 🔐 Accesso pannello Admin (Demo)
+
+Puoi accedere al pannello amministrativo della demo utilizzando:
+
+Admin panel:
+
+👉 https://supermarketpwa.com/admin
+
+Credenziali demo:
+
 Email: `admin@demo.com`  
 Password: `demo123`
 
-⚠️ La demo utilizza **solo dati di prova**.  
-Nessun pagamento reale viene elaborato.
 
+⚠️ **Nota**
+
+La demo utilizza esclusivamente dati di prova.
+
+- Nessun pagamento reale viene elaborato
+- Tutti gli ordini sono simulati
+- L'ambiente viene periodicamente ripristinato
 ---
 
 ## 🧱 Stack tecnologico
@@ -63,7 +103,24 @@ Nessun pagamento reale viene elaborato.
 ### Pagamenti
 - Carta online (Stripe Checkout)
 - POS alla consegna
-- Pagamento in contanti alla consegna
+- Pagamento in contanti alla consegna 
+
+### No PayPal
+PayPal non è incluso per scelta progettuale.
+
+Il template è progettato principalmente per supermercati locali,
+dove il cliente conosce già il negozio e ha un rapporto diretto di fiducia.
+In questi contesti, i metodi più utilizzati sono:
+
+- pagamento alla consegna (contanti)
+- pagamento POS alla consegna
+- pagamento con carta online (Stripe Checkout)
+
+Stripe garantisce già elevati standard di sicurezza e conformità (PCI DSS).
+
+PayPal può essere integrato successivamente se richiesto,
+ma non è incluso per mantenere il template più semplice,
+leggero e focalizzato sul caso d’uso reale dei supermercati locali.
 
 ### Dashboard di amministrazione
 - Gestione prodotti
@@ -95,35 +152,211 @@ sono gestite **esclusivamente dal pannello admin**.
 - Ordini creati come **non pagati**
 - Stato aggiornato manualmente dall’admin
 
+🗄 Database Setup (ONE-SHOT)
 
-## 🔑 Variabili ambiente (OBBLIGATORIE)
+Il template è progettato per essere installato su un progetto Supabase completamente vuoto utilizzando un unico script SQL.
 
-Crea un file `.env.local` nella root del progetto:
+Questo approccio permette di configurare l’intero backend in pochi minuti.
 
-```env
+Step 1 — Creare un progetto Supabase
+
+Vai su
+https://supabase.com
+
+Crea un nuovo progetto.
+
+Apri SQL Editor.
+
+Step 2 — Eseguire lo script di installazione
+
+Apri il file:
+
+supabase/setup.sql
+
+Copia l’intero contenuto e incollalo nello SQL Editor di Supabase, quindi eseguilo.
+
+Lo script esegue automaticamente:
+
+creazione di tutte le tabelle
+
+creazione delle funzioni RPC
+
+configurazione RLS e policies
+
+creazione dei bucket Supabase Storage
+
+inserimento di dati demo
+
+applicazione di patch SAFE ALTER
+
+⚠️ Lo script è idempotente
+può essere eseguito più volte senza generare errori.
+
+🌱 Dati demo (seed)
+
+Il file supabase/setup.sql inserisce automaticamente:
+
+categorie di esempio
+
+prodotti demo (per_unit e per_kg)
+
+Questo permette di avere una demo funzionante immediatamente.
+
+Se desideri un database completamente vuoto per la produzione, puoi:
+
+commentare
+
+oppure rimuovere
+
+il blocco DEMO SEED presente nel file setup.sql.
+
+👤 Configurazione utente Admin (OBBLIGATORIA)
+
+⚠️ Prima di creare l’utente admin è obbligatorio aver eseguito supabase/setup.sql.
+
+Senza questo step:
+
+la tabella public.profiles non esiste
+
+la promozione admin fallirà
+
+Step 1 — Creare un utente
+
+Vai su:
+
+Supabase Dashboard → Authentication → Users → Add user
+
+Crea un nuovo utente con email e password.
+
+Nota:
+Quando un utente viene creato in Supabase Auth, una riga in public.profiles viene creata automaticamente tramite trigger database.
+
+Step 2 — Promuovere l’utente ad admin
+
+Dopo aver creato l’utente, apri SQL Editor ed esegui:
+
+update public.profiles
+set role = 'admin'
+where id = (
+  select id from auth.users
+  where email = 'YOUR_ADMIN_EMAIL'
+);
+
+Sostituisci YOUR_ADMIN_EMAIL con l’email dell’utente che hai appena creato.
+
+Accesso al pannello admin
+
+Una volta assegnato il ruolo admin, potrai accedere al pannello amministrativo:
+
+/admin
+
+🔑 Variabili ambiente (OBBLIGATORIE)
+
+Crea un file .env.local nella root del progetto.
+
+Puoi copiare il file .env.example incluso nel template e modificarlo con i tuoi valori reali.
+
+cp .env.example .env.local
+
+Esempio configurazione:
+
+# Supabase
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
+# Stripe
 STRIPE_SECRET_KEY=your_stripe_secret_key
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
-
 STRIPE_WEBHOOK_SECRET=your_webhook_secret
 
+# Site
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
+# Admin
 INTERNAL_ADMIN_KEY=your_generated_key
 
-Dove trovarle:
+# Google Maps (Geolocalizzazione consegne)
+GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 
-Supabase → Project Settings → API
+# Coordinate negozio (OBBLIGATORIE per il calcolo consegna)
+NEXT_PUBLIC_STORE_LAT=40.000000
+NEXT_PUBLIC_STORE_LNG=16.000000
+NEXT_PUBLIC_STORE_NAME=Your Store Name
+Dove trovare le chiavi
+Supabase
 
-Stripe → Developers → API keys
+Vai su:
 
-⚠️ IMPORTANTE:
+Project Settings → API
 
-Non committare mai .env.local
+Copia:
+
+Project URL
+
+anon public key
+
+service_role key
+
+Stripe
+
+Vai su:
+
+Developers → API Keys
+
+Copia:
+
+Publishable key
+
+Secret key
+
+Google Maps API (Geolocalizzazione consegne)
+
+Serve per:
+
+calcolare la distanza di consegna
+
+verificare la copertura dell'indirizzo del cliente
+
+Vai su:
+
+https://console.cloud.google.com/
+
+Abilita le seguenti API:
+
+Maps JavaScript API
+
+Geocoding API
+
+Distance Matrix API
+
+Coordinate del negozio
+
+Puoi ottenere le coordinate da:
+
+https://maps.google.com
+
+Click destro sulla posizione del negozio → copia coordinate
+
+Esempio:
+
+40.8518
+14.2681
+⚠️ Importante
+
+Senza Google Maps API e coordinate del negozio:
+
+il calcolo della distanza non funzionerà
+
+la verifica dell’area di consegna non funzionerà
+
+il checkout potrebbe essere bloccato
+
+⚠️ Sicurezza
+
+Non committare mai .env.local nel repository.
+
+Questo file contiene chiavi private e deve rimanere solo nell'ambiente locale o nel server di produzione.
 
 🕐 Store hours & closures
 
@@ -172,82 +405,6 @@ In POST /api/orders viene chiamata la stessa RPC: se can_accept === false si ris
 
 La data di evasione (next_fulfillment_date) viene salvata in orders.fulfillment_date (tipo date).
 
-🗄 Database setup (ONE-SHOT)
-
-Il progetto è progettato per essere installato su
-un progetto Supabase completamente vuoto
-tramite un unico script SQL.
-
-Step obbligatori
-
-Creare un nuovo progetto Supabase
-
-Aprire SQL Editor
-
-Incollare ed eseguire prima di tutto supabase/setup.sql
-
-Questo script:
-
-crea tutte le tabelle
-
-crea funzioni RPC
-
-configura RLS e policies
-
-inserisce seed demo
-
-applica patch SAFE ALTER
-
-⚠️ Lo script è idempotente
-Può essere rieseguito senza errori.
-
-🌱 Dati demo (seed)
-
-Il file supabase/setup.sql inserisce automaticamente:
-
-categorie di esempio
-
-prodotti di esempio (per_unit e per_kg)
-
-Questo permette di avere una demo funzionante immediatamente.
-
-Se desideri un database completamente vuoto (produzione reale),
-puoi commentare o rimuovere il blocco DEMO SEED
-all’interno di setup.sql.
-
-👤 Configurazione utente admin (OBBLIGATORIA)
-
-⚠️ IMPORTANTE
-
-Prima di creare l’utente admin è obbligatorio
-aver eseguito supabase/setup.sql su un progetto Supabase vuoto.
-
-Senza questo step:
-
-la tabella public.profiles non esiste
-
-la promozione admin fallisce
-
-Step 1 — Creare utente
-
-Supabase Dashboard → Authentication → Users → Add user
-
-Nota
-La riga in public.profiles viene creata automaticamente
-tramite trigger DB al momento della creazione dell’utente Auth.
-
-Step 2 — Assegnare ruolo admin
-
-Dopo la creazione dell’utente, promuovilo ad admin:
-
-update public.profiles
-set role = 'admin'
-where id = (
-  select id from auth.users
-  where email = 'admin@test.com'
-);
-
-Da questo momento l’utente può accedere a /admin.
 
 🔐 Sicurezza e RLS
 
@@ -473,21 +630,19 @@ Per cash / pos_on_delivery:
 stock scalato subito
 se annullato → release_order_stock(order_id)
 
-🔁 Reset Supabase (simulazione fresh install)
+## 📦 Cosa include il template
 
-Per simulare una installazione reale su Supabase vuoto:
+Questo template include tutto il necessario per lanciare un servizio di consegna a domicilio per supermercati o negozi alimentari locali:
 
-drop schema if exists public cascade;
-create schema public;
-
-grant usage on schema public to postgres, anon, authenticated, service_role;
-grant all on schema public to postgres, service_role;
-Soft Delete (Archive)
-Products and categories are soft-deleted (archived) from the admin dashboard and can be restored at any time.
-
-Permanent deletion is intentionally not exposed in the UI to prevent accidental data loss and to preserve data integrity (orders, analytics, history).
-
-Advanced users can permanently remove archived records directly from Supabase if needed.
+- Applicazione completa Next.js
+- Dashboard amministrativa
+- Schema database Supabase con funzioni RPC
+- Integrazione Stripe Checkout
+- Calcolo distanza di consegna (Google Maps API)
+- Sistema gestione stock (architettura DB-first)
+- Progressive Web App (PWA)
+- File di configurazione ambiente (.env.example)
+- Documentazione completa di installazione
 
 ⚠️ Limitazioni note
 
@@ -506,12 +661,31 @@ openssl rand -hex 32
 Quindi impostala nel tuo ambiente:
 INTERNAL_ADMIN_KEY=chiave_generata
 
+## 🧾 Requisiti
+
+Prima di installare il template è necessario disporre di:
+
+- Node.js 18 o superiore
+- Un account Supabase
+- Un account Stripe
+- Un account Google Cloud (per le Google Maps API)
+- Un account Vercel (consigliato per il deploy)
+
 📄 Licenza
 
-Licenza commerciale.
+Questo progetto è distribuito con Licenza Commerciale.
 
-✔ Utilizzabile per progetti personali e clienti
-❌ Non rivendibile come template concorrente o SaaS
+✔ Puoi utilizzare questo template per progetti personali e per progetti di clienti
+✔ Puoi modificare il template in base alle tue esigenze
+
+❌ NON puoi rivendere questo template
+❌ NON puoi redistribuire il codice sorgente
+❌ NON puoi utilizzare (use this template) per creare template concorrenti o prodotti SaaS concorrenti
+
+Il codice sorgente è concesso in licenza, non venduto.
+La piena proprietà resta all’autore.
+
+Consulta il file LICENSE.txt per i termini completi.
 
 🧑‍💻 Supporto
 

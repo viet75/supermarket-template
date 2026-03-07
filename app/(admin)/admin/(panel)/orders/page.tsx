@@ -688,6 +688,11 @@ export default function OrdersAdminPage() {
                                         >
                                             {(o.first_name || o.address?.firstName) ?? ''}{' '}
                                             {(o.last_name || o.address?.lastName) ?? ''}
+                                            {o.customer_phone ? (
+                                                <div className="text-xs text-gray-600 dark:text-zinc-300">
+                                                    📞 {o.customer_phone}
+                                                </div>
+                                            ) : null}
                                         </td>
 
                                         {/* Prodotti */}
@@ -864,6 +869,11 @@ export default function OrdersAdminPage() {
                                     👤 {(o.first_name || o.address?.firstName) ?? ''}{' '}
                                     {(o.last_name || o.address?.lastName) ?? ''}
                                 </p>
+                                {o.customer_phone ? (
+                                    <div className="text-xs text-gray-600 dark:text-zinc-300">
+                                        📞 {o.customer_phone}
+                                    </div>
+                                ) : null}
 
                                 <p
                                     className="text-xs text-gray-500 dark:text-gray-300 break-words"

@@ -49,6 +49,20 @@ const looksLikeFullStreetAddress = (line1: string) => {
   return true
 }
 
+const getPhoneDigits = (value: string) => (value ?? '').replace(/\D/g, '')
+const getNationalDigits = (value: string) => {
+  let d = getPhoneDigits(value)
+  if (d.startsWith('0039')) d = d.slice(4)
+  else if (d.startsWith('39')) d = d.slice(2)
+  return d
+}
+const isPhoneValidNumber = (value: string) => {
+  const digits = getNationalDigits(value)
+  if (digits.length < 9) return false
+  if (/^(\d)\1+$/.test(digits)) return false
+  return true
+}
+
 export type FulfillmentPreview = {
     can_accept: boolean
     is_open_now: boolean
@@ -82,7 +96,7 @@ export default function CheckoutForm({ settings }: Props) {
     )
 
     // 🔹 aggiunti firstName e lastName
-    const [addr, setAddr] = useState<OrderAddress>({ firstName: '', lastName: '', line1: '', city: '', cap: '', note: '' })
+    const [addr, setAddr] = useState<OrderAddress>({ firstName: '', lastName: '', line1: '', city: '', cap: '', note: '', phone: '' })
     const [distanceKm, setDistanceKm] = useState<number>(0)
     const [loadingDistance, setLoadingDistance] = useState(false)
     const [isAddressValid, setIsAddressValid] = useState(false)
@@ -517,8 +531,35 @@ export default function CheckoutForm({ settings }: Props) {
     const emptyCart = hydrated && items.length === 0
 
     const [saving, setSaving] = useState(false)
+    const [attemptedSubmit, setAttemptedSubmit] = useState(false)
+    const [firstNameTouched, setFirstNameTouched] = useState(false)
+    const [lastNameTouched, setLastNameTouched] = useState(false)
+    const [phoneTouched, setPhoneTouched] = useState(false)
+    const [line1Touched, setLine1Touched] = useState(false)
+    const [cityTouched, setCityTouched] = useState(false)
+    const [capTouched, setCapTouched] = useState(false)
+
+    const firstNameInvalid = !(addr.firstName ?? '').trim()
+    const lastNameInvalid = !(addr.lastName ?? '').trim()
+    const showFirstNameError = (attemptedSubmit || firstNameTouched) && firstNameInvalid
+    const showLastNameError = (attemptedSubmit || lastNameTouched) && lastNameInvalid
+
+    const phoneDigits = getPhoneDigits(addr.phone ?? '')
+    const isPhoneValid = isPhoneValidNumber(addr.phone ?? '')
+    const showPhoneError = (attemptedSubmit || phoneTouched) && !isPhoneValid
+
+    const line1Invalid = !(addr.line1 ?? '').trim()
+    const line1HasText = !!(addr.line1 ?? '').trim()
+    const line1MissingCivic = line1HasText && !looksLikeFullStreetAddress(addr.line1)
+    const showLine1CivicError = (attemptedSubmit || line1Touched) && line1MissingCivic
+    const cityInvalid = !(addr.city ?? '').trim()
+    const capInvalid = !(addr.cap ?? '').trim() || (addr.cap ?? '').trim().length < 5
+    const showLine1Error = (attemptedSubmit || line1Touched) && line1Invalid
+    const showCityError = (attemptedSubmit || cityTouched) && cityInvalid
+    const showCapError = (attemptedSubmit || capTouched) && capInvalid
 
     const confirmOrder = useCallback(async () => {
+        setAttemptedSubmit(true)
         setMsg(null)
         setSaving(true) // 🔹 feedback immediato
 
@@ -555,8 +596,13 @@ export default function CheckoutForm({ settings }: Props) {
             setSaving(false)
             return
         }
-        if (!addr.firstName || !addr.lastName || !addr.line1 || !addr.city || !addr.cap) {
+        if (!addr.firstName || !addr.lastName || !isPhoneValid || !addr.line1 || !addr.city || !addr.cap) {
             setMsg({ type: 'error', text: 'Compila tutti i campi obbligatori' })
+            setSaving(false)
+            return
+        }
+        if (!isPhoneValid) {
+            setMsg({ type: 'error', text: 'Inserisci un numero valido (minimo 9 cifre)' })
             setSaving(false)
             return
         }
@@ -565,7 +611,7 @@ export default function CheckoutForm({ settings }: Props) {
         console.log('🧪 PAYMENT METHOD AL SUBMIT:', pay)
         console.log('🧪 AVAILABLE METHODS:', methods)
 
-        const payload: OrderPayload = {
+        const payload: OrderPayload & { customer_phone?: string } = {
             items: items.map((it) => ({
                 id: it.id,
                 name: it.name,
@@ -579,6 +625,7 @@ export default function CheckoutForm({ settings }: Props) {
             distance_km: previewDistanceKm ?? 0,
             payment_method: pay,
             address: addr,
+            customer_phone: (addr.phone ?? '').trim() || undefined,
         }
 
         try {
@@ -630,7 +677,7 @@ export default function CheckoutForm({ settings }: Props) {
             setMsg({ type: 'error', text: e?.message ?? 'Errore imprevisto' })
             setSaving(false)
         }
-    }, [items, addr, subtotal, pay, settings, validation, fulfillment, clearCart, reconcileWithProducts, router, backendTotal, errorMessage, previewDistanceKm])
+    }, [items, addr, subtotal, pay, settings, validation, fulfillment, clearCart, reconcileWithProducts, router, backendTotal, errorMessage, previewDistanceKm, isPhoneValid])
 
     if (!mounted) return <Skeleton />
     if (!hydrated && items.length === 0) return <Skeleton />
@@ -666,40 +713,86 @@ export default function CheckoutForm({ settings }: Props) {
                         <input
                             type="text"
                             required
-                            className="mt-1 w-full rounded-lg border border-gray-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-gray-900 dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 px-3 py-2 text-sm"
+                            onBlur={() => setFirstNameTouched(true)}
+                            className={`mt-1 w-full rounded-lg border bg-white dark:bg-zinc-900 text-gray-900 dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 px-3 py-2 text-sm ${showFirstNameError ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-zinc-800'}`}
                             value={addr.firstName}
                             onChange={(e) => setAddr({ ...addr, firstName: e.target.value })}
                         />
+                        {showFirstNameError && (
+                            <div className="mt-1 text-sm text-red-600 dark:text-red-400">
+                                Inserisci il nome
+                            </div>
+                        )}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">Cognome</label>
                         <input
                             type="text"
                             required
-                            className="mt-1 w-full rounded-lg border border-gray-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-gray-900 dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 px-3 py-2 text-sm"
+                            onBlur={() => setLastNameTouched(true)}
+                            className={`mt-1 w-full rounded-lg border bg-white dark:bg-zinc-900 text-gray-900 dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 px-3 py-2 text-sm ${showLastNameError ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-zinc-800'}`}
                             value={addr.lastName}
                             onChange={(e) => setAddr({ ...addr, lastName: e.target.value })}
                         />
+                        {showLastNameError && (
+                            <div className="mt-1 text-sm text-red-600 dark:text-red-400">
+                                Inserisci il cognome
+                            </div>
+                        )}
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">Telefono</label>
+                        <input
+                            type="tel"
+                            placeholder="+39 333 1234567"
+                            value={addr.phone ?? ''}
+                            onChange={(e) => setAddr((p) => ({ ...p, phone: e.target.value }))}
+                            onBlur={() => setPhoneTouched(true)}
+                            className={`mt-1 w-full rounded-lg border bg-white dark:bg-zinc-900 text-gray-900 dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 px-3 py-2 text-sm ${showPhoneError ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-zinc-800'}`}
+                            required
+                        />
+                        {showPhoneError && (
+                            <div className="mt-1 text-sm text-red-600 dark:text-red-400">
+                                Inserisci un numero valido (minimo 9 cifre)
+                            </div>
+                        )}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">Via e numero civico</label>
                         <input
                             type="text"
                             required
-                            className="mt-1 w-full rounded-lg border border-gray-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-gray-900 dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 px-3 py-2 text-sm"
+                            onBlur={() => setLine1Touched(true)}
+                            className={`mt-1 w-full rounded-lg border bg-white dark:bg-zinc-900 text-gray-900 dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 px-3 py-2 text-sm ${showLine1CivicError ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-zinc-800'}`}
                             value={addr.line1}
                             onChange={(e) => setAddr({ ...addr, line1: e.target.value })}
                         />
+                        {showLine1Error && (
+                            <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                                Inserisci via e numero civico
+                            </p>
+                        )}
+                        {showLine1CivicError && (
+                            <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                                Inserisci via e numero civico (es. Via Roma 10)
+                            </p>
+                        )}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">Città</label>
                         <input
                             type="text"
                             required
+                            onBlur={() => setCityTouched(true)}
                             className="mt-1 w-full rounded-lg border border-gray-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-gray-900 dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 px-3 py-2"
                             value={addr.city}
                             onChange={(e) => setAddr({ ...addr, city: e.target.value })}
                         />
+                        {showCityError && (
+                            <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                                Inserisci la città
+                            </p>
+                        )}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">CAP</label>
@@ -709,6 +802,7 @@ export default function CheckoutForm({ settings }: Props) {
                             title="Inserisci un CAP valido a 5 cifre"
                             required
                             maxLength={5}
+                            onBlur={() => setCapTouched(true)}
                             className="mt-1 w-full rounded-lg border border-gray-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-gray-900 dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 px-3 py-2"
                             value={addr.cap}
                             onChange={(e) => {
@@ -716,6 +810,11 @@ export default function CheckoutForm({ settings }: Props) {
                                 setAddr({ ...addr, cap: val })
                             }}
                         />
+                        {showCapError && (
+                            <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                                Inserisci il CAP completo (5 cifre)
+                            </p>
+                        )}
                         {isCapInvalidFull(addr.cap) && errorMessage && errorMessage.includes("CAP non valido") && (
                             <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                                 {errorMessage}
@@ -868,6 +967,7 @@ export default function CheckoutForm({ settings }: Props) {
                     </div>
                 )}
 
+                <div onClick={() => setAttemptedSubmit(true)}>
                 <button
                     type="button"
                     onClick={confirmOrder}
@@ -875,13 +975,15 @@ export default function CheckoutForm({ settings }: Props) {
                         saving ||
                         !validation.ok ||
                         fulfillment?.can_accept === false ||
-                        !settings.delivery_enabled
+                        !settings.delivery_enabled ||
+                        !isPhoneValid
                     }
 
                     className={`w-full rounded-xl font-semibold px-4 py-3 transition 
     ${validation.ok &&
                         addr.firstName &&
                         addr.lastName &&
+                        isPhoneValid &&
                         fulfillment?.can_accept !== false &&
                         settings.delivery_enabled
                             ? 'bg-green-600 hover:bg-green-700 text-white'
@@ -889,6 +991,7 @@ export default function CheckoutForm({ settings }: Props) {
                 >
                     {saving ? '⏳ Elaborazione…' : 'Conferma ordine'}
                 </button>
+                </div>
 
             </aside>
         </div>

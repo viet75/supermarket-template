@@ -384,6 +384,7 @@ export async function POST(req: Request) {
                 delivery_fee: deliveryFee,
                 total: total,
                 address: body.address,
+                customer_phone: String(body?.customer_phone ?? body?.address?.phone ?? '').trim() || null,
                 payment_method: pm,
                 payment_status: 'pending',
                 status: 'pending',
