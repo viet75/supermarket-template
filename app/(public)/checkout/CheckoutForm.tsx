@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import Skeleton from '@/components/Skeleton'
 import type { StoreSettings, PaymentMethod, OrderItem, OrderAddress, OrderPayload } from '@/lib/types'
 import { validateDelivery, allowedPaymentMethods, normalizeDeliveryMaxKm } from '@/lib/delivery'
@@ -15,15 +16,6 @@ type Props = { settings: StoreSettings }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 const round3 = (n: number) => Math.round((n + Number.EPSILON) * 1000) / 1000
-
-// Mappa dei metodi di pagamento per rendering dinamico
-const PAYMENT_METHOD_CONFIG: Record<PaymentMethod, { icon: string; label: string }> = {
-    cash: { icon: '💵', label: 'Pagamento in contanti alla consegna' },
-    pos_on_delivery: { icon: '💳🏠', label: 'Pagamento con POS alla consegna' },
-    card_online: { icon: '💳', label: 'Pagamento con carta online' },
-}
-
-const CAP_ERR = "CAP non valido. Inserisci 5 cifre (es: 74123)."
 
 const isCapComplete = (cap: string) => String(cap ?? '').trim().length === 5
 const isCapInvalidFull = (cap: string) => {
@@ -73,6 +65,13 @@ export type FulfillmentPreview = {
 
 export default function CheckoutForm({ settings }: Props) {
     const router = useRouter()
+    const t = useTranslations('checkoutForm')
+    const PAYMENT_METHOD_CONFIG: Record<PaymentMethod, { icon: string; label: string }> = {
+        cash: { icon: '💵', label: t('paymentCash') },
+        pos_on_delivery: { icon: '💳🏠', label: t('paymentPosOnDelivery') },
+        card_online: { icon: '💳', label: t('paymentCardOnline') },
+    }
+    const CAP_ERR = t('capInvalidFull')
     const [mounted, setMounted] = useState(false)
     useEffect(() => setMounted(true), [])
 
@@ -124,7 +123,7 @@ export default function CheckoutForm({ settings }: Props) {
             setErrorMessage(newError)
         } else {
             // Altrimenti mostra solo "indirizzo non riconosciuto, inserisci via completa..."
-            const geocodeError = "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma"
+            const geocodeError = t('fullAddressExample')
             // Aggiorna solo se non c'è già un errore "fuori raggio"
             setErrorMessage((prev) => {
                 if (prev && (prev.includes("fuori dal raggio") || prev.includes("non è disponibile"))) {
@@ -267,7 +266,7 @@ export default function CheckoutForm({ settings }: Props) {
                         geocodeData = JSON.parse(text)
                     } catch {
                         setIsAddressValid(false)
-                        const geocodeError = "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma"
+                        const geocodeError = t('fullAddressExample')
                         setDistanceError(geocodeError)
                         updateErrorMessage(geocodeError)
                         setDistanceKm(0)
@@ -277,7 +276,7 @@ export default function CheckoutForm({ settings }: Props) {
 
                     if (!geocodeData.ok) {
                         setIsAddressValid(false)
-                        const geocodeError = "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma"
+                        const geocodeError = t('fullAddressExample')
                         setDistanceError(geocodeError)
                         updateErrorMessage(geocodeError)
                         setDistanceKm(0)
@@ -309,7 +308,7 @@ export default function CheckoutForm({ settings }: Props) {
                     }))
                 } catch (err) {
                     setIsAddressValid(false)
-                    const geocodeError = "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma"
+                    const geocodeError = t('fullAddressExample')
                     setDistanceError(geocodeError)
                     updateErrorMessage(geocodeError)
                     setDistanceKm(0)
@@ -317,7 +316,7 @@ export default function CheckoutForm({ settings }: Props) {
             } catch (err) {
                 console.error('Errore geocodifica:', err)
                 setIsAddressValid(false)
-                const geocodeError = "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma"
+                const geocodeError = t('fullAddressExample')
                 setDistanceError(geocodeError)
                 updateErrorMessage(geocodeError)
                 setDistanceKm(0)
@@ -417,14 +416,14 @@ export default function CheckoutForm({ settings }: Props) {
                                 updateErrorMessage(errorText)
                             } else {
                                 // Altrimenti mostra solo "inserisci via completa..."
-                                const geocodeError = "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma"
+                                const geocodeError = t('fullAddressExample')
                                 setDistanceError(geocodeError)
                                 setIsAddressValid(false)
                                 // Evita che "fuori raggio" venga sovrascritto
                                 updateErrorMessage(geocodeError)
                             }
                         } catch {
-                            const geocodeError = "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma"
+                            const geocodeError = t('fullAddressExample')
                             setDistanceError(geocodeError)
                             setIsAddressValid(false)
                             updateErrorMessage(geocodeError)
@@ -504,11 +503,11 @@ export default function CheckoutForm({ settings }: Props) {
             return { ok: true }
         }
         if (isCapPartial(addr.cap)) {
-            return { ok: false, reason: 'Inserisci il CAP completo (5 cifre)' }
+            return { ok: false, reason: t('capRequired') }
         }
         // Se la consegna è abilitata ma l'indirizzo non è completo, non è ancora valido
         if (!addr.line1 || !addr.city || !addr.cap) {
-            return { ok: false, reason: 'Compila tutti i campi dell\'indirizzo' }
+            return { ok: false, reason: t('fillAddressFields') }
         }
         // Se distanceError esiste -> validation.ok=false con reason=distanceError
         if (distanceError) {
@@ -516,11 +515,11 @@ export default function CheckoutForm({ settings }: Props) {
         }
         // Se la preview è ancora in calcolo, attendi prima di validare
         if (loadingPreview) {
-            return { ok: false, reason: 'Calcolo distanza in corso...' }
+            return { ok: false, reason: t('distanceCalculating') }
         }
         // Se previewDistanceKm è null -> validation.ok=false
         if (previewDistanceKm === null) {
-            return { ok: false, reason: "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma" }
+            return { ok: false, reason: t('fullAddressExample') }
         }
         // Valida la distanza usando previewDistanceKm (non distanceKm client-side)
         return validateDelivery(previewDistanceKm, settings)
@@ -569,13 +568,13 @@ export default function CheckoutForm({ settings }: Props) {
         if (!settings.delivery_enabled) {
             setMsg({
                 type: 'error',
-                text: 'Le consegne sono temporaneamente disabilitate.',
+                text: t('deliveryDisabled'),
             })
             setSaving(false)
             return
         }
         if (fulfillment?.can_accept === false) {
-            setMsg({ type: 'error', text: fulfillment.message || 'Negozio chiuso. Ordini non accettati in questo momento.' })
+            setMsg({ type: 'error', text: fulfillment.message || t('storeClosed') })
             setSaving(false)
             return
         }
@@ -585,24 +584,24 @@ export default function CheckoutForm({ settings }: Props) {
             return
         }
         if (items.length === 0) {
-            setMsg({ type: 'error', text: 'Carrello vuoto' })
+            setMsg({ type: 'error', text: t('cartEmpty') })
             setSaving(false)
             return
         }
         if (!validation.ok) {
             // Usa errorMessage se disponibile, altrimenti validation.reason
-            const errorText = errorMessage || validation.reason || 'Indirizzo non valido'
+            const errorText = errorMessage || validation.reason || t('invalidAddress')
             setMsg({ type: 'error', text: errorText })
             setSaving(false)
             return
         }
         if (!addr.firstName || !addr.lastName || !isPhoneValid || !addr.line1 || !addr.city || !addr.cap) {
-            setMsg({ type: 'error', text: 'Compila tutti i campi obbligatori' })
+            setMsg({ type: 'error', text: t('requiredFields') })
             setSaving(false)
             return
         }
         if (!isPhoneValid) {
-            setMsg({ type: 'error', text: 'Inserisci un numero valido (minimo 9 cifre)' })
+            setMsg({ type: 'error', text: t('phoneInvalid') })
             setSaving(false)
             return
         }
@@ -637,7 +636,7 @@ export default function CheckoutForm({ settings }: Props) {
             })
 
             if (!res.ok) {
-                let apiMsg = `Errore API (${res.status})`
+                let apiMsg = `${t('apiError')} (${res.status})`
                 try {
                     const data = await res.json()
                     apiMsg = data?.message || data?.error || apiMsg
@@ -669,12 +668,12 @@ export default function CheckoutForm({ settings }: Props) {
             }
 
             // Per altri metodi di pagamento, redirect a success
-            setMsg({ type: 'success', text: 'Ordine creato con successo!' })
+            setMsg({ type: 'success', text: t('orderCreated') })
             clearCart()
             router.push(`/order/success?id=${encodeURIComponent(orderId)}`)
         } catch (e: any) {
             console.error(e)
-            setMsg({ type: 'error', text: e?.message ?? 'Errore imprevisto' })
+            setMsg({ type: 'error', text: e?.message ?? t('unexpectedError') })
             setSaving(false)
         }
     }, [items, addr, subtotal, pay, settings, validation, fulfillment, clearCart, reconcileWithProducts, router, backendTotal, errorMessage, previewDistanceKm, isPhoneValid])
@@ -700,16 +699,16 @@ export default function CheckoutForm({ settings }: Props) {
                                 href="/cart"
                                 className="shrink-0 rounded-md border border-red-300 dark:border-red-800 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-4 py-2 text-sm font-medium hover:bg-red-200 dark:hover:bg-red-800/50 transition-colors text-center"
                             >
-                                Vai al carrello
+                                {t('goToCart')}
                             </Link>
                         )}
                     </div>
                 )}
 
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-100">📍 Dati cliente</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-100">{t('customerDataTitle')}</h2>
                 <div className="grid gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">Nome</label>
+                        <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">{t('firstName')}</label>
                         <input
                             type="text"
                             required
@@ -720,12 +719,12 @@ export default function CheckoutForm({ settings }: Props) {
                         />
                         {showFirstNameError && (
                             <div className="mt-1 text-sm text-red-600 dark:text-red-400">
-                                Inserisci il nome
+                                {t('firstNameRequired')}
                             </div>
                         )}
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">Cognome</label>
+                        <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">{t('lastName')}</label>
                         <input
                             type="text"
                             required
@@ -736,12 +735,12 @@ export default function CheckoutForm({ settings }: Props) {
                         />
                         {showLastNameError && (
                             <div className="mt-1 text-sm text-red-600 dark:text-red-400">
-                                Inserisci il cognome
+                                {t('lastNameRequired')}
                             </div>
                         )}
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">Telefono</label>
+                        <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">{t('phone')}</label>
                         <input
                             type="tel"
                             placeholder="+39 333 1234567"
@@ -753,12 +752,12 @@ export default function CheckoutForm({ settings }: Props) {
                         />
                         {showPhoneError && (
                             <div className="mt-1 text-sm text-red-600 dark:text-red-400">
-                                Inserisci un numero valido (minimo 9 cifre)
+                                {t('phoneInvalid')}
                             </div>
                         )}
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">Via e numero civico</label>
+                        <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">{t('addressLine')}</label>
                         <input
                             type="text"
                             required
@@ -769,17 +768,17 @@ export default function CheckoutForm({ settings }: Props) {
                         />
                         {showLine1Error && (
                             <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                                Inserisci via e numero civico
+                                {t('addressRequired')}
                             </p>
                         )}
                         {showLine1CivicError && (
                             <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                                Inserisci via e numero civico (es. Via Roma 10)
+                                {t('addressExample')}
                             </p>
                         )}
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">Città</label>
+                        <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">{t('city')}</label>
                         <input
                             type="text"
                             required
@@ -790,16 +789,16 @@ export default function CheckoutForm({ settings }: Props) {
                         />
                         {showCityError && (
                             <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                                Inserisci la città
+                                {t('cityRequired')}
                             </p>
                         )}
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">CAP</label>
+                        <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">{t('cap')}</label>
                         <input
                             type="text"
                             pattern="[0-9]{5}"
-                            title="Inserisci un CAP valido a 5 cifre"
+                            title={t('capTitle')}
                             required
                             maxLength={5}
                             onBlur={() => setCapTouched(true)}
@@ -812,7 +811,7 @@ export default function CheckoutForm({ settings }: Props) {
                         />
                         {showCapError && (
                             <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                                Inserisci il CAP completo (5 cifre)
+                                {t('capRequired')}
                             </p>
                         )}
                         {isCapInvalidFull(addr.cap) && errorMessage && errorMessage.includes("CAP non valido") && (
@@ -822,7 +821,7 @@ export default function CheckoutForm({ settings }: Props) {
                         )}
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">Note per il corriere</label>
+                        <label className="block text-sm font-medium text-gray-900 dark:text-zinc-100">{t('courierNotes')}</label>
                         <textarea
                             className="mt-1 w-full rounded-lg border border-gray-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-gray-900 dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 px-3 py-2 text-sm"
                             value={addr.note ?? ''}
@@ -842,15 +841,15 @@ export default function CheckoutForm({ settings }: Props) {
 
                 {settings.delivery_enabled && (
                     <div className="mt-4">
-                        <h2 className="text-lg font-semibold mb-1 text-gray-900 dark:text-zinc-100">📏 Distanza</h2>
+                        <h2 className="text-lg font-semibold mb-1 text-gray-900 dark:text-zinc-100">{t('distanceTitle')}</h2>
                         <div className="w-full rounded-lg border border-gray-300 dark:border-zinc-800 px-3 py-2 text-sm bg-gray-50 dark:bg-zinc-900 text-gray-900 dark:text-zinc-100">
                             {!canComputeGeo
-                                ? "Disponibile quando il checkout è attivo"
+                                ? t('distanceAvailableWhenEnabled')
                                 : loadingDistance
-                                    ? "Calcolo in corso..."
+                                    ? t('distanceCalculating')
                                     : distanceKm > 0
                                         ? `${distanceKm} km`
-                                        : "Inserisci indirizzo per calcolare"}
+                                        : t('distanceEnterAddress')}
                         </div>
                         {errorMessage && (
                             <p className="text-xs text-red-600 dark:text-red-400 mt-1">
@@ -862,7 +861,7 @@ export default function CheckoutForm({ settings }: Props) {
 
                 {methods.length > 0 && (
                     <div className="mt-4">
-                        <h2 className="text-lg font-semibold mb-2 text-gray-900 dark:text-zinc-100">💳 Metodo di pagamento</h2>
+                        <h2 className="text-lg font-semibold mb-2 text-gray-900 dark:text-zinc-100">{t('paymentMethodTitle')}</h2>
                         <div className="space-y-2">
                             {methods.map((m) => (
                                 <label
@@ -891,7 +890,7 @@ export default function CheckoutForm({ settings }: Props) {
             </section>
 
             <aside className="space-y-6 rounded-2xl border border-gray-200 dark:border-zinc-800 p-6 shadow-md bg-white dark:bg-zinc-900 h-fit">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-100">🛒 Riepilogo ordine</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-100">{t('orderSummaryTitle')}</h2>
 
                 <ul className="divide-y divide-gray-200 dark:divide-zinc-800 text-sm">
                     {items.map((it: any) => (
@@ -904,20 +903,20 @@ export default function CheckoutForm({ settings }: Props) {
 
                 <div className="border-t border-gray-200 dark:border-zinc-800 pt-4 space-y-1 text-sm">
                     <div className="flex justify-between text-gray-900 dark:text-zinc-100">
-                        <span>Subtotale</span>
+                        <span>{t('subtotal')}</span>
                         <span>{formatPrice(subtotal)}</span>
                     </div>
                     {settings.delivery_enabled && (
                         <div className="flex justify-between text-gray-900 dark:text-zinc-100">
-                            <span>Consegna</span>
+                            <span>{t('delivery')}</span>
                             <span>
                                 {backendDeliveryFee !== null
                                     ? backendDeliveryFee === 0
-                                        ? 'Consegna gratuita'
+                                        ? t('freeDelivery')
                                         : `${formatPrice(backendDeliveryFee)} (${(backendDistanceKm ?? 0).toFixed(1)} km)`
                                     : previewDeliveryFee !== null
                                         ? previewDeliveryFee === 0
-                                            ? 'Consegna gratuita (stima)'
+                                            ? t('freeDeliveryEstimate')
                                             : `${formatPrice(previewDeliveryFee)} (stima)`
                                         : loadingPreview || loadingDistance
                                             ? '...'
@@ -926,7 +925,7 @@ export default function CheckoutForm({ settings }: Props) {
                         </div>
                     )}
                     <div className="flex justify-between font-semibold text-lg text-gray-900 dark:text-zinc-100">
-                        <span>Totale</span>
+                        <span>{t('total')}</span>
                         <span>
                             {backendTotal !== null
                                 ? formatPrice(backendTotal)
@@ -942,7 +941,7 @@ export default function CheckoutForm({ settings }: Props) {
                 {/* ============================================================ */}
                 {!settings.delivery_enabled && (
                     <div className="p-3 mb-3 text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-800">
-                        ⚠️ Le consegne sono temporaneamente disabilitate.
+                        ⚠️ {t('deliveryDisabled')}
                     </div>
                 )}
                 {settings.delivery_enabled && loadingFulfillment && (
@@ -952,7 +951,7 @@ export default function CheckoutForm({ settings }: Props) {
                 )}
                 {settings.delivery_enabled && !loadingFulfillment && fulfillment && fulfillment.can_accept === false && (
                     <div className="p-3 mb-3 text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-800">
-                        ⚠️ {fulfillment.message || 'Negozio chiuso. Ordini non accettati in questo momento.'}
+                        ⚠️ {fulfillment.message || t('storeClosed')}
                     </div>
                 )}
                 {settings.delivery_enabled && !loadingFulfillment && fulfillment?.can_accept !== false && fulfillment?.message && (
@@ -989,7 +988,7 @@ export default function CheckoutForm({ settings }: Props) {
                             ? 'bg-green-600 hover:bg-green-700 text-white'
                             : 'bg-gray-300 dark:bg-zinc-700 text-gray-600 dark:text-zinc-400 cursor-not-allowed'}`}
                 >
-                    {saving ? '⏳ Elaborazione…' : 'Conferma ordine'}
+                    {saving ? t('processing') : t('confirmOrder')}
                 </button>
                 </div>
 

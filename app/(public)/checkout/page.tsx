@@ -1,16 +1,21 @@
 import { getStoreSettings } from '@/lib/getStoreSettings'
 import CheckoutForm from './CheckoutForm'
 import Link from 'next/link'
+import { getTranslations } from 'next-intl/server'
+
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function CheckoutPage() {
+    const t = await getTranslations('checkout')
     const settings = await getStoreSettings() // legge da store_settings lato server
 
     return (
         <main className="max-w-3xl mx-auto p-6">
-            <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-zinc-100">Checkout</h1>
+            <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-zinc-100">
+                {t('title')}
+            </h1>
 
             {/* 🔹 Pulsante per tornare al negozio */}
             <Link
@@ -20,12 +25,12 @@ export default async function CheckoutPage() {
                            text-white text-sm font-medium 
                            transition-colors shadow-sm"
             >
-                🏪 Torna al negozio
+                🏪 {t('backToStore')}
             </Link>
 
             {!settings ? (
                 <p className="text-sm text-red-600 dark:text-red-400">
-                    Non è stato possibile caricare le impostazioni del negozio.
+                    {t('settingsError')}
                 </p>
             ) : (
                 // 👇 Montiamo il Client Component passando i dati

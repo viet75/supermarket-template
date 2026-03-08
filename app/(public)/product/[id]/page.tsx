@@ -5,6 +5,7 @@ import { formatPrice } from '@/lib/pricing'
 import { getUnitLabel } from '@/lib/stock'
 import AddToCartControls from '@/components/AddToCartControls'
 import StockIndicator from '@/components/StockIndicator'
+import { getTranslations } from 'next-intl/server'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -32,6 +33,7 @@ function getProductImage(product: Record<string, unknown>): string {
 }
 
 export default async function ProductPage({ params }: Params) {
+  const t = await getTranslations('product')
   const { id: key } = await params
   const sb = supabaseServer()
 
@@ -92,7 +94,7 @@ export default async function ProductPage({ params }: Params) {
           href="/"
           className="inline-flex items-center gap-1 text-sm text-gray-600 dark:text-zinc-400 hover:text-green-600 dark:hover:text-green-400 mb-4"
         >
-          ← Torna allo store
+          ← {t('backToStore')}
         </Link>
 
         <article className="
@@ -107,7 +109,7 @@ export default async function ProductPage({ params }: Params) {
           <div className="relative aspect-square w-full overflow-hidden bg-gray-50 dark:bg-zinc-900 lg:aspect-auto">
             {hasSale && (
               <span className="absolute left-3 top-3 z-10 rounded-full bg-green-500/90 px-3 py-1 text-xs font-medium text-white shadow">
-                Offerta
+                {t('offerBadge')}
               </span>
             )}
             <img

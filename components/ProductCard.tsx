@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useMemo, useState, useEffect, useCallback } from 'react'
+import { useTranslations } from 'next-intl'
 import { toDisplayStock, getUnitLabel } from '@/lib/stock'
 import { formatPrice } from '@/lib/pricing'
 import { vtNavigate } from '@/lib/viewTransition'
@@ -26,6 +27,7 @@ type Product = {
 
 function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => void }) {
   const router = useRouter()
+  const t = useTranslations()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
@@ -85,17 +87,17 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
           goToDetail()
         }
       }}
-      aria-label={`Apri ${p.name}`}
+      aria-label={`${t('product.open')} ${p.name}`}
     >
       {/* Badge esaurito / offerta */}
       {outOfStock && (
         <span className="absolute right-3 top-3 z-30 rounded-full bg-red-500/90 px-3 py-1 text-xs font-medium text-white shadow">
-          Esaurito
+          {t('product.outOfStock')}
         </span>
       )}
       {!outOfStock && sale != null && sale > 0 && sale < base && (
         <span className="absolute left-3 top-3 z-30 rounded-full bg-green-500/90 px-3 py-1 text-xs font-medium text-white shadow">
-          Offerta
+          {t('product.offer')}
         </span>
       )}
 

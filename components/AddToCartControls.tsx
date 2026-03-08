@@ -3,6 +3,7 @@
 import { useCallback } from 'react'
 import { useCartStore } from '@/stores/cartStore'
 import { toDisplayStock, getUnitLabel } from '@/lib/stock'
+import { useTranslations } from 'next-intl'
 
 export type ProductForCart = {
   id: string | number
@@ -25,9 +26,11 @@ type Props = {
 }
 
 export default function AddToCartControls({ p, img, onAdded }: Props) {
+  const t = useTranslations()
   const addItem = useCartStore((s) => s.addItem)
   const removeItem = useCartStore((s) => s.removeItem)
   const qtyInCart = useCartStore((s) => {
+
     const it = s.items.find((i) => i.id === String(p.id))
     return it ? it.qty : 0
   })
@@ -100,7 +103,7 @@ export default function AddToCartControls({ p, img, onAdded }: Props) {
             stopProp(e)
             handleRemove()
           }}
-          aria-label="Rimuovi"
+          aria-label={t('product.remove')}
           type="button"
         >
           −
@@ -114,7 +117,9 @@ export default function AddToCartControls({ p, img, onAdded }: Props) {
             </span>
           ) : null}
           {p.unit_type === 'per_kg' && step !== 0.1 ? (
-            <div className="text-xs text-gray-500 dark:text-zinc-400 mt-0.5">Incrementi di {step} kg</div>
+            <div className="text-xs text-gray-500 dark:text-zinc-400 mt-0.5">
+              {t('product.stepIncrements', { step })}
+            </div>
           ) : null}
         </div>
 
@@ -128,12 +133,12 @@ export default function AddToCartControls({ p, img, onAdded }: Props) {
           disabled={outOfStock || atLimit}
           title={
             outOfStock
-              ? 'Prodotto esaurito'
+              ? t('product.outOfStockTitle')
               : atLimit
-                ? 'Hai raggiunto la quantità disponibile'
-                : 'Aggiungi un altro'
+                ? t('product.limitReached')
+                : t('product.addOneMore')
           }
-          aria-label="Aggiungi un altro"
+          aria-label={t('product.addOneMore')}
           type="button"
         >
           +
@@ -151,14 +156,14 @@ export default function AddToCartControls({ p, img, onAdded }: Props) {
         handleAdd()
       }}
       disabled={outOfStock}
-      title={outOfStock ? 'Prodotto esaurito' : 'Aggiungi al carrello'}
-      aria-label="Aggiungi al carrello"
+      title={outOfStock ? t('product.outOfStockTitle') : t('product.addToCart')}
+      aria-label={t('product.addToCart')}
       className="w-full md:w-auto rounded-xl bg-green-600 hover:bg-green-700 
         px-3 py-2 md:px-4 md:py-2.5 
         text-center text-sm md:text-base font-semibold text-white 
         disabled:bg-gray-300 dark:disabled:bg-zinc-700 disabled:text-gray-600 dark:disabled:text-zinc-400 transition-colors"
     >
-      {outOfStock ? 'Esaurito' : 'Aggiungi al carrello'}
+      {outOfStock ? t('product.outOfStockShort') : t('product.addToCart')}
     </button>
   )
 }

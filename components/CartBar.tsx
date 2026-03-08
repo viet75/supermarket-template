@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useCartStore } from '@/stores/cartStore'
 import { formatPrice } from '@/lib/pricing'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -11,6 +12,7 @@ type CartBarProps = {
 }
 
 export default function CartBar({ onCheckout }: CartBarProps) {
+    const t = useTranslations()
     const [mounted, setMounted] = useState(false)
     useEffect(() => setMounted(true), [])
 
@@ -42,7 +44,7 @@ export default function CartBar({ onCheckout }: CartBarProps) {
                         >
                             <span className="text-lg">🛒</span>
                             <span>
-                                Vai al carrello ({count} – {formatPrice(total)})
+                                {t('cart.goToCart')} ({count} – {formatPrice(total)})
                             </span>
                         </button>
                     ) : (
@@ -52,7 +54,7 @@ export default function CartBar({ onCheckout }: CartBarProps) {
                         >
                             <span className="text-lg">🛒</span>
                             <span>
-                                Vai al carrello ({count} – {formatPrice(total)})
+                                {t('cart.goToCart')} ({count} – {formatPrice(total)})
                             </span>
                         </Link>
                     )}

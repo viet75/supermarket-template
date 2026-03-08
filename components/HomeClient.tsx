@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { supabaseClient } from '@/lib/supabaseClient'
 import SearchBar from '@/components/SearchBar'
 import CategoryChipsContainer from '@/components/CategoryChipsContainer'
@@ -23,6 +24,7 @@ type Product = {
 }
 
 export default function HomeClient() {
+  const t = useTranslations()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -115,13 +117,13 @@ export default function HomeClient() {
               <ProductCard
                 key={p.id}
                 p={p as any}
-                onAdded={(name) => setToast(`${name} aggiunto al carrello`)}
+                onAdded={(name) => setToast(`${name} ${t('home.productAdded')}`)}
               />
             ))}
 
             {!filtered.length && (
               <div className="col-span-full text-center text-gray-500 dark:text-zinc-400 py-8">
-                Nessun prodotto trovato
+                {t('home.noProducts')}
               </div>
             )}
           </div>

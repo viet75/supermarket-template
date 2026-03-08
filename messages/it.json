@@ -1,0 +1,105 @@
+{
+  "common": {
+    "hello": "Ciao",
+    "welcome": "Benvenuto"
+  },
+  "home": {
+    "productAdded": "aggiunto al carrello",
+    "noProducts": "Nessun prodotto trovato"
+  },
+  "search": {
+    "label": "Cerca prodotti",
+    "placeholder": "Cerca un prodotto...",
+    "clear": "Pulisci ricerca"
+  },
+  "cart": {
+    "goToCart": "Vai al carrello"
+  },
+  "product": {
+    "open": "Apri",
+    "outOfStock": "Esaurito",
+    "offer": "Offerta",
+    "remove": "Rimuovi",
+    "stepIncrements": "Incrementi di {step} kg",
+    "outOfStockTitle": "Prodotto esaurito",
+    "limitReached": "Hai raggiunto la quantità disponibile",
+    "addOneMore": "Aggiungi un altro",
+    "addToCart": "Aggiungi al carrello",
+    "outOfStockShort": "Esaurito",
+    "backToStore": "Torna allo store",
+    "offerBadge": "Offerta"
+  },
+  "cartPage": {
+    "title": "Carrello",
+    "empty": "Il carrello è vuoto.",
+    "backToStore": "Torna al negozio",
+    "remove": "Rimuovi",
+    "clear": "Svuota carrello",
+    "total": "Totale",
+    "checkout": "Procedi al pagamento",
+    "continueShopping": "Continua gli acquisti"
+  },
+  "checkout": {
+    "title": "Checkout",
+    "backToStore": "Torna al negozio",
+    "settingsError": "Non è stato possibile caricare le impostazioni del negozio."
+  },
+  "checkoutForm": {
+    "customerDataTitle": "📍 Dati cliente",
+    "firstName": "Nome",
+    "firstNameRequired": "Inserisci il nome",
+    "lastName": "Cognome",
+    "lastNameRequired": "Inserisci il cognome",
+    "phone": "Telefono",
+    "phoneInvalid": "Inserisci un numero valido (minimo 9 cifre)",
+    "addressLine": "Via e numero civico",
+    "addressRequired": "Inserisci via e numero civico",
+    "addressExample": "Inserisci via e numero civico (es. Via Roma 10)",
+    "city": "Città",
+    "cityRequired": "Inserisci la città",
+    "cap": "CAP",
+    "capTitle": "Inserisci un CAP valido a 5 cifre",
+    "capRequired": "Inserisci il CAP completo (5 cifre)",
+    "courierNotes": "Note per il corriere",
+    "distanceTitle": "📏 Distanza",
+    "distanceAvailableWhenEnabled": "Disponibile quando il checkout è attivo",
+    "distanceCalculating": "Calcolo in corso...",
+    "distanceEnterAddress": "Inserisci indirizzo per calcolare",
+    "paymentMethodTitle": "💳 Metodo di pagamento",
+    "orderSummaryTitle": "🛒 Riepilogo ordine",
+    "subtotal": "Subtotale",
+    "delivery": "Consegna",
+    "freeDelivery": "Consegna gratuita",
+    "freeDeliveryEstimate": "Consegna gratuita (stima)",
+    "total": "Totale",
+    "processing": "⏳ Elaborazione…",
+    "confirmOrder": "Conferma ordine",
+    "deliveryDisabled": "Le consegne sono temporaneamente disabilitate.",
+    "storeClosed": "Negozio chiuso. Ordini non accettati in questo momento.",
+    "cartEmpty": "Carrello vuoto",
+    "invalidAddress": "Indirizzo non valido",
+    "requiredFields": "Compila tutti i campi obbligatori",
+    "orderCreated": "Ordine creato con successo!",
+    "unexpectedError": "Errore imprevisto",
+    "goToCart": "Vai al carrello",
+    "paymentCash": "Pagamento in contanti alla consegna",
+    "paymentPosOnDelivery": "Pagamento con POS alla consegna",
+    "paymentCardOnline": "Pagamento con carta online",
+    "capInvalidFull": "CAP non valido. Inserisci 5 cifre (es: 74123).",
+    "fullAddressExample": "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma",
+    "fillAddressFields": "Compila tutti i campi dell'indirizzo",
+    "apiError": "Errore API"
+  },
+  "header": {
+    "defaultStoreName": "Supermarket Template",
+    "cart": "Carrello",
+    "profile": "Profilo",
+    "login": "Accedi",
+    "logout": "Logout",
+    "manageProducts": "Gestione Prodotti",
+    "manageOrders": "Gestione Ordini",
+    "manageCategories": "Gestione Categorie",
+    "manageDelivery": "Gestione Consegna",
+    "settings": "Impostazioni"
+  }
+}

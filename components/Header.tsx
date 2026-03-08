@@ -1,15 +1,19 @@
 'use client'
 
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { Link, useRouter, usePathname } from '@/i18n/navigation'
+import NextLink from 'next/link'
 import { useCartStore } from '@/stores/cartStore'
 import { supabaseClient } from '@/lib/supabaseClient'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslations, useLocale } from 'next-intl'
 
 export default function Header() {
   const router = useRouter()
+  const t = useTranslations('header')
+  const pathname = usePathname()
+  const locale = useLocale()
   const { items } = useCartStore()
   const badgeCount = items.length
 
@@ -127,7 +131,12 @@ export default function Header() {
   const handleLogout = async () => {
     setOpenMenu(false)
     await supabaseClient().auth.signOut()
-    router.push('/')
+    router.push('/', { locale })
+    router.refresh()
+  }
+
+  const switchLocale = (nextLocale: 'it' | 'en') => {
+    router.replace(pathname, { locale: nextLocale })
     router.refresh()
   }
 
@@ -151,47 +160,47 @@ export default function Header() {
         >
           {isAdmin ? (
             <>
-              <Link
+              <NextLink
                 href="/admin/products"
                 className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
                 onClick={() => setOpenMenu(false)}
                 role="menuitem"
               >
-                Gestione Prodotti
-              </Link>
-              <Link
+                {t('manageProducts')}
+              </NextLink>
+              <NextLink
                 href="/admin/orders"
                 className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
                 onClick={() => setOpenMenu(false)}
                 role="menuitem"
               >
-                Gestione Ordini
-              </Link>
-              <Link
+                {t('manageOrders')}
+              </NextLink>
+              <NextLink
                 href="/admin/categories"
                 className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
                 onClick={() => setOpenMenu(false)}
                 role="menuitem"
               >
-                Gestione Categorie
-              </Link>
-              <Link
+                {t('manageCategories')}
+              </NextLink>
+              <NextLink
                 href="/admin/settings/delivery"
                 className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
                 onClick={() => setOpenMenu(false)}
                 role="menuitem"
               >
-                Gestione Consegna
-              </Link>
+                {t('manageDelivery')}
+              </NextLink>
               <div className="border-t border-gray-200 dark:border-gray-600 my-1" />
-              <Link
+              <NextLink
                 href="/admin/settings"
                 className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
                 onClick={() => setOpenMenu(false)}
                 role="menuitem"
               >
-                Impostazioni
-              </Link>
+                {t('settings')}
+              </NextLink>
               <div className="border-t border-gray-200 dark:border-gray-600 my-1" />
               <button
                 type="button"
@@ -200,19 +209,19 @@ export default function Header() {
                 role="menuitem"
               >
                 <span aria-hidden>🚪</span>
-                Logout
+                {t('logout')}
               </button>
             </>
           ) : (
             <>
-              <Link
+              <NextLink
                 href="/admin"
                 className="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700"
                 onClick={() => setOpenMenu(false)}
                 role="menuitem"
               >
-                Accedi
-              </Link>
+                {t('login')}
+              </NextLink>
               {isAuthed && (
                 <>
                   <div className="border-t border-gray-200 dark:border-gray-600 my-1" />
@@ -223,7 +232,7 @@ export default function Header() {
                     role="menuitem"
                   >
                     <span aria-hidden>🚪</span>
-                    Logout
+                    {t('logout')}
                   </button>
                 </>
               )}
@@ -240,14 +249,42 @@ export default function Header() {
       className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-zinc-800 shadow-sm"
     >
       <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
-        {process.env.NEXT_PUBLIC_STORE_NAME ?? 'Supermarket Template'}
+        {process.env.NEXT_PUBLIC_STORE_NAME ?? t('defaultStoreName')}
       </h1>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center rounded-full border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 p-1">
+          <button
+            type="button"
+            onClick={() => switchLocale('it')}
+            className={`px-2.5 py-1 text-xs font-semibold rounded-full transition ${
+              locale === 'it'
+                ? 'bg-green-600 text-white'
+                : 'text-gray-600 dark:text-zinc-300 hover:bg-gray-200 dark:hover:bg-zinc-700'
+            }`}
+            aria-pressed={locale === 'it'}
+          >
+            IT
+          </button>
+
+          <button
+            type="button"
+            onClick={() => switchLocale('en')}
+            className={`px-2.5 py-1 text-xs font-semibold rounded-full transition ${
+              locale === 'en'
+                ? 'bg-green-600 text-white'
+                : 'text-gray-600 dark:text-zinc-300 hover:bg-gray-200 dark:hover:bg-zinc-700'
+            }`}
+            aria-pressed={locale === 'en'}
+          >
+            EN
+          </button>
+        </div>
+
         <Link
           href="/cart"
           className="relative text-gray-700 dark:text-zinc-300 text-2xl hover:text-green-600 transition"
-          aria-label="Carrello"
+          aria-label={t('cart')}
         >
           🛒
           {badgeCount > 0 && (
@@ -273,7 +310,7 @@ export default function Header() {
               if (next) requestAnimationFrame(computePos)
             }}
             className="flex items-center gap-1 text-gray-700 dark:text-zinc-300 text-2xl hover:text-green-600 transition cursor-pointer"
-            aria-label="Profilo"
+            aria-label={t('profile')}
             aria-expanded={openMenu}
             aria-haspopup="menu"
             type="button"

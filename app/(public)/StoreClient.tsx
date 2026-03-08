@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import type { Product, Category } from '@/lib/types'
 import CategoryChipsContainer from '@/components/CategoryChipsContainer'
 import ProductsGrid from '@/components/ProductsGrid'
@@ -26,6 +27,7 @@ export default function StoreClient({
   products: Product[]
   categories: Category[]
 }) {
+  const t = useTranslations()
   const router = useRouter()
   const [products, setProducts] = useState<Product[]>(initialProducts)
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
@@ -161,7 +163,7 @@ export default function StoreClient({
             </span>
             <input
               type="text"
-              placeholder="Cerca prodotto..."
+              placeholder={t('search.placeholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="
@@ -207,7 +209,7 @@ export default function StoreClient({
           <ProductsGrid products={filteredProducts} />
         ) : (
           <p className="text-center text-gray-500 dark:text-zinc-400 mt-10">
-            Nessun prodotto trovato
+            {t('home.noProducts')}
           </p>
         )}
       </div>

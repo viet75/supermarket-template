@@ -1,7 +1,9 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 
 export default function SearchBar({ onChange }: { onChange: (q: string) => void }) {
+    const t = useTranslations()
     const [q, setQ] = useState('')
     const inputRef = useRef<HTMLInputElement>(null)
 
@@ -21,7 +23,7 @@ export default function SearchBar({ onChange }: { onChange: (q: string) => void 
           transition
         "
                 role="search"
-                aria-label="Cerca prodotti"
+                aria-label={t('search.label')}
             >
                 {/* icona lente */}
                 <span
@@ -43,7 +45,7 @@ export default function SearchBar({ onChange }: { onChange: (q: string) => void 
                     onKeyDown={(e) => {
                         if (e.key === 'Escape') clear()
                     }}
-                    placeholder="Cerca un prodotto..."
+                    placeholder={t('search.placeholder')}
                     className="
             w-full h-11 pl-10 pr-10 rounded-xl
             outline-none bg-transparent
@@ -63,8 +65,8 @@ export default function SearchBar({ onChange }: { onChange: (q: string) => void 
               text-gray-700 dark:text-zinc-300
               transition
             "
-                        aria-label="Pulisci ricerca"
-                        title="Pulisci"
+                        aria-label={t('search.clear')}
+                        title={t('search.clear')}
                     >
                         ✕
                     </button>

@@ -5,17 +5,19 @@ import { formatPrice } from '@/lib/pricing'
 import { formatQty } from '@/lib/qty'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 
 export default function CartPage() {
     const { items, removeItem, clear, total } = useCartStore()
+    const t = useTranslations('cartPage')
 
     return (
         <div className="container mx-auto px-4 py-8">
-            <h1 className="text-2xl font-bold mb-6">Carrello</h1>
+            <h1 className="text-2xl font-bold mb-6">{t('title')}</h1>
 
             {items.length === 0 ? (
                 <div className="flex flex-col items-center justify-center text-center py-12">
-                    <p className="text-gray-600 dark:text-zinc-300 mb-6">Il carrello è vuoto.</p>
+                    <p className="text-gray-600 dark:text-zinc-300 mb-6">{t('empty')}</p>
 
                     <Link
                         href="/"
@@ -24,7 +26,7 @@ export default function CartPage() {
                        text-white text-sm font-medium 
                        transition-colors shadow-sm"
                     >
-                        🏪 Torna al negozio
+                        🏪 {t('backToStore')}
                     </Link>
                 </div>
             ) : (
@@ -59,7 +61,7 @@ export default function CartPage() {
                             <button
                                 onClick={() => removeItem(i.id)}
                                 className="text-red-500 hover:text-red-700 text-lg"
-                                aria-label="Rimuovi"
+                                aria-label={t('remove')}
                             >
                                 ❌
                             </button>
@@ -71,10 +73,10 @@ export default function CartPage() {
                             onClick={clear}
                             className="bg-gray-200 hover:bg-gray-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-gray-700 dark:text-zinc-300 px-4 py-2 rounded"
                         >
-                            Svuota carrello
+                           {t('clear')} 
                         </button>
                         <p className="text-lg font-semibold">
-                            Totale: {formatPrice(total())}
+                        {t('total')}: {formatPrice(total())}
                         </p>
                     </div>
 
@@ -83,7 +85,7 @@ export default function CartPage() {
                             href="/checkout"
                             className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded"
                         >
-                            Procedi al pagamento
+                            {t('checkout')}
                         </Link>
                     </div>
                     {/* ✅ Pulsante per tornare allo store (responsive + dark mode) */}
@@ -97,7 +99,7 @@ export default function CartPage() {
                             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                             </svg>
-                            Continua gli acquisti
+                            {t('continueShopping')}
                         </Link>
                     </div>
 

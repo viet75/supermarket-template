@@ -1,0 +1,105 @@
+{
+  "common": {
+    "hello": "Hello",
+    "welcome": "Welcome"
+  },
+  "home": {
+    "productAdded": "added to cart",
+    "noProducts": "No products found"
+  },
+  "search": {
+    "label": "Search products",
+    "placeholder": "Search a product...",
+    "clear": "Clear search"
+  },
+  "cart": {
+    "goToCart": "Go to cart"
+  },
+  "product": {
+    "open": "Open",
+    "outOfStock": "Out of stock",
+    "offer": "Offer",
+    "remove": "Remove",
+    "stepIncrements": "Increments of {step} kg",
+    "outOfStockTitle": "Product out of stock",
+    "limitReached": "You reached the available quantity",
+    "addOneMore": "Add one more",
+    "addToCart": "Add to cart",
+    "outOfStockShort": "Out of stock",
+    "backToStore": "Back to store",
+    "offerBadge": "Offer"
+  },
+  "cartPage": {
+    "title": "Cart",
+    "empty": "Your cart is empty.",
+    "backToStore": "Back to store",
+    "remove": "Remove",
+    "clear": "Clear cart",
+    "total": "Total",
+    "checkout": "Proceed to checkout",
+    "continueShopping": "Continue shopping"
+  },
+  "checkout": {
+    "title": "Checkout",
+    "backToStore": "Back to store",
+    "settingsError": "Unable to load store settings."
+  },
+  "checkoutForm": {
+    "customerDataTitle": "📍 Customer details",
+    "firstName": "First name",
+    "firstNameRequired": "Enter first name",
+    "lastName": "Last name",
+    "lastNameRequired": "Enter last name",
+    "phone": "Phone",
+    "phoneInvalid": "Enter a valid phone number (minimum 9 digits)",
+    "addressLine": "Street and house number",
+    "addressRequired": "Enter street and house number",
+    "addressExample": "Enter street and house number (e.g. Via Roma 10)",
+    "city": "City",
+    "cityRequired": "Enter city",
+    "cap": "ZIP code",
+    "capTitle": "Enter a valid 5-digit ZIP code",
+    "capRequired": "Enter the full ZIP code (5 digits)",
+    "courierNotes": "Notes for the courier",
+    "distanceTitle": "📏 Distance",
+    "distanceAvailableWhenEnabled": "Available when checkout is enabled",
+    "distanceCalculating": "Calculating...",
+    "distanceEnterAddress": "Enter address to calculate",
+    "paymentMethodTitle": "💳 Payment method",
+    "orderSummaryTitle": "🛒 Order summary",
+    "subtotal": "Subtotal",
+    "delivery": "Delivery",
+    "freeDelivery": "Free delivery",
+    "freeDeliveryEstimate": "Free delivery (estimate)",
+    "total": "Total",
+    "processing": "⏳ Processing…",
+    "confirmOrder": "Confirm order",
+    "deliveryDisabled": "Deliveries are temporarily disabled.",
+    "storeClosed": "Store closed. Orders are not accepted at the moment.",
+    "cartEmpty": "Cart is empty",
+    "invalidAddress": "Invalid address",
+    "requiredFields": "Please fill in all required fields",
+    "orderCreated": "Order created successfully!",
+    "unexpectedError": "Unexpected error",
+    "goToCart": "Go to cart",
+    "paymentCash": "Cash on delivery",
+    "paymentPosOnDelivery": "POS payment on delivery",
+    "paymentCardOnline": "Online card payment",
+    "capInvalidFull": "Invalid ZIP code. Enter 5 digits (e.g. 74123).",
+    "fullAddressExample": "Enter the full address (street, house number, ZIP code and city). Example: Via Roma 10, 00100 Roma",
+    "fillAddressFields": "Fill in all address fields",
+    "apiError": "API error"
+  },
+  "header": {
+    "defaultStoreName": "Supermarket Template",
+    "cart": "Cart",
+    "profile": "Profile",
+    "login": "Login",
+    "logout": "Logout",
+    "manageProducts": "Manage Products",
+    "manageOrders": "Manage Orders",
+    "manageCategories": "Manage Categories",
+    "manageDelivery": "Manage Delivery",
+    "settings": "Settings"
+  }
+}
