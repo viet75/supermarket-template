@@ -7,7 +7,7 @@ import AddToCartControls from '@/components/AddToCartControls'
 import StockIndicator from '@/components/StockIndicator'
 import { getTranslations } from 'next-intl/server'
 
-type Params = { params: Promise<{ id: string }> }
+type Params = { params: Promise<{ locale: string; id: string }> }
 
 export const revalidate = 0
 export const dynamic = 'force-dynamic'
@@ -34,10 +34,10 @@ function getProductImage(product: Record<string, unknown>): string {
 
 export default async function ProductPage({ params }: Params) {
   const t = await getTranslations('product')
-  const { id: key } = await params
+  const { id: key, locale } = await params
   const sb = supabaseServer()
 
-  // A) Cerca per slug
+  // A) Search by slug
   let result = await sb
     .from('products')
     .select('*')
@@ -49,7 +49,7 @@ export default async function ProductPage({ params }: Params) {
 
   let product = result.data
 
-  // B) Se non trovato, cerca per id (uuid)
+  // B) If not found, search by id (UUID)
   if (!product) {
     result = await sb
       .from('products')
@@ -133,10 +133,15 @@ export default async function ProductPage({ params }: Params) {
 
             <div className="flex items-baseline gap-2">
               <span className="text-lg font-semibold text-gray-900 dark:text-zinc-100">
-                {formatPrice(effective)} / {getUnitLabel(row as any)}
+                {formatPrice(effective)}
               </span>
+
+              <span className="text-sm text-gray-500 dark:text-zinc-400">
+                / {getUnitLabel(row as any, locale)}
+              </span>
+
               {hasSale && (
-                <span className="text-sm text-gray-500 dark:text-zinc-400 line-through">
+                <span className="text-sm text-gray-500 dark:text-zinc-400 line-through ml-1">
                   {formatPrice(base)}
                 </span>
               )}

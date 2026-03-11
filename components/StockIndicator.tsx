@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { toDisplayStock, getUnitLabel } from '@/lib/stock'
+import { useLocale, useTranslations } from 'next-intl'
 
 type Props = {
   product: {
@@ -17,11 +18,13 @@ type Props = {
 }
 
 export default function StockIndicator({ product, className, stockBaseline, stockTextClassName }: Props) {
+  const t = useTranslations()
+  const locale = useLocale()
   const stockNum = toDisplayStock(product as any) // null = illimitato
   const isUnlimited = stockNum === null
   const outOfStock = !isUnlimited && stockNum === 0
 
-  const unitLabel = getUnitLabel(product as any)
+  const unitLabel = getUnitLabel(product as any, locale)
 
   // Estrai stockBaseline dalla prop o da product.stock_baseline (retrocompatibilità)
   const baseline = useMemo(() => {
@@ -60,11 +63,11 @@ export default function StockIndicator({ product, className, stockBaseline, stoc
       {/* TESTO STOCK */}
       <div className={`text-xs font-medium ${stockTextClassName ?? colorClass}`}>
         {isUnlimited ? (
-          <span>Disponibilità: illimitata</span>
+          <span>{t('product.availabilityUnlimited')}</span>
         ) : outOfStock ? (
-          <span>Disponibili: 0 {unitLabel}</span>
+          <span>{t('product.availableQuantity', { quantity: 0, unit: unitLabel })}</span>
         ) : (
-          <span>Disponibili: {product.unit_type === 'per_kg' && typeof stockNum === 'number' ? formatKg(stockNum) : stockNum} {unitLabel}</span>
+          <span>{t('product.availableQuantity', { quantity: product.unit_type === 'per_kg' && typeof stockNum === 'number' ? formatKg(stockNum) : stockNum, unit: unitLabel })}</span>
         )}
       </div>
 

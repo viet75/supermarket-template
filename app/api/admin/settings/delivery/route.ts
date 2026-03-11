@@ -14,7 +14,7 @@ const DEFAULT_WEEKLY_HOURS = {
   sun: [],
 }
 
-/** Normalizza riga store_settings per risposta coerente (null -> default, jsonb validi). */
+/** Normalize store_settings row for a consistent response (null → default, valid jsonb). */
 function normalizeSettings(row: Record<string, unknown> | null): Record<string, unknown> {
   if (!row || typeof row !== 'object') {
     return {
@@ -54,7 +54,7 @@ function normalizeSettings(row: Record<string, unknown> | null): Record<string, 
 
 /* ===========================
    GET /api/admin/settings/delivery
-   Ritorna le impostazioni di consegna. Fallback sicuro se DB/query fallisce.
+   Return the delivery settings. Safe fallback if DB/query fails.
 =========================== */
 export async function GET() {
   try {
@@ -91,7 +91,7 @@ export async function GET() {
 
 /* ===========================
    PUT /api/admin/settings/delivery
-   Aggiorna le impostazioni di consegna
+   Update the delivery settings
 =========================== */
 export async function PUT(req: Request) {
   try {
@@ -121,11 +121,11 @@ export async function PUT(req: Request) {
     }
 
     if (Array.isArray(body.payment_methods)) {
-      // Validazione: payment_methods deve essere un array di stringhe valide
+      // Validation: payment_methods must be an array of valid strings
       const allowed: PaymentMethod[] = ['cash', 'card_online', 'pos_on_delivery']
       const isValidStringArray = body.payment_methods.every((m: any) => typeof m === 'string')
       if (isValidStringArray) {
-        // Filtriamo solo i metodi validi
+        // Filter only valid methods
         update.payment_methods = body.payment_methods.filter((m: any): m is PaymentMethod =>
           allowed.includes(m as PaymentMethod)
         )
@@ -156,7 +156,7 @@ export async function PUT(req: Request) {
 
     if (Object.keys(update).length === 0) {
       return NextResponse.json(
-        { error: 'Nessun campo valido da aggiornare' },
+        { error: 'No valid fields to update' },
         { status: 400 }
       )
     }
@@ -193,14 +193,14 @@ export async function PUT(req: Request) {
       throw error
     }
     if (!data) {
-      throw new Error('Nessuna riga aggiornata')
+      throw new Error('No row updated')
     }
 
     const normalized = normalizeSettings(data as Record<string, unknown>)
     return NextResponse.json({ settings: normalized })
   } catch (e: any) {
     return NextResponse.json(
-      { error: e?.message ?? 'Errore salvataggio impostazioni consegna' },
+      { error: e?.message ?? 'Error saving delivery settings' },
       { status: 500 }
     )
   }

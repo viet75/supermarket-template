@@ -9,7 +9,7 @@ export const revalidate = 0
 
 export default async function CheckoutPage() {
     const t = await getTranslations('checkout')
-    const settings = await getStoreSettings() // legge da store_settings lato server
+    const settings = await getStoreSettings() // read from server-side store_settings
 
     return (
         <main className="max-w-3xl mx-auto p-6">
@@ -17,7 +17,7 @@ export default async function CheckoutPage() {
                 {t('title')}
             </h1>
 
-            {/* 🔹 Pulsante per tornare al negozio */}
+            {/* 🔹 Button to return to the store */}
             <Link
                 href="/"
                 className="inline-flex items-center gap-2 mb-6 px-5 py-3 rounded-lg 
@@ -33,7 +33,7 @@ export default async function CheckoutPage() {
                     {t('settingsError')}
                 </p>
             ) : (
-                // 👇 Montiamo il Client Component passando i dati
+                // 👇 Mount the Client Component passing the data
                 <CheckoutForm settings={settings} />
             )}
         </main>

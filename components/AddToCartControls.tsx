@@ -3,7 +3,7 @@
 import { useCallback } from 'react'
 import { useCartStore } from '@/stores/cartStore'
 import { toDisplayStock, getUnitLabel } from '@/lib/stock'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 
 export type ProductForCart = {
   id: string | number
@@ -27,6 +27,7 @@ type Props = {
 
 export default function AddToCartControls({ p, img, onAdded }: Props) {
   const t = useTranslations()
+  const locale = useLocale()
   const addItem = useCartStore((s) => s.addItem)
   const removeItem = useCartStore((s) => s.removeItem)
   const qtyInCart = useCartStore((s) => {
@@ -113,7 +114,7 @@ export default function AddToCartControls({ p, img, onAdded }: Props) {
           {p.unit_type === 'per_kg' ? qtyInCart.toFixed(decimals) : qtyInCart}
           {!isUnlimited && typeof stockNum === 'number' ? (
             <span className="ml-1 text-xs text-gray-500 dark:text-zinc-400">
-              / {stockNum} {getUnitLabel(p as any)}
+              / {stockNum} {getUnitLabel(p as any, locale)}
             </span>
           ) : null}
           {p.unit_type === 'per_kg' && step !== 0.1 ? (
@@ -158,10 +159,12 @@ export default function AddToCartControls({ p, img, onAdded }: Props) {
       disabled={outOfStock}
       title={outOfStock ? t('product.outOfStockTitle') : t('product.addToCart')}
       aria-label={t('product.addToCart')}
-      className="w-full md:w-auto rounded-xl bg-green-600 hover:bg-green-700 
-        px-3 py-2 md:px-4 md:py-2.5 
-        text-center text-sm md:text-base font-semibold text-white 
-        disabled:bg-gray-300 dark:disabled:bg-zinc-700 disabled:text-gray-600 dark:disabled:text-zinc-400 transition-colors"
+      className="w-full rounded-xl bg-green-600 hover:bg-green-700 
+px-3 py-2 md:px-4 md:py-2.5 
+text-center text-sm md:text-base font-semibold text-white 
+disabled:bg-gray-300 dark:disabled:bg-zinc-700 
+disabled:text-gray-600 dark:disabled:text-zinc-400 
+transition-colors"
     >
       {outOfStock ? t('product.outOfStockShort') : t('product.addToCart')}
     </button>

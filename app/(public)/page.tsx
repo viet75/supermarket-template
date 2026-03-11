@@ -1,6 +1,6 @@
 import { supabaseServer } from '@/lib/supabaseServer'
 import StoreClient from '@/app/(public)/StoreClient'
-import type { Metadata } from 'next' // 👈 rimesso come nel tuo originale
+import type { Metadata } from 'next' 
 
 export const revalidate = 0
 export const dynamic = 'force-dynamic'
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 export default async function Page() {
   const sb = supabaseServer()
 
-  // categorie
+  // categories
   const { data: categories, error: categoriesError } = await sb
     .from('categories')
     .select('id, name, sort_order')
@@ -18,18 +18,18 @@ export default async function Page() {
     console.error('❌ Errore caricamento categorie:', categoriesError)
   }
 
-  // prodotti
+  // products
   let products: any[] | null = null
   let productsError: any = null
 
   try {
-    // Seleziona tutte le colonne disponibili
+    // Select all available columns
     const result = await sb
       .from('products')
       .select('*')
-      .eq('is_active', true)      // <-- fix: mostra solo prodotti attivi
-      .eq('archived', false)       // <-- fix: esclude prodotti archiviati (bloccati da trigger DB)
-      .is('deleted_at', null)      // <-- fix: esclude prodotti soft-deleted
+      .eq('is_active', true)      // <-- fix: show only active products
+      .eq('archived', false)       // <-- fix: exclude archived products (blocked by DB trigger)
+      .is('deleted_at', null)      // <-- fix: exclude soft-deleted products
       .order('name', { ascending: true })
 
     products = result.data
@@ -40,7 +40,7 @@ export default async function Page() {
     }
 
     if (products) {
-      // Ordina manualmente per sort_order e poi name
+      // Manually sort by sort_order and then name
       products.sort((a, b) => {
         const sortA = a.sort_order ?? 999
         const sortB = b.sort_order ?? 999

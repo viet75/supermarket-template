@@ -19,7 +19,7 @@ type Product = {
  */
 export function toDisplayStock(product: Product): number | null {
     if (product.stock == null) return null
-    
+
     const stock = Number(product.stock)
     if (!Number.isFinite(stock)) return null
 
@@ -60,7 +60,14 @@ export function normalizeStock(unitType: 'per_unit' | 'per_kg' | null | undefine
 /**
  * Restituisce l'etichetta dell'unità ('kg' o 'pz')
  */
-export function getUnitLabel(product: Product): string {
-    return product.unit_type === 'per_kg' ? 'kg' : 'pz'
+export function getUnitLabel(
+    product: Product,
+    locale: string = 'it'
+): string {
+    if (product.unit_type === 'per_kg') {
+        return 'kg'
+    }
+
+    return locale === 'en' ? 'pcs' : 'pz'
 }
 

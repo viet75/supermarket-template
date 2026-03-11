@@ -1,14 +1,17 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useLocale, useTranslations } from 'next-intl'
 
 type Props = {
-  categories: { id: string; name: string }[]
+  categories: { id: string; name: string; slug?: string | null }[]
   activeId: string | null
   onChange: (id: string | null) => void
 }
 
 export default function CategoryChips({ categories, activeId, onChange }: Props) {
+  const t = useTranslations()
+  const locale = useLocale()
   const scrollerRef = useRef<HTMLDivElement | null>(null)
 
   // Mostra sfumature solo quando servono (overflow + posizione scroll)
@@ -30,6 +33,20 @@ export default function CategoryChips({ categories, activeId, onChange }: Props)
     'border border-green-600/80 ' +
     'bg-green-600 text-white ' +
     'shadow-md'
+
+  // Traduce solo le categorie demo seed
+  const getCategoryDisplayName = (category: { name: string; slug?: string | null }) => {
+    switch (category.slug) {
+      case 'fresh-produce':
+        return locale === 'it' ? 'Frutta e Verdura' : 'Fresh Produce'
+      case 'pantry':
+        return locale === 'it' ? 'Dispensa' : 'Pantry'
+      case 'beverages':
+        return locale === 'it' ? 'Bevande' : 'Beverages'
+      default:
+        return category.name
+    }
+  }
 
   useEffect(() => {
     const el = scrollerRef.current
@@ -106,13 +123,13 @@ export default function CategoryChips({ categories, activeId, onChange }: Props)
               />
             </svg>
           )}
-          <span>Tutti</span>
+          <span>{t('categories.all')}</span>
         </span>
       </button>
 
       {/* SCROLL AREA: solo categorie + fade confinati qui */}
       <div className="relative flex-1 min-w-0">
-        {/* Fade sinistra (solo area scrollabile) */}
+        {/* Fade sinistra */}
         {fadeLeft && (
           <div
             className="
@@ -124,7 +141,7 @@ export default function CategoryChips({ categories, activeId, onChange }: Props)
           />
         )}
 
-        {/* Fade destra (solo area scrollabile) */}
+        {/* Fade destra */}
         {fadeRight && (
           <div
             className="
@@ -146,7 +163,7 @@ export default function CategoryChips({ categories, activeId, onChange }: Props)
               onClick={() => onChange(c.id)}
               className={[base, activeId === c.id ? active : inactive].join(' ')}
             >
-              {c.name}
+              {getCategoryDisplayName(c)}
             </button>
           ))}
         </div>

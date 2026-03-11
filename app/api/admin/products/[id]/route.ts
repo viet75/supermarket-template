@@ -20,7 +20,7 @@ function mustNumber(v: unknown, field = 'number'): number {
 
 /* ===========================
    GET /api/admin/products/[id]
-   Ritorna un singolo prodotto
+   Return a single product
 =========================== */
 export async function GET(_req: Request, context: any) {
     try {
@@ -37,7 +37,7 @@ export async function GET(_req: Request, context: any) {
 
 /* ===========================
    PUT /api/admin/products/[id]
-   Aggiorna un prodotto esistente
+   Update an existing product
 =========================== */
 export async function PUT(req: Request, context: any) {
     try {
@@ -53,22 +53,22 @@ export async function PUT(req: Request, context: any) {
         if (typeof body.image_url !== 'undefined') update.image_url = body.image_url ?? null
         if (typeof body.images !== 'undefined') update.images = Array.isArray(body.images) ? body.images : null
         if (typeof body.category_id !== 'undefined') update.category_id = body.category_id ?? null
-        // is_active=false → archived=true così il trigger DB blocca order_items. QA: B archivia, A conferma ordine → 409, carrello riconciliato.
-        // is_active=true → archived=false per garantire coerenza quando si ripristina un prodotto
+        // is_active=false → archived=true so that the DB trigger blocks order_items. QA: B archive, A confirm order → 409, cart reconciled.
+        // is_active=true → archived=false to ensure consistency when restoring a product
         if (typeof body.is_active === 'boolean') {
             update.is_active = body.is_active
             if (body.is_active === false) {
                 update.archived = true
             } else if (body.is_active === true) {
-                // QA: Quando si ripristina un prodotto (is_active=true), assicurati che archived=false
-                // per evitare che il trigger DB blocchi order_items su prodotti ripristinati
+                // QA: When restoring a product (is_active=true), ensure that archived=false
+                // to avoid the DB trigger blocking order_items on restored products
                 update.archived = false
             }
         }
         if (typeof body.archived === 'boolean') update.archived = body.archived
         if (typeof body.sort_order !== 'undefined') update.sort_order = mustNumber(body.sort_order, 'sort_order')
 
-        // Recupera stato attuale del prodotto (UNA SOLA QUERY)
+        // Retrieve the current product status (ONE QUERY)
         const svc = supabaseServer()
         const { data: current, error: currentError } = await svc
             .from('products')
@@ -77,21 +77,21 @@ export async function PUT(req: Request, context: any) {
             .single()
 
         if (currentError || !current) {
-            throw new Error('Prodotto non trovato')
+            throw new Error('Product not found')
         }
 
-        // unit_type finale (nuovo o attuale)
+        // final unit_type (new or current)
         const unitType = body.unit_type ?? current.unit_type
         update.unit_type = unitType
 
-        // Normalizza stock (kg reali per per_kg, pezzi interi per per_unit)
+        // Normalize stock (real kg for per_kg, integer for per_unit)
         if (typeof body.stock !== 'undefined') {
             update.stock = normalizeStock(unitType, body.stock)
         }
 
         if (Object.keys(update).length === 0) {
             return NextResponse.json(
-                { error: 'Nessun campo valido da aggiornare' },
+                { error: 'No valid fields to update'},
                 { status: 400 }
             )
         }
@@ -108,7 +108,7 @@ export async function PUT(req: Request, context: any) {
         return NextResponse.json({ product: data })
     } catch (e: any) {
         return NextResponse.json(
-            { error: e?.message ?? 'Errore aggiornamento prodotto' },
+            { error: e?.message ?? 'Product update error' },
             { status: 500 }
         )
     }
@@ -117,12 +117,12 @@ export async function PUT(req: Request, context: any) {
 
 /* ===========================
    DELETE /api/admin/products/[id]
-   Elimina un prodotto
+   Delete a product
 =========================== */
 export async function DELETE(_req: Request, context: any) {
     try {
         const { id } = context.params
-        if (!id) return NextResponse.json({ error: 'id obbligatorio' }, { status: 400 })
+        if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
         const svc = supabaseServer()
         const { error } = await svc.from('products').delete().eq('id', id)
@@ -130,6 +130,6 @@ export async function DELETE(_req: Request, context: any) {
         if (error) throw error
         return NextResponse.json({ ok: true })
     } catch (e: any) {
-        return NextResponse.json({ error: e?.message ?? 'Errore eliminazione prodotto' }, { status: 500 })
+        return NextResponse.json({ error: e?.message ?? 'Error deleting product' }, { status: 500 })
     }
 }

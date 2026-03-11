@@ -121,17 +121,17 @@ export default function StoreClient({
 
   const scrollRef = useRef<HTMLElement | null>(null)
   useEffect(() => {
-    // prende lo scroll host creato dal layout pubblico
+    // take the scroll host created by the public layout
     scrollRef.current =
       (window as any).__PUBLIC_SCROLL_EL__ ??
       (document.getElementById('public-scroll-container') as HTMLElement | null)
   }, [])
 
-  // Scroll-to-top quando cambio categoria (mantiene UX attuale su search)
+  // Scroll-to-top when changing category (maintains current UX on search)
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    // reset immediato: evita animazioni strane e mantiene comportamento consistente
+    // reset immediately: avoid strange animations and maintain consistent behavior
     el.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }, [activeCategory])
 
@@ -144,7 +144,7 @@ export default function StoreClient({
 
   return (
     <>
-      {/* HEADER sticky (NO blur: elimina fascia trasparente) */}
+      {/* HEADER sticky (NO blur: transparent strip) */}
       <div
         className="
     relative
@@ -200,7 +200,7 @@ export default function StoreClient({
         </div>
       </div>
 
-      {/* Spacer fisso per non far coprire i prodotti dall'overlay categorie */}
+      {/* Fixed spacer to prevent products from being covered by category overlay */}
       <div className="h-[56px] md:h-[60px]" />
 
       {/* Content */}

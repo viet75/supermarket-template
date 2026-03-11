@@ -30,7 +30,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: error.message }, { status: 500 })
         }
 
-        // ✅ Ottieni l'URL pubblico Supabase
+        // ✅ Get the Supabase public URL
         const { data: urlData } = supabaseServiceRole.storage
             .from('products')
             .getPublicUrl(filePath)

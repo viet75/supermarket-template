@@ -14,11 +14,27 @@ const formatter = new Intl.NumberFormat('it-IT', {
  * Evita problemi di floating point.
  * Robusta contro NaN/null/undefined: restituisce €0,00 se valore non finito.
  */
-export function formatPrice(value: number | null | undefined): string {
+export function formatPrice(
+    value: number | null | undefined,
+    locale: string = 'it'
+  ): string {
     const n = Number(value)
-    if (!Number.isFinite(n)) return '€0,00'
+    if (!Number.isFinite(n)) {
+      return locale === 'en' ? '€0.00' : '€0,00'
+    }
+  
+    const formatter = new Intl.NumberFormat(
+      locale === 'en' ? 'en-GB' : 'it-IT',
+      {
+        style: 'currency',
+        currency: 'EUR',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }
+    )
+  
     return formatter.format(n)
-}
+  }
 
 // Back-compat: se chiami con (distance, subtotal) usa default; se passi cfg, usa cfg.
 export function deliveryFeeFor(distanceKm: number, subtotal: number, cfg?: DeliverySettings) {

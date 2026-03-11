@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useFormStatus } from 'react-dom';
+import { useTranslations } from 'next-intl';
 import type { StoreSettings } from '@/lib/types';
 
 type Props = {
@@ -9,7 +10,7 @@ type Props = {
     action: (state: any, formData: FormData) => Promise<{ ok: boolean; message: string }>;
 };
 
-function SubmitButton({ success }: { success: boolean }) {
+function SubmitButton({ success, t }: { success: boolean; t: (key: string) => string }) {
     const { pending } = useFormStatus();
     return (
         <button
@@ -20,18 +21,19 @@ function SubmitButton({ success }: { success: boolean }) {
             {pending ? (
                 <>
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white dark:border-zinc-400 dark:border-t-zinc-900" />
-                    Salvataggio…
+                    {t('saving')}
                 </>
             ) : success ? (
-                'Salvato ✓'
+                t('saved')
             ) : (
-                'Salva'
+                t('save')
             )}
         </button>
     );
 }
 
 export default function SettingsForm({ initial, action }: Props) {
+    const t = useTranslations('adminSettings');
     const [state, formAction] = React.useActionState(action, { ok: false, message: '' });
     const [success, setSuccess] = React.useState(false);
 
@@ -81,20 +83,20 @@ export default function SettingsForm({ initial, action }: Props) {
         <form action={formAction} className="space-y-6 rounded-2xl border border-gray-200 dark:border-zinc-800 p-4 md:p-6 shadow-md bg-white dark:bg-zinc-900">
             {/* Contatti negozio */}
             <fieldset className="space-y-4 rounded-xl border border-gray-200 dark:border-zinc-800 p-4">
-                <legend className="font-medium px-2 text-gray-900 dark:text-gray-100">Contatti negozio</legend>
-                <Field label="Nome negozio">
+                <legend className="font-medium px-2 text-gray-900 dark:text-gray-100">{t('storeContacts')}</legend>
+                <Field label={t('storeName')}>
                     <input name="store_name" type="text" defaultValue={init.store_name ?? ''} className={inputClass} />
                 </Field>
-                <Field label="Indirizzo">
+                <Field label={t('address')}>
                     <input name="address" type="text" defaultValue={init.address ?? ''} className={inputClass} />
                 </Field>
-                <Field label="Email">
+                <Field label={t('email')}>
                     <input name="email" type="email" defaultValue={init.email ?? ''} className={inputClass} />
                 </Field>
-                <Field label="Telefono">
+                <Field label={t('phone')}>
                     <input name="phone" type="tel" defaultValue={init.phone ?? ''} className={inputClass} />
                 </Field>
-                <Field label="Orari di apertura">
+                <Field label={t('openingHours')}>
                     <textarea
                         name="opening_hours"
                         defaultValue={init.opening_hours ?? ''}
@@ -102,28 +104,28 @@ export default function SettingsForm({ initial, action }: Props) {
                         className={inputClass}
                     />
                 </Field>
-                <Field label="Link Google Maps">
+                <Field label={t('googleMapsLink')}>
                     <input name="maps_link" type="url" defaultValue={init.maps_link ?? ''} className={inputClass} />
                 </Field>
                 <div className="pt-2 mt-2 border-t border-gray-200 dark:border-zinc-700">
-                    <span className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">Social</span>
+                    <span className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">{t('social')}</span>
                     <div className="space-y-3">
-                        <Field label="Instagram URL">
+                        <Field label={t('instagramUrl')}>
                             <input name="social_instagram" type="url" defaultValue={(init.social_links as Record<string, string> | undefined)?.instagram ?? ''} className={inputClass} placeholder="https://instagram.com/..." />
                         </Field>
-                        <Field label="Facebook URL">
+                        <Field label={t('facebookUrl')}>
                             <input name="social_facebook" type="url" defaultValue={(init.social_links as Record<string, string> | undefined)?.facebook ?? ''} className={inputClass} placeholder="https://facebook.com/..." />
                         </Field>
-                        <Field label="WhatsApp URL">
+                        <Field label={t('whatsappUrl')}>
                             <input name="social_whatsapp" type="url" defaultValue={(init.social_links as Record<string, string> | undefined)?.whatsapp ?? ''} className={inputClass} placeholder="https://wa.me/39333..." />
                         </Field>
-                        <Field label="TikTok URL">
+                        <Field label={t('tiktokUrl')}>
                             <input name="social_tiktok" type="url" defaultValue={(init.social_links as Record<string, string> | undefined)?.tiktok ?? ''} className={inputClass} placeholder="https://tiktok.com/@..." />
                         </Field>
-                        <Field label="YouTube URL">
+                        <Field label={t('youtubeUrl')}>
                             <input name="social_youtube" type="url" defaultValue={(init.social_links as Record<string, string> | undefined)?.youtube ?? ''} className={inputClass} placeholder="https://youtube.com/@..." />
                         </Field>
-                        <Field label="Sito web URL">
+                        <Field label={t('websiteUrl')}>
                             <input name="social_website" type="url" defaultValue={(init.social_links as Record<string, string> | undefined)?.website ?? ''} className={inputClass} placeholder="https://..." />
                         </Field>
                     </div>
@@ -131,10 +133,10 @@ export default function SettingsForm({ initial, action }: Props) {
             </fieldset>
 
             <div className="flex justify-end gap-3 border-t border-gray-200 dark:border-zinc-800 pt-4">
-                <SubmitButton success={success} />
+                <SubmitButton success={success} t={t} />
             </div>
 
-            <p className="text-xs text-gray-500 dark:text-zinc-400">Ultimo aggiornamento: {new Date(init.updated_at).toLocaleString()}</p>
+            <p className="text-xs text-gray-500 dark:text-zinc-400">{t('lastUpdated')}: {new Date(init.updated_at).toLocaleString()}</p>
         </form>
     );
 }

@@ -10,7 +10,7 @@ export const runtime = 'nodejs'
 
 /* ===========================
    GET /api/admin/orders
-   Ritorna gli ordini con paginazione e filtri
+   Return orders with pagination and filters
 =========================== */
 async function normalizeOrderRow(o: any): Promise<Order> {
     const address =
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
         const svc = supabaseServer()
         const { searchParams } = new URL(req.url)
 
-        // 🔹 Singolo ordine per id (per pagina dettaglio)
+        // 🔹 Single order by id (for detail page)
         const singleId = (searchParams.get('id') || '').trim()
         if (singleId) {
             const orderSelect = `
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
         const fromIdx = (page - 1) * limit
         const toIdx = fromIdx + limit - 1
 
-        // 🔹 Selezione campi condivisa
+        // 🔹 Shared fields selection
         const orderSelect = `
           id,
           public_id,
@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
           )
         `
 
-        // 🔹 Filtri base
+        // 🔹 Base filters
         let q = svc
             .from('orders')
             .select(orderSelect, { count: 'exact' })
@@ -121,27 +121,27 @@ export async function GET(req: NextRequest) {
         if (status !== 'all') q = q.eq('status', status)
         if (paymentStatus !== 'all') q = q.eq('payment_status', paymentStatus)
 
-        // 🔎 Ricerca: public_id o nome/cognome (strategia esclusiva)
+        // 🔎 Search: public_id or name/surname (exclusive strategy)
         if (search) {
             const trimmedSearch = search.trim()
             
-            // Pattern public_id: esattamente 8 caratteri esadecimali (UUID abbreviato)
+            // Pattern public_id: exactly 8 hexadecimal characters (abbreviated UUID)
             const isPublicId = /^[0-9a-f]{8}$/i.test(trimmedSearch)
             
             if (isPublicId) {
-                // Ricerca per public_id: ricerca parziale su colonna text
+                // Search by public_id: partial search on text column
                 q = q.ilike('public_id', `%${trimmedSearch}%`)
             } else {
-                // Ricerca per nome/cognome: tokenizza per spazi
+                // Search by name/surname: tokenize by spaces
                 const tokens = trimmedSearch.split(/\s+/).filter(t => t.length > 0)
                 if (tokens.length > 0) {
                     if (tokens.length === 1) {
-                        // Singolo token: cerca in firstName O lastName
+                        // Single token: search in firstName or lastName
                         const term = tokens[0]
                         q = q.or(`customer_first_name.ilike.%${term}%,customer_last_name.ilike.%${term}%`)
                     } else {
-                        // Multipli token: ogni token deve matchare (AND logico)
-                        // Per ogni token, applica una q.or() separata
+                        // Multiple tokens: each token must match (logical AND)
+                        // For each token, apply a separate q.or()
                         for (const token of tokens) {
                             q = q.or(`customer_first_name.ilike.%${token}%,customer_last_name.ilike.%${token}%`)
                         }
@@ -151,7 +151,7 @@ export async function GET(req: NextRequest) {
         }
 
 
-        // 🔹 Paginazione standard
+        // 🔹 Standard pagination
         const { data, count, error } = await q.range(fromIdx, toIdx)
         if (error) throw error
 
@@ -173,7 +173,7 @@ export async function GET(req: NextRequest) {
 
 /* ===========================
    DELETE /api/admin/orders
-   Elimina un ordine
+   Delete an order
 =========================== */
 export async function DELETE(req: NextRequest) {
     try {
@@ -199,13 +199,13 @@ export async function PATCH(req: NextRequest) {
     try {
         const body = await req.json()
 
-        // 1) Parsing JSON con normalizzazione
+        // 1) Parsing JSON with normalization
         const id = body?.id ?? body?.orderId ?? body?.order_id
         const status = body?.status
         const payment_status = body?.payment_status ?? body?.paymentStatus
         const action = body?.action ?? body?.type
 
-        // 2) Validazione
+        // 2) Validation
         if (!id) {
             return NextResponse.json({ error: 'Missing id' }, { status: 400 })
         }
@@ -219,7 +219,7 @@ export async function PATCH(req: NextRequest) {
 
         const svc = supabaseServer()
 
-        // Recupera l'ordine esistente
+        // Retrieve the existing order
         const { data: existingOrder, error: fetchExistingError } = await svc
             .from('orders')
             .select('status, payment_status, payment_method, stock_reserved, stock_committed')
@@ -228,7 +228,7 @@ export async function PATCH(req: NextRequest) {
 
         if (fetchExistingError) throw fetchExistingError
 
-        // Blocco ordine annullato
+        // Canceled order block
         if (existingOrder.status === 'cancelled') {
             return NextResponse.json(
                 { error: 'Ordine annullato: operazione non consentita' },
@@ -236,13 +236,13 @@ export async function PATCH(req: NextRequest) {
             )
         }
 
-        // 3) Normalizzazione action (retrocompatibilità)
-        // Se status/payment_status sono già presenti, hanno precedenza rispetto ad action
+        // 3) Normalization action (backward compatibility)
+        // If status/payment_status are already present, they take precedence over action
         let finalStatus = status
         let finalPaymentStatus = payment_status
 
         if (action && !status && !payment_status) {
-            // Usa action solo se status/payment_status non sono presenti
+            // Use action only if status/payment_status are not present
             switch (action) {
                 case 'cancel':
                 case 'cancelled':
@@ -263,12 +263,12 @@ export async function PATCH(req: NextRequest) {
             }
         }
 
-        // 4) Logica business
+        // 4) Business logic
         const updateData: any = {}
 
-        // Gestione status
+        // Status management
         if (finalStatus) {
-            // Protezione contro annullamento ordine pagato
+            // Protection against canceled paid order
             if (finalStatus === 'cancelled' && existingOrder.payment_status === 'paid') {
                 return NextResponse.json(
                     { error: 'Impossibile annullare un ordine già pagato' },
@@ -278,7 +278,7 @@ export async function PATCH(req: NextRequest) {
 
             updateData.status = finalStatus
 
-            // Se status diventa 'cancelled', rilascia stock
+            // If status becomes 'cancelled', release stock
             if (finalStatus === 'cancelled') {
                 const releaseResult = await release_order_stock(id)
                 if (releaseResult.ok === false) {
@@ -287,25 +287,25 @@ export async function PATCH(req: NextRequest) {
             }
         }
 
-        // Gestione payment_status
+        // Payment_status management
         if (finalPaymentStatus) {
             const wasPaid = existingOrder.payment_status === 'paid'
             const willBePaid = finalPaymentStatus === 'paid'
 
             updateData.payment_status = finalPaymentStatus
 
-            // Se payment_status diventa 'paid' da non-paid
+            // If payment_status becomes 'paid' from non-paid
             if (!wasPaid && willBePaid) {
-                // Per pagamenti OFFLINE, se non viene passato status, imposta status='confirmed'
+                // For offline payments, if status is not passed, set status='confirmed'
                 if (existingOrder.payment_method !== 'card_online' && !finalStatus) {
                     updateData.status = 'confirmed'
                 }
 
-                // Reset stock_reserved e reserve_expires_at
+                // Reset stock_reserved and reserve_expires_at
                 updateData.stock_reserved = false
                 updateData.reserve_expires_at = null
 
-                // Gestisce post-pagamento (senza scalare stock di nuovo)
+                // Handles post-payment (without scaling stock again)
                 const handleResult = await handleOrderPaid(id)
                 if (handleResult && !handleResult.ok) {
                     return NextResponse.json(
@@ -316,7 +316,7 @@ export async function PATCH(req: NextRequest) {
             }
         }
 
-        // 5) Aggiornamento DB (solo se ci sono campi da aggiornare)
+        // 5) Database update (only if there are fields to update)
         if (Object.keys(updateData).length > 0) {
             const { error: updateError } = await svc
                 .from('orders')

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useTranslations } from 'next-intl'
+import { useTranslations, useLocale } from 'next-intl'
 import Skeleton from '@/components/Skeleton'
 import type { StoreSettings, PaymentMethod, OrderItem, OrderAddress, OrderPayload } from '@/lib/types'
 import { validateDelivery, allowedPaymentMethods, normalizeDeliveryMaxKm } from '@/lib/delivery'
@@ -30,29 +30,29 @@ const isCapPartial = (cap: string) => {
 
 const normalizeSpaces = (s: string) => s.replace(/\s+/g, ' ').trim()
 
-// Richiede: almeno 1 parola + numero civico (es: "Via Roma 10", "machiavelli 21")
+// Requires: at least 1 word + number (e.g. "Via Roma 10", "machiavelli 21")
 const looksLikeFullStreetAddress = (line1: string) => {
-  const s = normalizeSpaces(String(line1 ?? ''))
-  if (s.length < 6) return false
-  // almeno 1 cifra (numero civico)
-  if (!/\d/.test(s)) return false
-  // almeno 4 lettere consecutive (evita "via 1")
-  if (!/[a-zA-ZÀ-ÿ]{4,}/.test(s)) return false
-  return true
+    const s = normalizeSpaces(String(line1 ?? ''))
+    if (s.length < 6) return false
+    // at least 1 digit (number)
+    if (!/\d/.test(s)) return false
+    // at least 4 consecutive letters (avoid "via 1")
+    if (!/[a-zA-ZÀ-ÿ]{4,}/.test(s)) return false
+    return true
 }
 
 const getPhoneDigits = (value: string) => (value ?? '').replace(/\D/g, '')
 const getNationalDigits = (value: string) => {
-  let d = getPhoneDigits(value)
-  if (d.startsWith('0039')) d = d.slice(4)
-  else if (d.startsWith('39')) d = d.slice(2)
-  return d
+    let d = getPhoneDigits(value)
+    if (d.startsWith('0039')) d = d.slice(4)
+    else if (d.startsWith('39')) d = d.slice(2)
+    return d
 }
 const isPhoneValidNumber = (value: string) => {
-  const digits = getNationalDigits(value)
-  if (digits.length < 9) return false
-  if (/^(\d)\1+$/.test(digits)) return false
-  return true
+    const digits = getNationalDigits(value)
+    if (digits.length < 9) return false
+    if (/^(\d)\1+$/.test(digits)) return false
+    return true
 }
 
 export type FulfillmentPreview = {
@@ -61,11 +61,66 @@ export type FulfillmentPreview = {
     after_cutoff: boolean
     next_fulfillment_date: string | null
     message: string
+    message_code?: string | null
 }
 
 export default function CheckoutForm({ settings }: Props) {
     const router = useRouter()
     const t = useTranslations('checkoutForm')
+    const locale = useLocale()
+    const formatFulfillmentDate = (dateStr: string | null | undefined) => {
+        if (!dateStr) return ''
+        const date = new Date(`${dateStr}T00:00:00`)
+        return new Intl.DateTimeFormat(locale, {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+        }).format(date)
+    }
+    const getFulfillmentMessage = (f: FulfillmentPreview | null) => {
+        if (!f) return ''
+
+        const formattedDate = formatFulfillmentDate(f.next_fulfillment_date)
+        const extractTimeFromMessage = (message: string | null | undefined) => {
+            if (!message) return ''
+            const match = message.match(/\b(\d{2}:\d{2})\b/)
+            return match?.[1] ?? ''
+        }
+        const extractedTime = extractTimeFromMessage(f.message)
+
+        switch (f.message_code) {
+            case 'delivery_today':
+                return t('deliveryToday')
+
+            case 'store_opens_later_today':
+                return extractedTime
+                    ? t('storeOpensLaterTodayAt', { time: extractedTime })
+                    : t('storeOpensLaterToday')
+
+            case 'store_reopens_later_today':
+                return extractedTime
+                    ? t('storeReopensLaterTodayAt', { time: extractedTime })
+                    : t('storeReopensLaterToday')
+
+            case 'closed_with_reason_next_date':
+                return f.message || t('storeClosedReasonNextDate', { date: formattedDate })
+
+            case 'after_cutoff_next_date':
+                return t('afterCutoffNextDate', { date: formattedDate })
+
+            case 'store_closed_next_date':
+                return t('storeClosedNextDate', { date: formattedDate })
+
+            case 'store_closed_not_accepting_orders':
+                return t('storeClosedNotAcceptingOrders')
+
+            case 'delivery_on_date':
+                return t('deliveryOnDate', { date: formattedDate })
+
+            default:
+                return f.message || ''
+        }
+    }
     const PAYMENT_METHOD_CONFIG: Record<PaymentMethod, { icon: string; label: string }> = {
         cash: { icon: '💵', label: t('paymentCash') },
         pos_on_delivery: { icon: '💳🏠', label: t('paymentPosOnDelivery') },
@@ -102,14 +157,14 @@ export default function CheckoutForm({ settings }: Props) {
     const [distanceError, setDistanceError] = useState<string | null>(null)
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-    // Helper per determinare il messaggio di errore con priorità
+    // Helper to determine the error message with priority
     const updateErrorMessage = (newError: string | null) => {
         if (!newError) {
             setErrorMessage(null)
             return
         }
         const errorLower = newError.toLowerCase()
-        // Priorità: se contiene "CAP non valido" o parole chiave CAP -> mostra solo quello
+        // Priority: if contains "invalid CAP" or CAP keywords -> show only that
         if (newError.includes("CAP non valido") ||
             errorLower.includes("cap") ||
             errorLower.includes("postal") ||
@@ -118,13 +173,13 @@ export default function CheckoutForm({ settings }: Props) {
             setErrorMessage(newError)
             return
         }
-        // Priorità: se contiene "fuori dal raggio" o "non è disponibile" -> mostra solo quello
+        // Priority: if contains "out of radius" or "not available" -> show only that
         if (newError.includes("fuori dal raggio") || newError.includes("non è disponibile")) {
             setErrorMessage(newError)
         } else {
-            // Altrimenti mostra solo "indirizzo non riconosciuto, inserisci via completa..."
+            // Otherwise show only "address not recognized, insert complete street..."
             const geocodeError = t('fullAddressExample')
-            // Aggiorna solo se non c'è già un errore "fuori raggio"
+            // Update only if there is no "out of radius" error
             setErrorMessage((prev) => {
                 if (prev && (prev.includes("fuori dal raggio") || prev.includes("non è disponibile"))) {
                     return prev
@@ -136,23 +191,23 @@ export default function CheckoutForm({ settings }: Props) {
 
     const [msg, setMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null)
 
-    // Valori calcolati dal backend (disponibili solo dopo la creazione dell'ordine)
+    // Values calculated from backend (available only after order creation)
     const [backendDeliveryFee, setBackendDeliveryFee] = useState<number | null>(null)
     const [backendTotal, setBackendTotal] = useState<number | null>(null)
     const [backendDistanceKm, setBackendDistanceKm] = useState<number | null>(null)
 
-    // Preview della consegna (calcolata prima della creazione dell'ordine)
+    // Preview of delivery (calculated before order creation)
     const [previewDeliveryFee, setPreviewDeliveryFee] = useState<number | null>(null)
     const [previewDistanceKm, setPreviewDistanceKm] = useState<number | null>(null)
     const [loadingPreview, setLoadingPreview] = useState(false)
 
-    // Fulfillment: orari, cutoff, chiusure (single source of truth da RPC)
+    // Fulfillment: hours, cutoff, closures (single source of truth from RPC)
     const [fulfillment, setFulfillment] = useState<FulfillmentPreview | null>(null)
     const [loadingFulfillment, setLoadingFulfillment] = useState(true)
 
     // ============================================================
-    // GATE UNICO: quando il checkout è disabilitato, NON fare geocode
-    // (né distanza client, né preview server che a sua volta geocoda)
+    // GATE UNIQUE: when checkout is disabled, do not make geocode
+    // (neither client distance, nor server preview that geocodes)
     // ============================================================
     const canComputeGeo = useMemo(() => {
         if (!settings.delivery_enabled) return false
@@ -161,7 +216,7 @@ export default function CheckoutForm({ settings }: Props) {
         return true
     }, [settings.delivery_enabled, loadingFulfillment, fulfillment?.can_accept])
 
-    // Reset valori backend quando cambia l'indirizzo
+    // Reset backend values when address changes
     useEffect(() => {
         setBackendDeliveryFee(null)
         setBackendTotal(null)
@@ -189,9 +244,9 @@ export default function CheckoutForm({ settings }: Props) {
         }
     }, [addr.line1, addr.city, addr.cap])
 
-    // 🔧 Calcolo automatico della distanza con Google Maps
+    // 🔧 Automatic distance calculation with Google Maps
     useEffect(() => {
-        // HARD STOP: checkout disabilitato => nessuna chiamata geocode
+        // HARD STOP: checkout disabled => no geocode call
         if (!canComputeGeo) {
             setLoadingDistance(false)
             setDistanceKm(0)
@@ -213,13 +268,13 @@ export default function CheckoutForm({ settings }: Props) {
             return
         }
 
-        // ✅ Non geocodare se manca un indirizzo "completo" con numero civico
+        // ✅ Do not geocode if a "complete" address with number is missing
         if (!looksLikeFullStreetAddress(addr.line1)) {
             setIsAddressValid(false)
             setDistanceKm(0)
-            // neutro mentre digita: niente errore rosso
+            // neutral while typing: no red error
             setDistanceError(null)
-            // opzionale: non forzare errorMessage mentre digita
+            // optional: do not force errorMessage while typing
             // updateErrorMessage(null)
             return
         }
@@ -234,7 +289,7 @@ export default function CheckoutForm({ settings }: Props) {
                 if (cached) {
                     const { coords, km, timestamp } = JSON.parse(cached)
 
-                    // Se cache recente (meno di 7 giorni), usala
+                    // If recent cache (less than 7 days), use it
                     const validCache = Date.now() - timestamp < 7 * 24 * 60 * 60 * 1000
                     if (validCache) {
                         setDistanceKm(km)
@@ -242,7 +297,12 @@ export default function CheckoutForm({ settings }: Props) {
                         const maxKmSafe = normalizeDeliveryMaxKm(settings.delivery_max_km)
                         if (maxKmSafe !== null && km > maxKmSafe) {
                             setIsAddressValid(false)
-                            const radiusError = `La consegna non è disponibile per questo indirizzo (${km.toFixed(1)} km, massimo ${maxKmSafe} km).`
+
+                            const radiusError = t('deliveryOutOfRange', {
+                                distance: km.toFixed(1),
+                                max: maxKmSafe
+                            })
+
                             setDistanceError(radiusError)
                             updateErrorMessage(radiusError)
                         } else {
@@ -255,7 +315,7 @@ export default function CheckoutForm({ settings }: Props) {
                     }
                 }
 
-                // ✅ STEP 2.2 — Chiamata geocode con validazione CAP e città
+                // ✅ STEP 2.2 — Geocode call with CAP and city validation
                 try {
                     const geocodeUrl = `/api/geocode?q=${encodeURIComponent(full)}&zip=${encodeURIComponent(addr.cap)}&city=${encodeURIComponent(addr.city)}`
                     const geocodeRes = await fetch(geocodeUrl)
@@ -291,7 +351,12 @@ export default function CheckoutForm({ settings }: Props) {
                     const maxKmSafe = normalizeDeliveryMaxKm(settings.delivery_max_km)
                     if (maxKmSafe !== null && km > maxKmSafe) {
                         setIsAddressValid(false)
-                        const radiusError = `La consegna non è disponibile per questo indirizzo (${km.toFixed(1)} km, massimo ${maxKmSafe} km).`
+
+                        const radiusError = t('deliveryOutOfRange', {
+                            distance: km.toFixed(1),
+                            max: maxKmSafe
+                        })
+
                         setDistanceError(radiusError)
                         updateErrorMessage(radiusError)
                     } else {
@@ -300,7 +365,7 @@ export default function CheckoutForm({ settings }: Props) {
                         updateErrorMessage(null)
                     }
 
-                    // ✅ STEP 2.3 — Salvataggio in cache
+                    // ✅ STEP 2.3 — Cache saving
                     localStorage.setItem(full, JSON.stringify({
                         coords,
                         km,
@@ -323,14 +388,14 @@ export default function CheckoutForm({ settings }: Props) {
             } finally {
                 setLoadingDistance(false)
             }
-        }, 600) // leggero debounce per digitazione
+        }, 600) // light debounce for typing
 
         return () => clearTimeout(handler)
     }, [addr, settings, canComputeGeo])
 
-    // 🔧 Preview del delivery fee (calcolata lato server)
+    // 🔧 Preview of delivery fee (calculated on server)
     useEffect(() => {
-        // HARD STOP: checkout disabilitato => niente preview (che potrebbe chiamare geocode lato server)
+        // HARD STOP: checkout disabled => no preview (which could call geocode on server)
         if (!canComputeGeo) {
             setPreviewDistanceKm(null)
             setPreviewDeliveryFee(null)
@@ -366,7 +431,7 @@ export default function CheckoutForm({ settings }: Props) {
             return
         }
 
-        // ✅ Non fare preview server finché non c'è numero civico
+        // ✅ Do not make server preview until there is a number
         if (!looksLikeFullStreetAddress(addr.line1)) {
             setPreviewDeliveryFee(null)
             setPreviewDistanceKm(null)
@@ -378,7 +443,7 @@ export default function CheckoutForm({ settings }: Props) {
         const handler = setTimeout(async () => {
             setLoadingPreview(true)
 
-            // Se capInvalid è false -> pulisci SOLO l'errore CAP se era impostato
+            // If capInvalid is false -> clear ONLY the CAP error if it was set
             setDistanceError((prev) => (prev === CAP_ERR ? null : prev))
             setErrorMessage((prev) => (prev === CAP_ERR ? null : prev))
 
@@ -396,7 +461,7 @@ export default function CheckoutForm({ settings }: Props) {
                 if (!res.ok) {
                     const text = await res.text()
                     console.error('❌ API error /api/delivery/preview:', text)
-                    // Se errore 400, mostra messaggio specifico
+                    // If error 400, show specific message
                     if (res.status === 400) {
                         try {
                             const errorData = JSON.parse(text)
@@ -404,22 +469,22 @@ export default function CheckoutForm({ settings }: Props) {
 
                             const errorTextLower = errorText.toLowerCase()
 
-                            // Se contiene "fuori dal raggio" mostra solo quello
+                            // If contains "out of radius" shows only that
                             if (errorText.includes("fuori dal raggio") || errorText.includes("non è disponibile")) {
                                 setDistanceError(errorText)
                                 setIsAddressValid(false)
                                 updateErrorMessage(errorText)
                             } else if (errorTextLower.includes("cap") || errorTextLower.includes("postal") || errorTextLower.includes("codice postale")) {
-                                // Se contiene errori CAP/postal, mostra serverErr direttamente
+                                // If contains CAP/postal errors, show serverErr directly
                                 setDistanceError(errorText)
                                 setIsAddressValid(false)
                                 updateErrorMessage(errorText)
                             } else {
-                                // Altrimenti mostra solo "inserisci via completa..."
+                                // Otherwise show only "insert complete street..."
                                 const geocodeError = t('fullAddressExample')
                                 setDistanceError(geocodeError)
                                 setIsAddressValid(false)
-                                // Evita che "fuori raggio" venga sovrascritto
+                                // Avoid overwriting "out of radius"
                                 updateErrorMessage(geocodeError)
                             }
                         } catch {
@@ -429,7 +494,7 @@ export default function CheckoutForm({ settings }: Props) {
                             updateErrorMessage(geocodeError)
                         }
                     }
-                    // Resetta la preview
+                    // Reset the preview
                     setPreviewDeliveryFee(null)
                     setPreviewDistanceKm(null)
                     return
@@ -437,7 +502,7 @@ export default function CheckoutForm({ settings }: Props) {
 
                 const data = await res.json()
 
-                // Se data.ok === false, gestisci errore e return
+                // If data.ok === false, handle error and return
                 if (data.ok === false) {
                     setDistanceError(data.error)
                     updateErrorMessage(data.error)
@@ -450,7 +515,7 @@ export default function CheckoutForm({ settings }: Props) {
 
                 setPreviewDeliveryFee(data.delivery_fee ?? null)
                 setPreviewDistanceKm(data.distance_km ?? null)
-                // Se il delivery preview ha successo, resetta errorMessage (ma mantieni errori "fuori raggio" se presenti)
+                // If the delivery preview succeeds, reset errorMessage (but keep "out of radius" errors if present)
                 updateErrorMessage(null)
             } catch (err) {
                 console.error('Errore preview consegna:', err)
@@ -459,7 +524,7 @@ export default function CheckoutForm({ settings }: Props) {
             } finally {
                 setLoadingPreview(false)
             }
-        }, 600) // debounce per evitare troppe chiamate
+        }, 600) // debounce to avoid too many calls
 
         return () => clearTimeout(handler)
     }, [addr.line1, addr.city, addr.cap, settings.delivery_enabled, canComputeGeo])
@@ -483,6 +548,7 @@ export default function CheckoutForm({ settings }: Props) {
                         after_cutoff: !!data.after_cutoff,
                         next_fulfillment_date: data.next_fulfillment_date ?? null,
                         message: data.message ?? '',
+                        message_code: data.message_code ?? null,
                     })
                 } else {
                     setFulfillment(null)
@@ -498,30 +564,30 @@ export default function CheckoutForm({ settings }: Props) {
     }, [settings.delivery_enabled])
 
     const validation = useMemo(() => {
-        // Se la consegna è disabilitata, l'indirizzo è sempre valido (non serve validare distanza)
+        // If delivery is disabled, the address is always valid (no need to validate distance)
         if (!settings.delivery_enabled) {
             return { ok: true }
         }
         if (isCapPartial(addr.cap)) {
             return { ok: false, reason: t('capRequired') }
         }
-        // Se la consegna è abilitata ma l'indirizzo non è completo, non è ancora valido
+        // If delivery is enabled but the address is not complete, it is not yet valid
         if (!addr.line1 || !addr.city || !addr.cap) {
             return { ok: false, reason: t('fillAddressFields') }
         }
-        // Se distanceError esiste -> validation.ok=false con reason=distanceError
+        // If distanceError exists -> validation.ok=false with reason=distanceError
         if (distanceError) {
             return { ok: false, reason: distanceError }
         }
-        // Se la preview è ancora in calcolo, attendi prima di validare
+        // If the preview is still calculating, wait before validating
         if (loadingPreview) {
             return { ok: false, reason: t('distanceCalculating') }
         }
-        // Se previewDistanceKm è null -> validation.ok=false
+        // If previewDistanceKm is null -> validation.ok=false
         if (previewDistanceKm === null) {
             return { ok: false, reason: t('fullAddressExample') }
         }
-        // Valida la distanza usando previewDistanceKm (non distanceKm client-side)
+        // Validate distance using previewDistanceKm (not distanceKm client-side)
         return validateDelivery(previewDistanceKm, settings)
     }, [loadingPreview, distanceError, previewDistanceKm, settings, addr])
 
@@ -560,10 +626,10 @@ export default function CheckoutForm({ settings }: Props) {
     const confirmOrder = useCallback(async () => {
         setAttemptedSubmit(true)
         setMsg(null)
-        setSaving(true) // 🔹 feedback immediato
+        setSaving(true) // 🔹 immediate feedback
 
         // ============================================================
-        // GUARD: consegna disabilitata → blocca subito (priorità assoluta)
+        // GUARD: delivery disabled → block immediately (absolute priority)
         // ============================================================
         if (!settings.delivery_enabled) {
             setMsg({
@@ -589,7 +655,7 @@ export default function CheckoutForm({ settings }: Props) {
             return
         }
         if (!validation.ok) {
-            // Usa errorMessage se disponibile, altrimenti validation.reason
+            // Use errorMessage if available, otherwise validation.reason
             const errorText = errorMessage || validation.reason || t('invalidAddress')
             setMsg({ type: 'error', text: errorText })
             setSaving(false)
@@ -606,7 +672,7 @@ export default function CheckoutForm({ settings }: Props) {
             return
         }
 
-        // Usa previewDistanceKm dal server invece di distanceKm client-side
+        // Use previewDistanceKm from server instead of distanceKm client-side
         console.log('🧪 PAYMENT METHOD AL SUBMIT:', pay)
         console.log('🧪 AVAILABLE METHODS:', methods)
 
@@ -619,8 +685,8 @@ export default function CheckoutForm({ settings }: Props) {
                 unit: it.unit,
             })) as OrderItem[],
             subtotal,
-            delivery_fee: 0, // Ignorato dal backend, calcolato lato server
-            total: 0, // Ignorato dal backend, calcolato lato server
+            delivery_fee: 0, // Ignored by backend, calculated on server
+            total: 0, // Ignored by backend, calculated on server
             distance_km: previewDistanceKm ?? 0,
             payment_method: pay,
             address: addr,
@@ -649,25 +715,25 @@ export default function CheckoutForm({ settings }: Props) {
             }
 
             const data = await res.json()
-            // 🔍 Log temporaneo della response JSON
-            console.log('📦 Response da /api/orders:', JSON.stringify(data, null, 2))
+            // 🔍 Temporary log of the response JSON
+            console.log('📦 Response from /api/orders:', JSON.stringify(data, null, 2))
 
-            // Salva i valori calcolati dal backend
+            // Save the values calculated from backend
             if (data?.delivery_fee !== undefined) setBackendDeliveryFee(data.delivery_fee)
             if (data?.total !== undefined) setBackendTotal(data.total)
             if (data?.distance_km !== undefined) setBackendDistanceKm(data.distance_km)
 
-            // ✅ Allineato alla struttura reale della response: usa order_id invece di id
+            // ✅ Aligned with the real structure of the response: use order_id instead of id
             const orderId = data?.order_id ?? data?.id ?? ''
 
-            // Se la response contiene checkoutUrl (per card_online), redirect a Stripe
+            // If the response contains checkoutUrl (for card_online), redirect to Stripe
             if (data?.checkoutUrl) {
                 clearCart()
                 window.location.href = data.checkoutUrl
                 return
             }
 
-            // Per altri metodi di pagamento, redirect a success
+            // For other payment methods, redirect to success
             setMsg({ type: 'success', text: t('orderCreated') })
             clearCart()
             router.push(`/order/success?id=${encodeURIComponent(orderId)}`)
@@ -937,7 +1003,7 @@ export default function CheckoutForm({ settings }: Props) {
                 </div>
 
                 {/* ============================================================ */}
-                {/* GUARD UI: consegna disabilitata */}
+                {/* GUARD UI: delivery disabled */}
                 {/* ============================================================ */}
                 {!settings.delivery_enabled && (
                     <div className="p-3 mb-3 text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-800">
@@ -946,17 +1012,17 @@ export default function CheckoutForm({ settings }: Props) {
                 )}
                 {settings.delivery_enabled && loadingFulfillment && (
                     <div className="p-3 mb-3 text-sm text-gray-600 dark:text-zinc-400 bg-gray-50 dark:bg-zinc-900/60 rounded-lg border border-gray-200 dark:border-zinc-800">
-                        ⏳ Verifica orari e disponibilità…
+                        ⏳ {t('checkingAvailability')}
                     </div>
                 )}
                 {settings.delivery_enabled && !loadingFulfillment && fulfillment && fulfillment.can_accept === false && (
                     <div className="p-3 mb-3 text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-800">
-                        ⚠️ {fulfillment.message || t('storeClosed')}
+                        ⚠️ {getFulfillmentMessage(fulfillment) || t('storeClosed')}
                     </div>
                 )}
-                {settings.delivery_enabled && !loadingFulfillment && fulfillment?.can_accept !== false && fulfillment?.message && (
+                {settings.delivery_enabled && !loadingFulfillment && fulfillment?.can_accept !== false && getFulfillmentMessage(fulfillment) && (
                     <div className="p-3 mb-3 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 rounded-lg border border-amber-200 dark:border-amber-800">
-                        ⚠️ {fulfillment.message}
+                        ⚠️ {getFulfillmentMessage(fulfillment)}
                     </div>
                 )}
 
@@ -967,29 +1033,29 @@ export default function CheckoutForm({ settings }: Props) {
                 )}
 
                 <div onClick={() => setAttemptedSubmit(true)}>
-                <button
-                    type="button"
-                    onClick={confirmOrder}
-                    disabled={
-                        saving ||
-                        !validation.ok ||
-                        fulfillment?.can_accept === false ||
-                        !settings.delivery_enabled ||
-                        !isPhoneValid
-                    }
+                    <button
+                        type="button"
+                        onClick={confirmOrder}
+                        disabled={
+                            saving ||
+                            !validation.ok ||
+                            fulfillment?.can_accept === false ||
+                            !settings.delivery_enabled ||
+                            !isPhoneValid
+                        }
 
-                    className={`w-full rounded-xl font-semibold px-4 py-3 transition 
+                        className={`w-full rounded-xl font-semibold px-4 py-3 transition 
     ${validation.ok &&
-                        addr.firstName &&
-                        addr.lastName &&
-                        isPhoneValid &&
-                        fulfillment?.can_accept !== false &&
-                        settings.delivery_enabled
-                            ? 'bg-green-600 hover:bg-green-700 text-white'
-                            : 'bg-gray-300 dark:bg-zinc-700 text-gray-600 dark:text-zinc-400 cursor-not-allowed'}`}
-                >
-                    {saving ? t('processing') : t('confirmOrder')}
-                </button>
+                                addr.firstName &&
+                                addr.lastName &&
+                                isPhoneValid &&
+                                fulfillment?.can_accept !== false &&
+                                settings.delivery_enabled
+                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                : 'bg-gray-300 dark:bg-zinc-700 text-gray-600 dark:text-zinc-400 cursor-not-allowed'}`}
+                    >
+                        {saving ? t('processing') : t('confirmOrder')}
+                    </button>
                 </div>
 
             </aside>

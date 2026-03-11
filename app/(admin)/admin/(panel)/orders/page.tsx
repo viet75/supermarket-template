@@ -5,18 +5,19 @@ import Link from 'next/link'
 import type { Order } from '@/lib/types'
 import { useRefetchOnResume } from '@/hooks/useRefetchOnResume'
 import { formatPrice } from '@/lib/pricing'
+import { useTranslations } from 'next-intl'
 
 function formatQuantity(q: number, unit?: string | null) {
     if (!unit) return q.toString()
     return `${q} ${unit}`
 }
 
-function ProductListCell({ items }: { items: any[] }) {
+function ProductListCell({ items, t }: { items: any[]; t: any }) {
     const [showAll, setShowAll] = useState(false)
     const itemsToShow = showAll ? items : items.slice(0, 3)
 
     if (!items.length) {
-        return <span className="text-gray-500 dark:text-gray-400">Nessun prodotto</span>
+        return <span className="text-gray-500 dark:text-gray-400">{t('noProducts')}</span>
     }
 
     function formatUnit(unit?: string | null): string {
@@ -56,7 +57,7 @@ function ProductListCell({ items }: { items: any[] }) {
                     onClick={() => setShowAll(true)}
                     className="text-blue-600 text-sm hover:underline"
                 >
-                    +{items.length - 3} altri…
+                    {t('showMore', { count: items.length - 3 })}
                 </button>
             )}
 
@@ -65,7 +66,7 @@ function ProductListCell({ items }: { items: any[] }) {
                     onClick={() => setShowAll(false)}
                     className="text-blue-600 text-sm hover:underline"
                 >
-                    Mostra meno
+                    {t('showLess')}
                 </button>
             )}
         </ul>
@@ -75,9 +76,10 @@ function ProductListCell({ items }: { items: any[] }) {
 type OrderDrawerProps = {
     order: Order
     onClose: () => void
+    t: any
 }
 
-function OrderDrawer({ order, onClose }: OrderDrawerProps) {
+function OrderDrawer({ order, onClose, t }: OrderDrawerProps) {
     return (
         <div className="fixed inset-0 z-50 flex">
             {/* Overlay */}
@@ -87,7 +89,7 @@ function OrderDrawer({ order, onClose }: OrderDrawerProps) {
             <div className="w-full max-w-md bg-white shadow-xl h-full flex flex-col">
                 <div className="p-4 border-b flex justify-between items-center">
                     <h2 className="text-lg font-semibold">
-                        Ordine {order.public_id || order.id.slice(0, 8)}
+                        {t('drawerOrderTitle', { id: order.public_id || order.id.slice(0, 8) })}
                     </h2>
                     <button
                         onClick={onClose}
@@ -113,14 +115,20 @@ function OrderDrawer({ order, onClose }: OrderDrawerProps) {
                 </div>
 
                 <div className="p-4 border-t text-sm flex justify-between">
-                    <span>Totale</span>
+                    <span>{t('drawerTotal')}</span>
                     <span className="font-semibold">{formatPrice(order.total)}</span>
                 </div>
             </div>
         </div>
     )
 }
-function PaymentBadge({ status, payment_method }: { status: 'pending' | 'paid' | 'failed' | 'refunded' | null | undefined, payment_method?: string }) {
+function PaymentBadge(
+    { status, payment_method, t }: {
+        status: 'pending' | 'paid' | 'failed' | 'refunded' | null | undefined
+        payment_method?: string
+        t: any
+    }
+) {
     const normalizedStatus = status || 'pending'
 
     // Logica per determinare badge e stile
@@ -130,23 +138,23 @@ function PaymentBadge({ status, payment_method }: { status: 'pending' | 'paid' |
 
     if (normalizedStatus === 'paid') {
         badgeStyle = 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-        badgeLabel = 'Pagato'
+        badgeLabel = t('paymentPaid')
     } else if (normalizedStatus === 'pending' && (payment_method === 'cash' || payment_method === 'pos_on_delivery')) {
         badgeStyle = 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
-        badgeLabel = 'Da incassare'
-        tooltip = 'Incassa prima di segnare come consegnato'
+        badgeLabel = t('paymentToCollect')
+        tooltip = t('paymentTooltipCollect')
     } else if (normalizedStatus === 'pending' && payment_method === 'card_online') {
         badgeStyle = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-        badgeLabel = 'In attesa (Stripe)'
+        badgeLabel = t('paymentStripePending')
     } else if (normalizedStatus === 'failed') {
         badgeStyle = 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-        badgeLabel = 'Fallito'
+        badgeLabel = t('paymentFailed')
     } else if (normalizedStatus === 'refunded') {
         badgeStyle = 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-        badgeLabel = 'Rimborsato'
+        badgeLabel = t('paymentRefunded')
     } else {
         badgeStyle = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-        badgeLabel = 'In attesa'
+        badgeLabel = t('paymentPending')
     }
 
     return (
@@ -161,7 +169,7 @@ function PaymentBadge({ status, payment_method }: { status: 'pending' | 'paid' |
 
 
 
-function StatusBadge({ status }: { status: Order['status'] }) {
+function StatusBadge({ status, t }: { status: Order['status'], t: any }) {
     const colors: Record<Order['status'], string> = {
         pending: 'bg-yellow-500',
         confirmed: 'bg-blue-500',
@@ -170,10 +178,10 @@ function StatusBadge({ status }: { status: Order['status'] }) {
     }
 
     const labels: Record<Order['status'], string> = {
-        pending: 'In attesa',
-        confirmed: 'Confermato',
-        delivered: 'Consegnato',
-        cancelled: 'Annullato',
+        pending: t('statusPending'),
+        confirmed: t('statusConfirmed'),
+        delivered: t('statusDelivered'),
+        cancelled: t('statusCancelled'),
     }
 
     return (
@@ -190,14 +198,14 @@ function formatDate(dateStr: string) {
     return d.toLocaleString()
 }
 
-function formatPayment(pm: string) {
+function formatPayment(pm: string, t: any) {
     switch (pm) {
         case 'cash':
-            return '💵 Contanti'
+            return t('paymentCashLabel')
         case 'pos_on_delivery':
-            return '🏠💳 POS alla consegna'
+            return t('paymentPosLabel')
         case 'card_online':
-            return '🌐 Carta online'
+            return t('paymentCardLabel')
         default:
             return pm
     }
@@ -324,6 +332,7 @@ function SyncedHorizontalScroll({ children }: { children: React.ReactNode }) {
 }
 
 export default function OrdersAdminPage() {
+    const t = useTranslations('adminOrders')
     const [orders, setOrders] = useState<any[]>([])
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true)
@@ -554,7 +563,7 @@ export default function OrdersAdminPage() {
         }
     }, [])
 
-    if (loading) return <p>Caricamento ordini...</p>
+    if (loading) return <p>{t('loading')}</p>
 
     return (
         <div className="flex justify-center w-full bg-gray-50 dark:bg-gray-900">
@@ -563,7 +572,9 @@ export default function OrdersAdminPage() {
 
 
 
-                <h1 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Gestione Ordini</h1>
+                <h1 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">
+                    {t('title')}
+                </h1>
 
                 {/* Filtri */}
                 <div className="hidden md:flex items-center gap-3 mb-4">
@@ -573,11 +584,11 @@ export default function OrdersAdminPage() {
                         className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded px-3 py-2 text-sm"
 
                     >
-                        <option value="all">Tutti gli stati</option>
-                        <option value="pending">In attesa</option>
-                        <option value="confirmed">Confermato</option>
-                        <option value="delivered">Consegnato</option>
-                        <option value="cancelled">Annullato</option>
+                        <option value="all">{t('statusAll')}</option>
+                        <option value="pending">{t('statusPending')}</option>
+                        <option value="confirmed">{t('statusConfirmed')}</option>
+                        <option value="delivered">{t('statusDelivered')}</option>
+                        <option value="cancelled">{t('statusCancelled')}</option>
                     </select>
 
                     <select
@@ -586,11 +597,11 @@ export default function OrdersAdminPage() {
                         className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded px-3 py-2 text-sm"
 
                     >
-                        <option value="all">Tutti i pagamenti</option>
-                        <option value="pending">In attesa</option>
-                        <option value="paid">Pagato</option>
-                        <option value="failed">Fallito</option>
-                        <option value="refunded">Rimborsato</option>
+                        <option value="all">{t('paymentsAll')}</option>
+                        <option value="pending">{t('statusPending')}</option>
+                        <option value="paid">{t('paymentPaid')}</option>
+                        <option value="failed">{t('paymentFailed')}</option>
+                        <option value="refunded">{t('paymentRefunded')}</option>
                     </select>
                 </div>
 
@@ -606,7 +617,7 @@ export default function OrdersAdminPage() {
                     <input
                         type="text"
                         autoFocus={typeof window !== 'undefined' && window.innerWidth > 768}
-                        placeholder="Cerca per ID ordine o nome cliente…"
+                        placeholder={t('searchPlaceholderDesktop')}
 
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -631,159 +642,159 @@ export default function OrdersAdminPage() {
                             <table className="min-w-[900px] w-full table-auto border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 shadow-sm">
 
 
-                            <thead className="bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 sticky top-0 z-10">
+                                <thead className="bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 sticky top-0 z-10">
 
-                                <tr>
-                                    <th className="px-3 py-2 text-left text-xs font-semibold w-16">ID</th>
-                                    <th className="px-3 py-2 text-left text-xs font-semibold w-40">Data</th>
-                                    <th className="px-3 py-2 text-left text-xs font-semibold">Indirizzo</th>
-                                    <th className="px-3 py-2 text-left text-xs font-semibold w-40">Cliente</th>
-                                    <th className="px-3 py-2 text-left text-xs font-semibold">Prodotti</th>
-                                    <th className="px-3 py-2 text-right text-xs font-semibold w-24 min-w-[90px]">Totale</th>
-                                    <th className="px-3 py-2 text-center text-xs font-semibold w-36">Pagamento</th>
-                                    <th className="px-3 py-2 text-center text-xs font-semibold w-28">Stato</th>
-                                    <th className="px-3 py-2 text-center text-xs font-semibold w-40">Azioni</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredOrders.map((o) => (
-                                    <tr
-                                        key={o.id}
-                                        className="border-t border-gray-200 dark:border-gray-700 even:bg-gray-50 dark:even:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-
-                                    >
-                                        {/* ID */}
-                                        <td className="px-4 py-2 text-sm align-top">
-                                            <Link
-                                                href={`/admin/orders/${o.id}`}
-                                                className="text-blue-600 dark:text-blue-400 hover:underline"
-                                            >
-                                                {o.public_id || o.id.slice(0, 8)}
-                                            </Link>
-                                        </td>
-
-
-                                        {/* Data */}
-                                        <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 align-top">
-                                            {formatDate(o.created_at)}
-                                        </td>
-
-                                        {/* Indirizzo */}
-                                        <td
-                                            className="px-4 py-2 text-sm text-gray-600 max-w-xs dark:text-gray-300 align-top"
-                                            title={`${o.address?.line1}, ${o.address?.cap} ${o.address?.city}${o.address?.note?.trim() ? `\nNote: ${o.address.note}` : ''}`}
-                                        >
-                                            <div className="truncate">{o.address?.line1}, {o.address?.cap} {o.address?.city}</div>
-                                            {o.address?.note?.trim() && (
-                                                <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]" title={o.address.note}>
-                                                    Note: {o.address.note}
-                                                </div>
-                                            )}
-                                        </td>
-
-                                        {/* Cliente */}
-                                        <td
-                                            className="px-4 py-2 text-sm text-gray-700 font-medium truncate max-w-xs dark:text-gray-300 align-top"
-                                            title={`${(o.first_name || o.address?.firstName) ?? ''} ${(o.last_name || o.address?.lastName) ?? ''}`}
-                                        >
-                                            {(o.first_name || o.address?.firstName) ?? ''}{' '}
-                                            {(o.last_name || o.address?.lastName) ?? ''}
-                                            {o.customer_phone ? (
-                                                <div className="text-xs text-gray-600 dark:text-zinc-300">
-                                                    📞 {o.customer_phone}
-                                                </div>
-                                            ) : null}
-                                        </td>
-
-                                        {/* Prodotti */}
-                                        <td className="px-4 py-2 text-sm max-w-xs align-top">
-                                            <ProductListCell items={o.order_items || []} />
-                                        </td>
-
-                                        {/* Totale */}
-                                        <td className="px-4 py-2 text-sm font-semibold text-right text-gray-900 dark:text-gray-100 whitespace-nowrap min-w-[90px] w-24 align-top">
-
-                                            {formatPrice(o.total)}
-                                        </td>
-
-                                        {/* Pagamento */}
-                                        <td className="px-4 py-2 text-center text-sm align-top">
-                                            <div className="flex flex-col items-center gap-1">
-                                                {/* ✅ Badge stato pagamento */}
-                                                <PaymentBadge status={o.payment_status} payment_method={o.payment_method} />
-
-                                                {/* Metodo di pagamento */}
-                                                <span
-                                                    className="text-xs text-gray-500 truncate max-w-[24ch] dark:text-gray-300"
-                                                    title={formatPayment(o.payment_method)}
-                                                >
-                                                    {formatPayment(o.payment_method)}
-                                                </span>
-
-
-
-                                            </div>
-                                        </td>
-
-
-                                        {/* Stato */}
-                                        <td className="px-4 py-2 text-center align-top">
-                                            <StatusBadge status={o.status} />
-                                        </td>
-
-                                        {/* Azioni */}
-                                        <td className="px-4 py-2 whitespace-nowrap pr-5 align-top">
-                                            <div className="flex flex-col items-center gap-2">
-                                                <div className="flex justify-center gap-2">
-                                                    {o.status === 'pending' && (
-                                                        <button
-                                                            type="button"
-                                                            disabled={updating === o.id}
-                                                            onClick={() => updateStatus(o.id, 'confirmed')}
-                                                            className="flex items-center gap-1 px-3 py-1 rounded bg-blue-500 text-white text-sm hover:bg-blue-600 disabled:opacity-50 transition-colors"
-                                                        >
-                                                            Conferma
-                                                        </button>
-                                                    )}
-
-                                                    {o.status === 'confirmed' && (
-                                                        <button
-                                                            type="button"
-                                                            disabled={updating === o.id}
-                                                            onClick={() => updateStatus(o.id, 'delivered')}
-                                                            className="flex items-center gap-1 px-3 py-1 rounded bg-green-500 text-white text-sm hover:bg-green-600 disabled:opacity-50 transition-colors"
-                                                        >
-                                                            Consegnato
-                                                        </button>
-                                                    )}
-
-                                                    {o.status !== 'cancelled' && o.status !== 'delivered' && (
-                                                        <button
-                                                            type="button"
-                                                            disabled={updating === o.id}
-                                                            onClick={() => updateStatus(o.id, 'cancelled')}
-                                                            className="flex items-center gap-1 px-3 py-1 rounded bg-red-500 text-white text-sm hover:bg-red-600 disabled:opacity-50 transition-colors"
-                                                        >
-                                                            Annulla
-                                                        </button>
-                                                    )}
-                                                </div>
-                                                {o.payment_status === 'pending' && (o.payment_method === 'cash' || o.payment_method === 'pos_on_delivery') && (
-                                                    <button
-                                                        type="button"
-                                                        disabled={updating === o.id}
-                                                        onClick={() => updatePaymentStatus(o.id, 'paid')}
-                                                        className="flex items-center gap-1 px-3 py-1 rounded bg-emerald-500 text-white text-sm hover:bg-emerald-600 disabled:opacity-50 transition-colors"
-                                                    >
-                                                        Segna come pagato
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
+                                    <tr>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold w-16">{t('tableId')}</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold w-40">{t('tableDate')}</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold">{t('tableAddress')}</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold w-40">{t('tableCustomer')}</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold">{t('tableProducts')}</th>
+                                        <th className="px-3 py-2 text-right text-xs font-semibold w-24 min-w-[90px]">{t('tableTotal')}</th>
+                                        <th className="px-3 py-2 text-center text-xs font-semibold w-36">{t('tablePayment')}</th>
+                                        <th className="px-3 py-2 text-center text-xs font-semibold w-28">{t('tableStatus')}</th>
+                                        <th className="px-3 py-2 text-center text-xs font-semibold w-40">{t('tableActions')}</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {filteredOrders.map((o) => (
+                                        <tr
+                                            key={o.id}
+                                            className="border-t border-gray-200 dark:border-gray-700 even:bg-gray-50 dark:even:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+
+                                        >
+                                            {/* ID */}
+                                            <td className="px-4 py-2 text-sm align-top">
+                                                <Link
+                                                    href={`/admin/orders/${o.id}`}
+                                                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                                                >
+                                                    {o.public_id || o.id.slice(0, 8)}
+                                                </Link>
+                                            </td>
+
+
+                                            {/* Data */}
+                                            <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 align-top">
+                                                {formatDate(o.created_at)}
+                                            </td>
+
+                                            {/* Indirizzo */}
+                                            <td
+                                                className="px-4 py-2 text-sm text-gray-600 max-w-xs dark:text-gray-300 align-top"
+                                                title={`${o.address?.line1}, ${o.address?.cap} ${o.address?.city}${o.address?.note?.trim() ? `\nNote: ${o.address.note}` : ''}`}
+                                            >
+                                                <div className="truncate">{o.address?.line1}, {o.address?.cap} {o.address?.city}</div>
+                                                {o.address?.note?.trim() && (
+                                                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]" title={o.address.note}>
+                                                        Note: {o.address.note}
+                                                    </div>
+                                                )}
+                                            </td>
+
+                                            {/* Cliente */}
+                                            <td
+                                                className="px-4 py-2 text-sm text-gray-700 font-medium truncate max-w-xs dark:text-gray-300 align-top"
+                                                title={`${(o.first_name || o.address?.firstName) ?? ''} ${(o.last_name || o.address?.lastName) ?? ''}`}
+                                            >
+                                                {(o.first_name || o.address?.firstName) ?? ''}{' '}
+                                                {(o.last_name || o.address?.lastName) ?? ''}
+                                                {o.customer_phone ? (
+                                                    <div className="text-xs text-gray-600 dark:text-zinc-300">
+                                                        📞 {o.customer_phone}
+                                                    </div>
+                                                ) : null}
+                                            </td>
+
+                                            {/* Prodotti */}
+                                            <td className="px-4 py-2 text-sm max-w-xs align-top">
+                                                <ProductListCell items={o.order_items || []} t={t} />
+                                            </td>
+
+                                            {/* Totale */}
+                                            <td className="px-4 py-2 text-sm font-semibold text-right text-gray-900 dark:text-gray-100 whitespace-nowrap min-w-[90px] w-24 align-top">
+
+                                                {formatPrice(o.total)}
+                                            </td>
+
+                                            {/* Pagamento */}
+                                            <td className="px-4 py-2 text-center text-sm align-top">
+                                                <div className="flex flex-col items-center gap-1">
+                                                    {/* ✅ Badge stato pagamento */}
+                                                    <PaymentBadge status={o.payment_status} payment_method={o.payment_method} t={t} />
+
+                                                    {/* Metodo di pagamento */}
+                                                    <span
+                                                        className="text-xs text-gray-500 truncate max-w-[24ch] dark:text-gray-300"
+                                                        title={formatPayment(o.payment_method, t)}
+                                                    >
+                                                        {formatPayment(o.payment_method, t)}
+                                                    </span>
+
+
+
+                                                </div>
+                                            </td>
+
+
+                                            {/* Stato */}
+                                            <td className="px-4 py-2 text-center align-top">
+                                                <StatusBadge status={o.status} t={t} />
+                                            </td>
+
+                                            {/* Azioni */}
+                                            <td className="px-4 py-2 whitespace-nowrap pr-5 align-top">
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <div className="flex justify-center gap-2">
+                                                        {o.status === 'pending' && (
+                                                            <button
+                                                                type="button"
+                                                                disabled={updating === o.id}
+                                                                onClick={() => updateStatus(o.id, 'confirmed')}
+                                                                className="flex items-center gap-1 px-3 py-1 rounded bg-blue-500 text-white text-sm hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                                                            >
+                                                                {t('confirm')}
+                                                            </button>
+                                                        )}
+
+                                                        {o.status === 'confirmed' && (
+                                                            <button
+                                                                type="button"
+                                                                disabled={updating === o.id}
+                                                                onClick={() => updateStatus(o.id, 'delivered')}
+                                                                className="flex items-center gap-1 px-3 py-1 rounded bg-green-500 text-white text-sm hover:bg-green-600 disabled:opacity-50 transition-colors"
+                                                            >
+                                                                {t('delivered')}
+                                                            </button>
+                                                        )}
+
+                                                        {o.status !== 'cancelled' && o.status !== 'delivered' && (
+                                                            <button
+                                                                type="button"
+                                                                disabled={updating === o.id}
+                                                                onClick={() => updateStatus(o.id, 'cancelled')}
+                                                                className="flex items-center gap-1 px-3 py-1 rounded bg-red-500 text-white text-sm hover:bg-red-600 disabled:opacity-50 transition-colors"
+                                                            >
+                                                                {t('cancel')}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    {o.payment_status === 'pending' && (o.payment_method === 'cash' || o.payment_method === 'pos_on_delivery') && (
+                                                        <button
+                                                            type="button"
+                                                            disabled={updating === o.id}
+                                                            onClick={() => updatePaymentStatus(o.id, 'paid')}
+                                                            className="flex items-center gap-1 px-3 py-1 rounded bg-emerald-500 text-white text-sm hover:bg-emerald-600 disabled:opacity-50 transition-colors"
+                                                        >
+                                                            {t('markAsPaid')}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </SyncedHorizontalScroll>
                     </div>
 
@@ -794,7 +805,7 @@ export default function OrdersAdminPage() {
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between mt-6 gap-2 md:gap-0 w-full max-w-7xl mx-auto px-2">
                     <span className="text-sm text-gray-500 dark:text-gray-400 text-center md:text-left">
 
-                        Pagina {page} di {totalPages}
+                        {t('pageLabel', { page, totalPages })}
                     </span>
                     <div className="flex justify-center md:justify-end gap-2">
                         <button
@@ -802,14 +813,14 @@ export default function OrdersAdminPage() {
                             disabled={page <= 1}
                             className="px-3 py-2 text-sm border rounded disabled:opacity-50 hover:bg-gray-100"
                         >
-                            ← Precedente
+                            {t('previous')}
                         </button>
                         <button
                             onClick={() => loadOrders(page + 1)}
                             disabled={page >= totalPages}
                             className="px-3 py-2 text-sm border rounded disabled:opacity-50 hover:bg-gray-100"
                         >
-                            Successiva →
+                            {t('next')}
                         </button>
                     </div>
                 </div>
@@ -828,7 +839,7 @@ export default function OrdersAdminPage() {
                     </span>
                     <input
                         type="text"
-                        placeholder="Cerca per nome cliente..."
+                        placeholder={t('searchPlaceholderMobile')}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="pl-10 pr-4 py-2 border border-gray-300 rounded shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
@@ -853,10 +864,10 @@ export default function OrdersAdminPage() {
                                     href={`/admin/orders/${o.id}`}
                                     className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                                 >
-                                    Ordine #{o.public_id || o.id.slice(0, 8)}
+                                    {t('orderPrefix')} #{o.public_id || o.id.slice(0, 8)}
                                 </Link>
                                 <div className="shrink-0">
-                                    <StatusBadge status={o.status} />
+                                    <StatusBadge status={o.status} t={t} />
                                 </div>
                             </div>
 
@@ -883,13 +894,13 @@ export default function OrdersAdminPage() {
                                 </p>
                                 {o.address?.note?.trim() && (
                                     <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 break-words" title={o.address.note}>
-                                        Note: {o.address.note}
+                                        {t('notesPrefix')}: {o.address.note}
                                     </p>
                                 )}
 
                                 {/* Prodotti */}
                                 <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                                    <ProductListCell items={o.order_items || []} />
+                                    <ProductListCell items={o.order_items || []} t={t} />
                                 </div>
                             </div>
 
@@ -897,9 +908,9 @@ export default function OrdersAdminPage() {
                             {/* FOOTER */}
                             <div className="px-4 py-3 border-t flex justify-between items-center">
                                 <span className="text-sm font-semibold whitespace-nowrap">
-                                    Totale: {formatPrice(o.total)}
+                                    {t('totalLabel')}: {formatPrice(o.total)}
                                 </span>
-                                <PaymentBadge status={o.payment_status} payment_method={o.payment_method} />
+                                <PaymentBadge status={o.payment_status} payment_method={o.payment_method} t={t} />
                             </div>
 
                             {/* AZIONI */}
@@ -974,7 +985,7 @@ export default function OrdersAdminPage() {
 
                             <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                                 <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                                    Prodotti dell&apos;ordine #{selectedOrder.public_id || selectedOrder.id.slice(0, 8)}
+                                    {t('drawerProductsTitle', { id: selectedOrder.public_id || selectedOrder.id.slice(0, 8) })}
                                 </h2>
                                 <button
                                     onClick={() => setSelectedOrder(null)}
@@ -986,7 +997,7 @@ export default function OrdersAdminPage() {
 
                             {selectedOrder.address?.note?.trim() && (
                                 <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-                                    <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Note per il corriere</h3>
+                                    <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">{t('courierNotes')}</h3>
                                     <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
                                         {selectedOrder.address.note.trim()}
                                     </div>

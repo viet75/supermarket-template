@@ -31,8 +31,8 @@ export async function GET() {
           is_open_now: false,
           after_cutoff: false,
           next_fulfillment_date: null,
+          message_code: 'DELIVERY_DISABLED',
           message: 'Le consegne sono temporaneamente disabilitate',
-          code: 'DELIVERY_DISABLED',
         },
         { headers: { 'Cache-Control': 'no-store' } }
       )
@@ -49,6 +49,7 @@ export async function GET() {
         { status: 500, headers: { 'Cache-Control': 'no-store' } }
       )
     }
+
     if (!preview) {
       return NextResponse.json(
         { ok: false, error: 'Preview evasione non disponibile' },
@@ -70,6 +71,7 @@ export async function GET() {
         is_open_now: !!preview?.is_open_now,
         after_cutoff: !!preview?.after_cutoff,
         next_fulfillment_date: preview?.next_fulfillment_date ?? null,
+        message_code: preview?.message_code ?? null,
         message,
       },
       { headers: { 'Cache-Control': 'no-store' } }

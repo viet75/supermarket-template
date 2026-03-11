@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 
 export type Slot = { start: string; end: string }
 
@@ -71,13 +72,31 @@ function slotsOverlap(slots: Slot[]): boolean {
   return false
 }
 
-function validateSlots(slots: Slot[]): string | null {
+function validateSlots(
+  slots: Slot[],
+  t: (key: string, values?: Record<string, string | number>) => string
+): string | null {
   for (const slot of slots) {
-    if (!isValidTime(slot.start)) return `Ora inizio non valida: ${slot.start} (usare HH:MM)`
-    if (!isValidTime(slot.end)) return `Ora fine non valida: ${slot.end} (usare HH:MM)`
-    if (compareTime(slot.start, slot.end) >= 0) return `Ora fine deve essere dopo ora inizio (${slot.start}–${slot.end})`
+    if (!isValidTime(slot.start)) {
+      return t('invalidStartTime', { time: slot.start })
+    }
+
+    if (!isValidTime(slot.end)) {
+      return t('invalidEndTime', { time: slot.end })
+    }
+
+    if (compareTime(slot.start, slot.end) >= 0) {
+      return t('endMustBeAfterStart', {
+        start: slot.start,
+        end: slot.end,
+      })
+    }
   }
-  if (slotsOverlap(slots)) return 'Fasce orarie sovrapposte nello stesso giorno'
+
+  if (slotsOverlap(slots)) {
+    return t('overlappingSlots')
+  }
+
   return null
 }
 
@@ -150,12 +169,13 @@ type Props = {
 }
 
 export default function WeeklyHoursEditor({ value, onChange, onValidationChange }: Props) {
+  const t = useTranslations('adminDelivery')
   const [jsonOpen, setJsonOpen] = useState(false)
   useEffect(() => {
     if (!onValidationChange) return
     let err: string | null = null
     for (const key of DAY_KEYS) {
-      const e = validateSlots(value[key] ?? [])
+      const e = validateSlots(value[key] ?? [], t)
       if (e) {
         err = `${DAY_LABELS[key]}: ${e}`
         break
@@ -205,7 +225,7 @@ export default function WeeklyHoursEditor({ value, onChange, onValidationChange 
 
   let validationError: string | null = null
   for (const key of DAY_KEYS) {
-    const err = validateSlots(value[key] ?? [])
+    const err = validateSlots(value[key] ?? [], t)
     if (err) {
       validationError = `${DAY_LABELS[key]}: ${err}`
       break
@@ -216,7 +236,7 @@ export default function WeeklyHoursEditor({ value, onChange, onValidationChange 
 
   return (
     <div className="space-y-3">
-      <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Orari settimanali</div>
+      <div className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('weeklyHours')}</div>
       {DAY_KEYS.map((day) => {
         const slots = value[day] ?? []
         const isClosed = slots.length === 0
@@ -233,7 +253,7 @@ export default function WeeklyHoursEditor({ value, onChange, onValidationChange 
                   onChange={(e) => setClosed(day, !e.target.checked)}
                   className="rounded"
                 />
-                <span className="font-medium text-gray-900 dark:text-gray-100">{DAY_LABELS[day]}</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">{t(`days.${day}`)}</span>
               </label>
               {!isClosed && (
                 <button
@@ -241,7 +261,7 @@ export default function WeeklyHoursEditor({ value, onChange, onValidationChange 
                   onClick={() => addSlot(day)}
                   className="text-sm text-green-600 dark:text-green-400 hover:underline"
                 >
-                  + Aggiungi fascia
+                  + {t('addSlot')}
                 </button>
               )}
             </div>
@@ -269,7 +289,7 @@ export default function WeeklyHoursEditor({ value, onChange, onValidationChange 
                       onClick={() => removeSlot(day, idx)}
                       className="text-red-600 dark:text-red-400 hover:underline text-sm"
                     >
-                      Rimuovi
+                      {t('remove')}
                     </button>
                   </li>
                 ))}
@@ -289,7 +309,7 @@ export default function WeeklyHoursEditor({ value, onChange, onValidationChange 
           onClick={() => setJsonOpen((o) => !o)}
           className="text-sm text-gray-500 dark:text-gray-400 hover:underline"
         >
-          {jsonOpen ? 'Nascondi' : 'Mostra'} anteprima JSON (solo lettura)
+          {jsonOpen ? t('hideJsonPreview') : t('showJsonPreview')}
         </button>
         {jsonOpen && (
           <pre className="mt-2 p-3 rounded bg-gray-100 dark:bg-gray-800 text-xs overflow-auto max-h-48 border border-gray-200 dark:border-gray-700">

@@ -6,6 +6,7 @@ import type { Product, Category } from '@/lib/types'
 import { toDisplayStock, getUnitLabel } from '@/lib/stock'
 import { formatPrice } from '@/lib/pricing'
 import { useRefetchOnResume } from '@/hooks/useRefetchOnResume'
+import { useLocale, useTranslations } from 'next-intl'
 
 type EditableProduct = Omit<Product, 'price' | 'price_sale'> & {
     price: string | number | null
@@ -28,6 +29,8 @@ function parseOptionalPriceInput(v: unknown): number | null {
 }
 
 export default function ProductsAdminPage() {
+    const t = useTranslations('adminProducts')
+    const locale = useLocale()
     const sb = useMemo(() => supabaseClient(), [])
     const [items, setItems] = useState<Product[]>([])
     const [loading, setLoading] = useState(true)
@@ -50,7 +53,7 @@ export default function ProductsAdminPage() {
     const [itemsPerPage, setItemsPerPage] = useState(20)
     // archivio
     const [showArchived, setShowArchived] = useState(false)
-    
+
     // upload immagine
     const [uploadingImage, setUploadingImage] = useState(false)
     const [uploadError, setUploadError] = useState<string | null>(null)
@@ -190,31 +193,31 @@ export default function ProductsAdminPage() {
                 .single()
 
             if (error) throw error
-            if (!data) throw new Error('Nessun dato restituito da Supabase')
+            if (!data) throw new Error(t('noSupabaseData'))
 
             setCategories((prev) => [...prev, data])
             setEditing((cur) => (cur ? { ...cur, category_id: data.id } : cur))
             setNewCategoryName('')
-            setMessage('✅ Categoria creata con successo!')
+            setMessage(`✅ ${t('categoryCreated')}`)
         } catch (e) {
             console.error('Errore creazione categoria:', e)
-            alert('Errore durante la creazione della categoria')
+            alert(t('categoryCreateError'))
         } finally {
             setCreatingCategory(false)
         }
     }
 
     async function deleteCategoryQuick(id: string) {
-        const ok = window.confirm('Vuoi davvero eliminare questa categoria?')
+        const ok = window.confirm(t('deleteCategoryConfirm'))
         if (!ok) return
         try {
             const { error } = await sb.from('categories').delete().eq('id', id)
             if (error) throw error
             setCategories((prev) => prev.filter(c => c.id !== id))
-            setMessage('🗑️ Categoria eliminata con successo!')
+            setMessage(`🗑️ ${t('categoryDeleted')}`)
         } catch (e) {
             console.error('Errore eliminazione categoria:', e)
-            alert('Errore durante l’eliminazione della categoria')
+            alert(t('categoryDeleteError'))
         }
     }
 
@@ -224,7 +227,7 @@ export default function ProductsAdminPage() {
         if (!editing) return
         const priceNum = parsePriceInput(editing.price)
         if (!Number.isFinite(priceNum) || priceNum <= 0) {
-            alert('Il prezzo è obbligatorio e deve essere maggiore di 0.')
+            alert(`⚠️ ${t('priceRequired')}`)
             return
         }
         setSaving(true)
@@ -259,7 +262,7 @@ export default function ProductsAdminPage() {
                     body: JSON.stringify(payload),
                 })
                 const json = await res.json()
-                if (!res.ok) throw new Error(json?.error || 'Errore creazione')
+                if (!res.ok) throw new Error(json?.error || t('createError'))
 
                 setItems((prev) => [json.product ?? json, ...prev])
             } else {
@@ -282,7 +285,7 @@ export default function ProductsAdminPage() {
                 }
 
                 const json = await res.json()
-                if (!res.ok) throw new Error(json?.error || 'Errore aggiornamento')
+                if (!res.ok) throw new Error(json?.error || t('updateError'))
 
                 setItems((prev) =>
                     prev.map((p) =>
@@ -293,7 +296,7 @@ export default function ProductsAdminPage() {
 
             setEditing(null)
         } catch (e: any) {
-            alert(e?.message || 'Errore salvataggio')
+            alert(e?.message || t('saveError'))
         } finally {
             setSaving(false)
         }
@@ -303,7 +306,7 @@ export default function ProductsAdminPage() {
     // DELETE
     async function doDelete(id: string) {
         if (!id) return
-        const ok = window.confirm('Vuoi davvero archiviare questo prodotto?')
+        const ok = window.confirm(t('archiveConfirm'))
         if (!ok) return
 
         setDeleting(id)
@@ -317,7 +320,7 @@ export default function ProductsAdminPage() {
             if (!res.ok) {
                 const errorText = await res.text()
                 console.error('Errore HTTP archiviazione:', errorText)
-                alert('⚠️ Errore durante l’archiviazione')
+                alert(`⚠️ ${t('archiveError')}`)
                 return
             }
 
@@ -325,23 +328,23 @@ export default function ProductsAdminPage() {
 
             switch (data.status) {
                 case 'archived':
-                    alert('📦 Prodotto archiviato')
+                    alert(`📦 ${t('productArchived')}`)
                     setItems(prev => prev.filter(p => p.id !== id)) // rimuove subito dalla lista corrente
                     break
                 case 'already_archived':
-                    alert('ℹ️ Prodotto già archiviato')
+                    alert(`ℹ️ ${t('productAlreadyArchived')}`)
                     break
                 case 'not_found':
-                    alert('⚠️ Prodotto non trovato (già rimosso?)')
+                    alert(`⚠️ ${t('productNotFound')}`)
                     break
                 default:
-                    alert('⚠️ Risposta sconosciuta dal server')
+                    alert(`⚠️ ${t('unknownServerResponse')}`)
             }
 
             setEditing(cur => (cur?.id === id ? null : cur))
         } catch (e) {
             console.error('Eccezione archiviazione:', e)
-            alert('Errore inatteso durante l’archiviazione')
+            alert(t('archiveUnexpectedError'))
         } finally {
             setDeleting(null)
         }
@@ -354,7 +357,9 @@ export default function ProductsAdminPage() {
         <div className="mx-auto max-w-screen-2xl p-4 text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900">
 
             <header className="flex items-center justify-between mb-6">
-                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Gestione Prodotti</h1>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                    {t('title')}
+                </h1>
 
                 <button
                     onClick={() =>
@@ -376,7 +381,7 @@ export default function ProductsAdminPage() {
                     }
                     className="flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700"
                 >
-                    <span className="text-lg">＋</span> Nuovo Prodotto
+                    <span className="text-lg">＋</span> {t('newProduct')}
                 </button>
             </header>
             {/* Toggle Archivio */}
@@ -387,7 +392,7 @@ export default function ProductsAdminPage() {
                         checked={showArchived}
                         onChange={(e) => setShowArchived(e.target.checked)}
                     />
-                    Mostra archivio
+                    {t('showArchive')}
                 </label>
             </div>
 
@@ -396,7 +401,7 @@ export default function ProductsAdminPage() {
             <div className="w-full max-w-md mb-6">
                 <input
                     type="text"
-                    placeholder="Cerca prodotto..."
+                    placeholder={t('searchPlaceholder')}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -412,7 +417,7 @@ export default function ProductsAdminPage() {
                     className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
 
                 >
-                    <option value="all">Tutte le categorie</option>
+                    <option value="all">{t('allCategories')}</option>
                     {categories.map((c) => (
                         <option key={c.id} value={c.id}>
                             {c.name}
@@ -427,10 +432,10 @@ export default function ProductsAdminPage() {
                     className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
 
                 >
-                    <option value="all">Tutti</option>
-                    <option value="active">Solo attivi</option>
-                    <option value="hidden">Solo nascosti</option>
-                    <option value="lowstock">Stock basso (&lt; 5)</option>
+                    <option value="all">{t('filterAll')}</option>
+                    <option value="active">{t('filterActive')}</option>
+                    <option value="hidden">{t('filterHidden')}</option>
+                    <option value="lowstock">{t('filterLowStock')}</option>
                 </select>
             </div>
 
@@ -439,7 +444,7 @@ export default function ProductsAdminPage() {
 
             {/* Lista prodotti desktop */}
             {loading ? (
-                <p className="text-sm text-gray-500">Caricamento…</p>
+                <p className="text-sm text-gray-500">{t('loading')}</p>
             ) : (
                 <>
                     {/* Vista desktop */}
@@ -472,21 +477,23 @@ export default function ProductsAdminPage() {
                                         <div className="font-medium">
                                             {p.name}
                                             {showArchived && (
-                                                <span className="ml-2 text-xs text-red-500 font-normal">(archiviato)</span>
+                                                <span className="ml-2 text-xs text-red-500 font-normal">
+                                                    ({t('archived')})
+                                                </span>
                                             )}
                                         </div>
 
                                         <div className="text-sm text-gray-600 dark:text-zinc-400">
-                                            {formatPrice(Number(p.price))} / {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
+                                        {formatPrice(Number(p.price))} / {getUnitLabel(p, locale)}
                                             {p.price_sale ? (
                                                 <span className="ml-2 text-gray-500 dark:text-zinc-400 line-through">
-                                                    {formatPrice(Number(p.price_sale))} / {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
+                                                    {formatPrice(Number(p.price_sale))} / {getUnitLabel(p, locale)}
                                                 </span>
                                             ) : null}
                                         </div>
 
                                         <div className="text-xs text-gray-500 dark:text-zinc-400">
-                                            Stock: {toDisplayStock(p) == null ? 'illimitato' : `${toDisplayStock(p)} ${getUnitLabel(p)}`}
+                                            {t('stock')}: {toDisplayStock(p) == null ? t('unlimited') : `${toDisplayStock(p)} ${getUnitLabel(p, locale)}`}
                                         </div>
 
                                     </div>
@@ -496,7 +503,7 @@ export default function ProductsAdminPage() {
                                             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs ${p.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-600'
                                                 }`}
                                         >
-                                            {p.is_active ? 'Attivo' : 'Nascosto'}
+                                            {p.is_active ? t('active') : t('hidden')}
                                         </span>
 
                                         {p.deleted_at ? (
@@ -517,23 +524,22 @@ export default function ProductsAdminPage() {
                                                                 is_active: true,
                                                             })
                                                             .eq('id', p.id)
-
                                                         if (error) {
                                                             console.error('Errore ripristino:', error)
-                                                            alert('⚠️ Errore durante il ripristino')
+                                                            alert(`⚠️ ${t('restoreError')}`)
                                                             return
                                                         }
 
                                                         // Rimuove subito il prodotto dalla lista archivio
                                                         setItems(prev => prev.filter(prod => prod.id !== p.id))
-                                                        alert('✅ Prodotto ripristinato con successo')
+                                                        alert(`✅ ${t('productRestored')}`)
                                                     } catch (e) {
                                                         console.error('Eccezione ripristino:', e)
-                                                        alert('⚠️ Errore inatteso durante il ripristino')
+                                                        alert(`⚠️ ${t('restoreError')}`)
                                                     }
                                                 }}
                                             >
-                                                Ripristina
+                                                {t('restore')}
                                             </button>
 
                                         ) : (
@@ -551,14 +557,14 @@ export default function ProductsAdminPage() {
                                                         })
                                                     }}
                                                 >
-                                                    Modifica
+                                                    {t('edit')}
                                                 </button>
                                                 <button
                                                     className="rounded-md border border-red-300 text-red-700 px-3 py-1.5 hover:bg-red-50 disabled:opacity-50"
                                                     onClick={() => p.id && doDelete(p.id)}
                                                     disabled={deleting === p.id}
                                                 >
-                                                    {deleting === p.id ? 'Eliminazione…' : 'Elimina'}
+                                                    {deleting === p.id ? t('deleting') : t('delete')}
                                                 </button>
                                             </>
                                         )}
@@ -602,21 +608,21 @@ export default function ProductsAdminPage() {
                                             <div className="font-semibold">
                                                 {p.name}
                                                 {showArchived && (
-                                                    <span className="ml-2 text-xs text-red-500 font-normal">(archiviato)</span>
+                                                    <span className="ml-2 text-xs text-red-500 font-normal">({t('archived')})</span>
                                                 )}
                                             </div>
 
                                             <div className="text-sm text-gray-600 dark:text-zinc-400">
-                                                {formatPrice(Number(p.price))} / {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
+                                                {formatPrice(Number(p.price))} / {getUnitLabel(p, locale)}
                                                 {p.price_sale ? (
                                                     <span className="ml-2 text-gray-500 dark:text-zinc-400 line-through">
-                                                        {formatPrice(Number(p.price_sale))} / {p.unit_type === 'per_kg' ? 'kg' : 'pz'}
+                                                        {formatPrice(Number(p.price_sale))} / {getUnitLabel(p, locale)}
                                                     </span>
                                                 ) : null}
                                             </div>
 
                                             <div className="text-xs text-gray-500 dark:text-zinc-400">
-                                                Stock: {toDisplayStock(p) == null ? 'illimitato' : `${toDisplayStock(p)} ${getUnitLabel(p)}`}
+                                            Stock: {toDisplayStock(p) == null ? t('unlimited') : `${toDisplayStock(p)} ${getUnitLabel(p, locale)}`}
                                             </div>
 
                                             <span
@@ -625,7 +631,7 @@ export default function ProductsAdminPage() {
                                                     : 'bg-gray-100 text-gray-600'
                                                     }`}
                                             >
-                                                {p.is_active ? 'Attivo' : 'Nascosto'}
+                                                {p.is_active ? t('active') : t('hidden')}
                                             </span>
                                         </div>
                                     </div>
@@ -653,7 +659,7 @@ export default function ProductsAdminPage() {
 
                                                         if (error) {
                                                             console.error('Errore ripristino:', error)
-                                                            alert('⚠️ Errore durante il ripristino')
+                                                            alert(`⚠️ ${t('restoreError')}`)
                                                             return
                                                         }
 
@@ -664,14 +670,14 @@ export default function ProductsAdminPage() {
                                                                 )
                                                             )
                                                         }
-                                                        alert('✅ Prodotto ripristinato con successo')
+                                                        alert(`✅ ${t('productRestored')}`)
                                                     } catch (e) {
                                                         console.error('Eccezione ripristino:', e)
-                                                        alert('⚠️ Errore inatteso durante il ripristino')
+                                                        alert(`⚠️ ${t('restoreError')}`)
                                                     }
                                                 }}
                                             >
-                                                Ripristina
+                                                {t('restore')}
                                             </button>
                                         ) : (
                                             <>
@@ -688,14 +694,14 @@ export default function ProductsAdminPage() {
                                                         })
                                                     }}
                                                 >
-                                                    Modifica
+                                                    {t('edit')}
                                                 </button>
                                                 <button
                                                     className="flex-1 rounded-md border border-red-300 text-red-700 px-3 py-2 hover:bg-red-50 disabled:opacity-50 text-sm"
                                                     onClick={() => p.id && doDelete(p.id)}
                                                     disabled={deleting === p.id}
                                                 >
-                                                    {deleting === p.id ? 'Eliminazione…' : 'Elimina'}
+                                                    {deleting === p.id ? t('deleting') : t('delete')}
                                                 </button>
                                             </>
                                         )}
@@ -775,7 +781,7 @@ export default function ProductsAdminPage() {
 
                         <div className="flex items-center justify-between px-4 pt-4">
                             <h2 className="text-lg font-semibold">
-                                {editing.id ? 'Modifica prodotto' : 'Nuovo prodotto'}
+                                {editing.id ? t('editProduct') : t('newProduct')}
                             </h2>
                         </div>
 
@@ -783,7 +789,7 @@ export default function ProductsAdminPage() {
                             <div className="space-y-4">
                                 {/* Info base */}
                                 <div className="space-y-2">
-                                    <label className="block text-sm font-medium">Nome prodotto</label>
+                                    <label className="block text-sm font-medium">{t('productName')}</label>
                                     <input
                                         type="text"
                                         className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2"
@@ -792,7 +798,7 @@ export default function ProductsAdminPage() {
                                         onChange={(e) => setEditing({ ...editing, name: e.target.value })}
                                     />
 
-                                    <label className="block text-sm font-medium">Descrizione</label>
+                                    <label className="block text-sm font-medium">{t('description')}</label>
                                     <textarea
                                         className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2"
 
@@ -805,7 +811,7 @@ export default function ProductsAdminPage() {
                                 {/* Prezzi */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <label className="block text-sm font-medium">Prezzo (€)</label>
+                                        <label className="block text-sm font-medium">{t('price')} (€)</label>
                                         <input
                                             type="number"
                                             step="0.01"
@@ -816,7 +822,7 @@ export default function ProductsAdminPage() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium">Prezzo scontato (€)</label>
+                                        <label className="block text-sm font-medium">{t('salePrice')} (€)</label>
                                         <input
                                             type="number"
                                             step="0.01"
@@ -829,7 +835,7 @@ export default function ProductsAdminPage() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-zinc-400">
-                                        Unità di misura
+                                        {t('unitType')}
                                     </label>
                                     <select
                                         value={editing?.unit_type || 'per_unit'}
@@ -841,14 +847,14 @@ export default function ProductsAdminPage() {
                                         }}
                                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm"
                                     >
-                                        <option value="per_unit">Pezzo</option>
-                                        <option value="per_kg">Chilogrammo</option>
+                                        <option value="per_unit">{t('perUnit')}</option>
+                                        <option value="per_kg">{t('perKg')}</option>
                                     </select>
                                 </div>
 
                                 {editing?.unit_type === 'per_kg' && (
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-zinc-400">Incremento acquisto</label>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-zinc-400">{t('purchaseStep')}</label>
                                         <select
                                             value={editing.qty_step ?? 1}
                                             onChange={(e) =>
@@ -866,8 +872,8 @@ export default function ProductsAdminPage() {
 
                                 {/* Immagine */}
                                 <fieldset className="rounded-xl border border-gray-200 p-3">
-                                    <legend className="px-1 text-sm font-medium text-gray-700 dark:text-zinc-400">Immagine</legend>
-                                    
+                                    <legend className="px-1 text-sm font-medium text-gray-700 dark:text-zinc-400">{t('image')}</legend>
+
                                     {/* Input file nascosto */}
                                     <input
                                         ref={fileInputRef}
@@ -880,11 +886,11 @@ export default function ProductsAdminPage() {
 
                                             // Validazioni (stessa logica di AdminImageUploader)
                                             if (!file.type.startsWith('image/')) {
-                                                setUploadError('Seleziona un file immagine')
+                                                setUploadError(t('imageOnly'))
                                                 return
                                             }
                                             if (file.size > 5 * 1024 * 1024) {
-                                                setUploadError('Immagine troppo grande (max 5MB)')
+                                                setUploadError(t('imageTooLarge'))
                                                 return
                                             }
                                             setUploadError(null)
@@ -896,11 +902,11 @@ export default function ProductsAdminPage() {
 
                                                 const res = await fetch('/api/admin/upload', { method: 'POST', body: fd })
                                                 const json = await res.json()
-                                                if (!res.ok || !json?.url) throw new Error(json?.error || 'Upload fallito')
+                                                if (!res.ok || !json?.url) throw new Error(json?.error || t('uploadFailed'))
 
                                                 setEditing({ ...editing, image_url: json.url })
                                             } catch (err: any) {
-                                                setUploadError(err?.message || 'Errore upload')
+                                                setUploadError(err?.message || t('uploadError'))
                                             } finally {
                                                 setUploadingImage(false)
                                             }
@@ -913,8 +919,8 @@ export default function ProductsAdminPage() {
                                         onClick={() => fileInputRef.current?.click()}
                                         className={`
                                             relative mt-2 rounded-lg border-2 border-dashed
-                                            ${editing.image_url 
-                                                ? 'border-gray-300 dark:border-gray-600' 
+                                            ${editing.image_url
+                                                ? 'border-gray-300 dark:border-gray-600'
                                                 : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800'
                                             }
                                             cursor-pointer transition-all hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20
@@ -927,12 +933,12 @@ export default function ProductsAdminPage() {
                                                 <div className="relative aspect-video w-full overflow-hidden rounded-lg">
                                                     <img
                                                         src={editing.image_url}
-                                                        alt="Anteprima"
+                                                        alt={t('preview')}
                                                         className="h-full w-full object-cover"
                                                     />
                                                     {/* Overlay "Cambia immagine" */}
                                                     <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity">
-                                                        <span className="text-white font-medium">Cambia immagine</span>
+                                                        <span className="text-white font-medium">{t('changeImage')}</span>
                                                     </div>
                                                 </div>
                                             </>
@@ -953,7 +959,7 @@ export default function ProductsAdminPage() {
                                                     />
                                                 </svg>
                                                 <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                    Clicca per caricare immagine
+                                                {t('clickToUpload')}
                                                 </p>
                                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                                     JPG/PNG (max 5MB)
@@ -964,7 +970,7 @@ export default function ProductsAdminPage() {
 
                                     {/* Messaggi di stato */}
                                     {uploadingImage && (
-                                        <p className="text-sm text-gray-500 mt-2">Caricamento…</p>
+                                        <p className="text-sm text-gray-500 mt-2">{t('imageUploading')}</p>
                                     )}
                                     {uploadError && (
                                         <p className="text-sm text-red-600 mt-2">{uploadError}</p>
@@ -977,7 +983,7 @@ export default function ProductsAdminPage() {
                                             className="mt-3 text-sm text-red-600 hover:underline"
                                             onClick={() => setEditing({ ...editing, image_url: '' })}
                                         >
-                                            Rimuovi immagine
+                                            {t('removeImage')}
                                         </button>
                                     )}
                                 </fieldset>
@@ -987,7 +993,7 @@ export default function ProductsAdminPage() {
                                     <div>
                                         {/* Categoria */}
                                         <div className="space-y-2">
-                                            <label className="block text-sm font-medium">Categoria</label>
+                                            <label className="block text-sm font-medium">{t('category')}</label>
                                             <select
                                                 className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2"
 
@@ -996,7 +1002,7 @@ export default function ProductsAdminPage() {
                                                     setEditing({ ...editing!, category_id: e.target.value || null })
                                                 }
                                             >
-                                                <option value="">Nessuna categoria</option>
+                                                <option value="">{t('noCategory')}</option>
                                                 {categories.map(c => (
                                                     <option key={c.id} value={c.id}>
                                                         {c.name}
@@ -1007,7 +1013,7 @@ export default function ProductsAdminPage() {
 
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium">Stock ({getUnitLabel(editing)})</label>
+                                        <label className="block text-sm font-medium">Stock ({getUnitLabel(editing, locale)})</label>
                                         <input
                                             type="number"
                                             min={0}
@@ -1025,7 +1031,7 @@ export default function ProductsAdminPage() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium">Ordine (sort_order)</label>
+                                        <label className="block text-sm font-medium">{t('sortOrder')}</label>
                                         <input
                                             type="number"
                                             min={0}
@@ -1059,7 +1065,7 @@ export default function ProductsAdminPage() {
                                             })
                                         }
                                     />
-                                    <span className="text-sm">Attivo (visibile nello shop)</span>
+                                    <span className="text-sm">{t('activeVisible')}</span>
                                 </label>
                             </div>
                         </div>
@@ -1084,14 +1090,14 @@ export default function ProductsAdminPage() {
                                     onClick={() => setEditing(null)}
                                     disabled={saving || (editing.id ? deleting === editing.id : false)}
                                 >
-                                    Annulla
+                                    {t('cancel')}
                                 </button>
                                 <button
                                     className="rounded-md bg-black text-white px-3 py-2 disabled:opacity-60"
                                     onClick={save}
                                     disabled={saving || (editing.id ? deleting === editing.id : false)}
                                 >
-                                    {saving ? 'Salvataggio…' : 'Salva'}
+                                    {saving ? t('saving') : t('save')}
                                 </button>
                             </div>
                         </div>

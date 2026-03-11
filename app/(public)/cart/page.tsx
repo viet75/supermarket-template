@@ -88,7 +88,7 @@ export default function CartPage() {
                             {t('checkout')}
                         </Link>
                     </div>
-                    {/* ✅ Pulsante per tornare allo store (responsive + dark mode) */}
+                    {/* ✅ Back to store button (responsive + dark mode) */}
                     <div className="mt-4 text-center">
                         <Link
                             href="/"

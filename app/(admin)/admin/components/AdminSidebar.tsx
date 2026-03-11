@@ -5,8 +5,10 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useState, Fragment } from 'react'
 import { Package, ShoppingCart, Layers, Menu, X, Truck, Settings } from 'lucide-react'
 import { supabaseClient } from '@/lib/supabaseClient'
+import { useTranslations } from 'next-intl'
 
 export default function AdminSidebar() {
+  const t = useTranslations('adminNavigation')
   const pathname = usePathname()
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -19,11 +21,11 @@ export default function AdminSidebar() {
   }
 
   const links = [
-    { href: '/admin/orders', label: 'Ordini', icon: ShoppingCart },
-    { href: '/admin/products', label: 'Prodotti', icon: Package },
-    { href: '/admin/categories', label: 'Categorie', icon: Layers },
-    { href: '/admin/settings/delivery', label: 'Consegna', icon: Truck },
-    { href: '/admin/settings', label: 'Impostazioni', icon: Settings, exact: true, separatorBefore: true },
+    { href: '/admin/orders', label: t('orders'), icon: ShoppingCart },
+    { href: '/admin/products', label: t('products'), icon: Package },
+    { href: '/admin/categories', label: t('categories'), icon: Layers },
+    { href: '/admin/settings/delivery', label: t('delivery'), icon: Truck },
+    { href: '/admin/settings', label: t('settings'), icon: Settings, exact: true, separatorBefore: true },
   ]
 
   return (
@@ -122,7 +124,7 @@ export default function AdminSidebar() {
               className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 cursor-pointer transition-colors"
             >
               <span aria-hidden>🚪</span>
-              Logout
+              {t('logout')}
             </button>
           </div>
         </nav>
@@ -142,7 +144,7 @@ export default function AdminSidebar() {
                        px-3 py-3 rounded-md text-sm font-medium
                        bg-green-600 text-white hover:bg-green-700 transition-colors"
           >
-            🏪 Torna al sito
+            🏪 {t('backToSite')}
           </Link>
         </div>
 
@@ -151,7 +153,7 @@ export default function AdminSidebar() {
                      text-gray-400 dark:text-zinc-500
                      border-t border-gray-200 dark:border-zinc-800"
         >
-          Admin Panel v1.0
+          {t('adminPanel')} v1.0
         </div>
       </aside>
     </>

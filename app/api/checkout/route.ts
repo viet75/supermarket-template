@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ============================================================
-    // 0) BLOCCO CHECKOUT PRIMA DI QUALSIASI CHIAMATA GOOGLE / STRIPE
+    // 0) BLOCK CHECKOUT BEFORE ANY GOOGLE / STRIPE CALL
     // ============================================================
     const { data: preview, error: previewError } = await supabaseServiceRole.rpc(
       'get_fulfillment_preview'
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Check delivery_enabled (prima di Google/Stripe)
+    // Check delivery_enabled (before Google/Stripe)
     const { data: settings, error: settingsError } = await supabaseServiceRole
       .from('store_settings')
       .select('delivery_enabled')
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ============================================================
-    // 1) Recupera ordine (delivery_fee + address)
+    // 1) Retrieve order (delivery_fee + address)
     // ============================================================
     const { data: order, error: orderError } = await supabaseServiceRole
       .from('orders')
@@ -107,11 +107,11 @@ export async function POST(req: NextRequest) {
 
     const deliveryFee = Number(order.delivery_fee ?? 0)
 
-    // Determina i campi da validare: usa body.address se presente, altrimenti fallback su order.address
+    // Determine the fields to validate: use body.address if present, otherwise fallback to order.address
     const orderAddress = order.address as { cap?: string; line1?: string; city?: string } | null
     const bodyAddress = body.address
 
-    // Se body.address contiene line1/city/cap non vuoti -> usa quelli, altrimenti fallback su order.address
+    // If body.address contains non-empty line1/city/cap -> use them, otherwise fallback to order.address
     const line1 =
       bodyAddress?.line1 && bodyAddress.line1.trim()
         ? String(bodyAddress.line1).trim()
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
           ? String(orderAddress.cap).trim()
           : null
 
-    // Se city/zip mancanti -> 400 (non creare sessione Stripe)
+    // If city/zip missing -> 400 (do not create Stripe session)
     if (!city || !zip) {
       return NextResponse.json({ error: 'CAP non valido o indirizzo non trovato' }, { status: 400 })
     }
@@ -142,17 +142,17 @@ export async function POST(req: NextRequest) {
     }
 
     // ============================================================
-    // 2) GOOGLE GEOCODE SOLO DOPO I BLOCCANTI (preview + delivery)
+    // 2) GOOGLE GEOCODE ONLY AFTER BLOCKERS (preview + delivery)
     // ============================================================
     try {
-      // Costruisci query indirizzo (solo line1 se disponibile, altrimenti usa zip+city)
+      // Build address query (only line1 if available, otherwise use zip+city)
       const query = line1 ? [line1, zip, city].filter(Boolean).join(', ') : [zip, city].join(', ')
 
       if (!query) {
         return NextResponse.json({ error: 'CAP non valido o indirizzo non trovato' }, { status: 400 })
       }
 
-      // Deriva baseUrl da req.url invece di usare localhost hardcoded
+      // Derive baseUrl from req.url instead of using localhost hardcoded
       const url = new URL(req.url)
       const baseUrl = `${url.protocol}//${url.host}`
       const geocodeUrl =
@@ -178,10 +178,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'CAP non valido o indirizzo non trovato' }, { status: 400 })
     }
 
-    // Se body.address è presente (almeno uno tra line1/city/cap), aggiorna Supabase PRIMA di creare la sessione Stripe
+    // If body.address is present (at least one of line1/city/cap), update Supabase BEFORE creating the Stripe session
     if (bodyAddress && (bodyAddress.line1 || bodyAddress.city || bodyAddress.cap)) {
       try {
-        // Merge semplice: usa i valori finali determinati (line1, city, zip) che già hanno priorità body.address > order.address
+        // Simple merge: use the final values determined (line1, city, zip) that already have priority body.address > order.address
         const mergedAddress = {
           ...(orderAddress || {}),
           ...(line1 ? { line1 } : {}),
@@ -196,18 +196,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Deriva siteUrl da req.url invece di usare localhost hardcoded
+    // Derive siteUrl from req.url instead of using localhost hardcoded
     const url = new URL(req.url)
     const siteUrl = `${url.protocol}//${url.host}`
 
-    // genera line_items da items del frontend con conversione numerica sicura
+    // generate line_items from frontend items with safe numerical conversion
     const line_items = items.map((it) => {
       const price = parseFloat(String(it.price).replace(',', '.')) || 0
       const qRaw = parseFloat(String(it.quantity ?? 1).replace(',', '.'))
       const quantity = Number.isFinite(qRaw) && qRaw > 0 ? qRaw : 1
 
-      // ✅ Stripe accetta solo quantità intere
-      // se il prodotto è "per_kg", ingloba la quantità nel prezzo
+      // ✅ Stripe accepts only integer quantities
+      // if the product is "per_kg", incorporate the quantity into the price
       if (it.unit === 'per_kg') {
         const qty3 = Math.round((quantity + Number.EPSILON) * 1000) / 1000
         const isEttiExact =
@@ -216,10 +216,10 @@ export async function POST(req: NextRequest) {
         const ettoCount = Math.round(qty3 * 10)
         const labelQty = isEttiExact ? `${ettoCount} etti` : `${qty3} kg`
         return {
-          quantity: 1, // sempre 1 per i prodotti a peso
+          quantity: 1, // always 1 for weight products
           price_data: {
             currency: 'eur',
-            // prezzo totale (prezzo al kg × quantità in kg)
+            // total price (price per kg × quantity in kg)
             unit_amount: Math.round(price * qty3 * 100),
             product_data: {
               name: `${it.name ?? 'Prodotto'} (${labelQty})`,
@@ -229,22 +229,23 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // ✅ prodotti venduti "a pezzo"
+      // ✅ products sold "per piece"
       const qtyInt = Math.max(1, Math.round(quantity))
+
       return {
         quantity: qtyInt,
         price_data: {
           currency: 'eur',
           unit_amount: Math.round(price * 100),
           product_data: {
-            name: `${it.name ?? 'Prodotto'} (${qtyInt} pz)`,
+            name: `${it.name ?? 'Product'} (${qtyInt} pcs)`,
             ...(it.image_url ? { images: [it.image_url] } : {}),
           },
         },
       }
     })
 
-    // Aggiungi delivery fee come line item separato se > 0
+    // Add delivery fee as a separate line item if > 0
     if (deliveryFee > 0) {
       line_items.push({
         quantity: 1,
@@ -252,7 +253,7 @@ export async function POST(req: NextRequest) {
           currency: 'eur',
           unit_amount: Math.round(deliveryFee * 100),
           product_data: {
-            name: 'Spese di consegna',
+            name: 'Delivery fee',
           },
         },
       })
@@ -260,7 +261,7 @@ export async function POST(req: NextRequest) {
 
     const stripe = getStripe()
 
-    // crea la sessione Stripe
+    // create the Stripe session
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card'],
@@ -270,21 +271,21 @@ export async function POST(req: NextRequest) {
       metadata: { orderId },
     })
 
-    // aggiorna lo stato in background (non blocca il redirect)
-    ;(async () => {
-      try {
-        await supabaseServiceRole
-          .from('orders')
-          .update({
-            stripe_session_id: session.id,
-          })
-          .eq('id', orderId)
-      } catch {
-        /* ignore */
-      }
-    })()
+      // update the status in background (do not block the redirect)
+      ; (async () => {
+        try {
+          await supabaseServiceRole
+            .from('orders')
+            .update({
+              stripe_session_id: session.id,
+            })
+            .eq('id', orderId)
+        } catch {
+          /* ignore */
+        }
+      })()
 
-    // redirect immediato a Stripe
+    // redirect immediately to Stripe
     return NextResponse.json({ url: session.url, id: session.id })
   } catch (err: any) {
     return NextResponse.json(

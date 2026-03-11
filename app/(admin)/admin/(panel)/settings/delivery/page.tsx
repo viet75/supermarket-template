@@ -5,6 +5,7 @@ import WeeklyHoursEditor, {
   type WeeklyHours,
   parseWeeklyHours,
 } from '../components/WeeklyHoursEditor'
+import { useTranslations } from 'next-intl'
 
 type DeliverySettings = {
   delivery_enabled: boolean
@@ -50,6 +51,7 @@ function formatClosedDates(dates: string[]): string {
 }
 
 export default function DeliverySettingsPage() {
+  const t = useTranslations('adminDelivery')
   const [settings, setSettings] = useState<DeliverySettings | null>(null)
   const [paymentMethods, setPaymentMethods] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
@@ -100,7 +102,7 @@ export default function DeliverySettingsPage() {
         setLoading(false)
       })
       .catch(() => {
-        setError('Errore nel caricamento delle impostazioni')
+        setError(t('loadError'))
         setLoading(false)
       })
   }, [])
@@ -138,8 +140,8 @@ export default function DeliverySettingsPage() {
     if (!isDeliveryValid) {
       setError(
         missingDeliveryFields
-          ? 'Compila i campi obbligatori: distanza inclusa e distanza massima (km).'
-          : 'La distanza massima (km) deve essere maggiore o uguale alla distanza inclusa.'
+          ? t('requiredDistanceFields')
+          : t('maxDistanceMinError')
       )
       return
     }
@@ -176,13 +178,13 @@ export default function DeliverySettingsPage() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         console.log('[delivery onSave] error response', data)
-        throw new Error(data?.error || 'Errore salvataggio')
+        throw new Error(data?.error || t('saveError'))
       }
 
       const s = data?.settings
       if (!s) {
         console.log('[delivery onSave] missing settings in response', data)
-        throw new Error('Risposta non valida')
+        throw new Error(t('invalidResponse'))
       }
       setSettings(s)
       if (Array.isArray(s.payment_methods)) {
@@ -203,7 +205,7 @@ export default function DeliverySettingsPage() {
       setWeeklyHours(parseWeeklyHours(s.weekly_hours))
       setSuccess(true)
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Errore salvataggio'
+      const message = e instanceof Error ? e.message : t('saveError')
       console.log('[delivery onSave] error', e)
       setError(message)
     } finally {
@@ -225,7 +227,7 @@ export default function DeliverySettingsPage() {
   }
 
   if (loading) {
-    return <div className="p-6">Caricamento…</div>
+    return <div className="p-6">{t('loading')}</div>
   }
 
   if (!settings) {
@@ -234,7 +236,7 @@ export default function DeliverySettingsPage() {
 
   return (
     <div className="max-w-2xl p-6 space-y-6">
-      <h1 className="text-2xl font-semibold">Impostazioni consegna</h1>
+      <h1 className="text-2xl font-semibold">{t('title')}</h1>
 
       <label className="flex items-center gap-3">
         <input
@@ -242,20 +244,22 @@ export default function DeliverySettingsPage() {
           checked={settings.delivery_enabled}
           onChange={(e) => update('delivery_enabled', e.target.checked)}
         />
-        <span>Abilita consegna a domicilio</span>
+        <span>{t('enableDelivery')}</span>
       </label>
 
       {!settings.delivery_enabled && (
         <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-3 text-sm text-amber-800 dark:text-amber-200">
-          La consegna a domicilio è disabilitata. I clienti non possono completare il checkout.
+          {t('deliveryDisabledLine1')}
           <br />
-          Per accettare ordini: abilita la consegna e configura almeno <b>distanza inclusa (km)</b> e <b>distanza massima (km)</b>.
+          {t.rich('deliveryDisabledLine2', {
+            b: (chunks) => <b>{chunks}</b>,
+          })}.
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-4">
         <div>
-          <label className="block text-sm mb-1">Distanza inclusa (km)</label>
+          <label className="block text-sm mb-1">{t('includedDistance')}</label>
           <input
             type="number"
             min={0}
@@ -267,7 +271,7 @@ export default function DeliverySettingsPage() {
         </div>
 
         <div>
-          <label className="block text-sm mb-1">Costo base consegna (€)</label>
+          <label className="block text-sm mb-1">{t('baseDeliveryCost')}</label>
           <input
             type="number"
             min={0}
@@ -279,7 +283,7 @@ export default function DeliverySettingsPage() {
         </div>
 
         <div>
-          <label className="block text-sm mb-1">Costo extra per km (€)</label>
+          <label className="block text-sm mb-1">{t('extraCostPerKm')}</label>
           <input
             type="number"
             min={0}
@@ -293,7 +297,7 @@ export default function DeliverySettingsPage() {
         </div>
 
         <div>
-          <label className="block text-sm mb-1">Distanza massima (km)</label>
+          <label className="block text-sm mb-1">{t('maxDistance')}</label>
           <input
             type="number"
             min={0}
@@ -307,12 +311,12 @@ export default function DeliverySettingsPage() {
 
       {/* Sezione Orari e chiusure */}
       <div className="space-y-4 border-t border-gray-200 dark:border-gray-700 pt-6">
-        <h2 className="text-xl font-semibold">Orari e chiusure</h2>
+        <h2 className="text-xl font-semibold">{t('hoursAndClosures')}</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Cutoff orario, giorni di chiusura e primo giorno utile per evasione ordini. Se il negozio è chiuso puoi accettare ordini e slittare al primo giorno aperto.
+          {t('hoursDescription')}
         </p>
         <div>
-          <label className="block text-sm mb-1">Cutoff orario (es. 19:00)</label>
+          <label className="block text-sm mb-1">{t('cutoffLabel')}</label>
           <input
             type="text"
             placeholder="19:00"
@@ -327,20 +331,21 @@ export default function DeliverySettingsPage() {
             checked={acceptWhenClosed}
             onChange={(e) => { setAcceptWhenClosed(e.target.checked); setSuccess(false) }}
           />
-          <span>Accetta ordini quando il negozio è chiuso (slitta al primo giorno utile)</span>
+          <span>{t('acceptWhenClosed')}</span>
         </label>
         <div>
-          <label className="block text-sm mb-1">Timezone (es. Europe/Rome)</label>
+          <label className="block text-sm mb-1">{t('timezoneLabel')}</label>
+
           <input
             type="text"
-            placeholder="Europe/Rome"
+            placeholder={t('timezonePlaceholder')}
             value={timezone}
             onChange={(e) => { setTimezone(e.target.value); setSuccess(false) }}
             className="w-full border rounded px-3 py-2 dark:bg-gray-800 dark:border-gray-600"
           />
         </div>
         <div>
-          <label className="block text-sm mb-1">Giorni di preparazione (0 = stesso giorno)</label>
+          <label className="block text-sm mb-1">{t('preparationDays')}</label>
           <input
             type="number"
             min={0}
@@ -350,7 +355,7 @@ export default function DeliverySettingsPage() {
           />
         </div>
         <div>
-          <label className="block text-sm mb-1">Date di chiusura (YYYY-MM-DD, separate da riga, spazio o virgola)</label>
+          <label className="block text-sm mb-1">{t('closedDatesLabel')}</label>
           <textarea
             rows={3}
             placeholder="2025-12-25 2025-01-01"
@@ -360,7 +365,7 @@ export default function DeliverySettingsPage() {
           />
         </div>
         <div>
-          <label className="block text-sm mb-1">Messaggio chiusura (opzionale)</label>
+          <label className="block text-sm mb-1">{t('closedMessageLabel')}</label>
           <input
             type="text"
             placeholder="Es. Siamo in ferie"
@@ -368,7 +373,7 @@ export default function DeliverySettingsPage() {
             onChange={(e) => { setClosedMessage(e.target.value); setSuccess(false) }}
             className="w-full border rounded px-3 py-2 dark:bg-gray-800 dark:border-gray-600"
           />
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Se valorizzato, verrà mostrato quando gli ordini sono bloccati.</p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('closedMessageHint')}</p>
         </div>
         <WeeklyHoursEditor
           value={weeklyHours}
@@ -378,8 +383,8 @@ export default function DeliverySettingsPage() {
 
       {/* Sezione Metodi di pagamento */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Metodi di pagamento</h2>
-        
+        <h2 className="text-xl font-semibold">{t('paymentMethods')}</h2>
+
         <div className="space-y-3">
           <label className="flex items-center gap-3">
             <input
@@ -387,7 +392,7 @@ export default function DeliverySettingsPage() {
               checked={paymentMethods.includes('cash')}
               onChange={() => togglePaymentMethod('cash')}
             />
-            <span>Contanti alla consegna</span>
+            <span>{t('cashOnDelivery')}</span>
           </label>
 
           <label className="flex items-center gap-3">
@@ -396,7 +401,7 @@ export default function DeliverySettingsPage() {
               checked={paymentMethods.includes('pos_on_delivery')}
               onChange={() => togglePaymentMethod('pos_on_delivery')}
             />
-            <span>POS alla consegna</span>
+            <span>{t('posOnDelivery')}</span>
           </label>
 
           <label className="flex items-center gap-3">
@@ -405,7 +410,7 @@ export default function DeliverySettingsPage() {
               checked={paymentMethods.includes('card_online')}
               onChange={() => togglePaymentMethod('card_online')}
             />
-            <span>Carta online</span>
+            <span>{t('cardOnline')}</span>
           </label>
         </div>
       </div>
@@ -413,19 +418,19 @@ export default function DeliverySettingsPage() {
       {settings.delivery_enabled && !isDeliveryValid && (
         <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-3 text-sm text-amber-800 dark:text-amber-200">
           {missingDeliveryFields
-            ? 'Con consegna attiva, compila distanza inclusa e distanza massima (km). I costi sono opzionali (consegna gratuita).'
-            : 'La distanza massima deve essere maggiore o uguale alla distanza inclusa.'}
+            ? t('deliveryValidationMissing')
+            : t('deliveryValidationRange')}
         </div>
       )}
       {error && <div className="text-red-600">{error}</div>}
-      {success && <div className="text-green-600">Impostazioni salvate</div>}
+      {success && <div className="text-green-600">{t('saved')}</div>}
 
       <button
         onClick={onSave}
         disabled={saving || !isDeliveryValid}
         className="bg-black text-white px-6 py-2 rounded disabled:opacity-50"
       >
-        {saving ? 'Salvataggio…' : 'Salva impostazioni'}
+        {saving ? t('saving') : t('save')}
       </button>
     </div>
   )

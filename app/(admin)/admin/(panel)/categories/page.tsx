@@ -4,8 +4,10 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabaseClient } from '@/lib/supabaseClient'
 import type { Category } from '@/lib/types'
 import { useRefetchOnResume } from '@/hooks/useRefetchOnResume'
+import { useTranslations } from 'next-intl'
 
 export default function CategoriesAdminPage() {
+    const t = useTranslations('adminCategories')
     const [categories, setCategories] = useState<Category[]>([])
     const [newName, setNewName] = useState('')
     const [loading, setLoading] = useState(false)
@@ -52,7 +54,7 @@ export default function CategoriesAdminPage() {
         if (error) {
             console.error(error)
             setCategories((prev) => prev.filter((c) => c.id !== tempCategory.id))
-            showToast('error', 'Errore durante la creazione della categoria')
+            showToast('error', t('categoryCreateError'))
             return
         }
 
@@ -64,11 +66,11 @@ export default function CategoriesAdminPage() {
             setTimeout(loadCategories, 1500)
         }
 
-        showToast('success', 'Categoria creata con successo')
+        showToast('success', t('restored'))
     }
 
     async function deleteCategory(id: string) {
-        if (!window.confirm('Sei sicuro di voler eliminare questa categoria?')) return
+        if (!window.confirm(t('deleteCategoryConfirm'))) return
 
         const prev = categories
         setCategories((prev) => prev.filter((c) => String(c.id) !== String(id)))
@@ -81,11 +83,11 @@ export default function CategoriesAdminPage() {
         if (error) {
             console.error(error)
             setCategories(prev) // rollback
-            showToast('error', 'Errore durante l\'archiviazione della categoria')
+            showToast('error', t('archiveError'))
             return
         }
 
-        showToast('success', 'Categoria spostata in archivio')
+        showToast('success', t('categoryMovedToArchive'))
     }
 
     async function restoreCategory(id: string) {
@@ -96,11 +98,11 @@ export default function CategoriesAdminPage() {
 
         if (error) {
             console.error(error)
-            showToast('error', 'Errore durante il ripristino della categoria')
+            showToast('error', t('restoreError'))
             return
         }
 
-        showToast('success', 'Categoria ripristinata con successo')
+        showToast('success', t('categoryRestored'))
         loadCategories()
     }
 
@@ -112,7 +114,9 @@ export default function CategoriesAdminPage() {
     return (
         <main className="p-6 max-w-lg mx-auto text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 min-h-screen">
 
-            <h1 className="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">Gestione Categorie</h1>
+            <h1 className="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">
+                {t('title')}
+            </h1>
 
 
             <div className="mb-4 flex items-center gap-3">
@@ -122,7 +126,7 @@ export default function CategoriesAdminPage() {
                         checked={showArchived}
                         onChange={(e) => setShowArchived(e.target.checked)}
                     />
-                    Mostra archivio
+                    {t('showArchived')}
                 </label>
             </div>
 
@@ -130,7 +134,7 @@ export default function CategoriesAdminPage() {
                 <input
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
-                    placeholder="Nome nuova categoria"
+                    placeholder={t('newCategoryPlaceholder')}
                     className="border border-gray-300 dark:border-gray-600 rounded p-2 flex-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
 
                 />
@@ -139,11 +143,11 @@ export default function CategoriesAdminPage() {
                     className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition"
 
                 >
-                    Aggiungi
+                    {t('add')}
                 </button>
             </div>
 
-            {loading && <p>Caricamento categorie...</p>}
+            {loading && <p>{t('loading')}</p>}
 
             <ul className="space-y-2 text-gray-900 dark:text-gray-100">
 
@@ -159,7 +163,7 @@ export default function CategoriesAdminPage() {
                                 onClick={() => restoreCategory(c.id)}
                                 className="text-green-600 hover:underline"
                             >
-                                Ripristina
+                                {t('restore')}
                             </button>
                         ) : (
                             <button
@@ -167,7 +171,7 @@ export default function CategoriesAdminPage() {
                                 className="text-red-600 hover:text-red-400 hover:underline transition"
 
                             >
-                                Elimina
+                                {t('delete')}
                             </button>
                         )}
                     </li>

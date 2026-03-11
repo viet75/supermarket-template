@@ -12,17 +12,17 @@ function isQtyStepSchemaCacheError(err: any): boolean {
     )
 }
 
-// CREATE prodotto
+// CREATE product
 export async function POST(req: NextRequest) {
     const supabase = supabaseServer()
     try {
         const body = await req.json()
 
-        // Normalizza stock (kg reali per per_kg, pezzi interi per per_unit)
+        // Normalize stock (real kg for per_kg, integer for per_unit)
         if (typeof body.stock !== 'undefined') {
             const normalizedStock = normalizeStock(body.unit_type, body.stock)
             
-            // Gestione stock illimitato: se normalizedStock è null, imposta stock_unlimited = true e stock = 0
+            // Unlimited stock management: if normalizedStock is null, set stock_unlimited = true and stock = 0
             if (normalizedStock === null) {
                 body.stock_unlimited = true
                 body.stock = 0
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // qty_step: solo per per_kg, altrimenti 1
+        // qty_step: only for per_kg, otherwise 1
         if (body.unit_type === 'per_kg') {
             const raw = body.qty_step
             if (raw != null && raw !== '') {
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
             body.qty_step = 1
         }
 
-        // Rimuovi stock_baseline se presente: deve essere gestito SOLO dal trigger DB
+        // Remove stock_baseline if present: it must be managed ONLY by the DB trigger
         delete body.stock_baseline
 
         let { data, error } = await supabase
@@ -80,12 +80,12 @@ export async function PATCH(req: NextRequest) {
         const { id, ...payload } = body
 
         if (!id) {
-            return NextResponse.json({ error: 'ID mancante' }, { status: 400 })
+            return NextResponse.json({ error: 'id is required' }, { status: 400 })
         }
 
-        // Normalizza stock (kg reali per per_kg, pezzi interi per per_unit)
+        // Normalize stock (real kg for per_kg, integer for per_unit)
         if (typeof payload.stock !== 'undefined') {
-            // Recupera unit_type attuale se non viene modificato
+            // Retrieve current unit_type if not modified
             let unitType = payload.unit_type
             if (unitType === undefined) {
                 const { data: current } = await supabase
@@ -98,7 +98,7 @@ export async function PATCH(req: NextRequest) {
             
             const normalizedStock = normalizeStock(unitType, payload.stock)
             
-            // Gestione stock illimitato: se normalizedStock è null, imposta stock_unlimited = true e stock = 0
+            // Unlimited stock management: if normalizedStock is null, set stock_unlimited = true and stock = 0
             if (normalizedStock === null) {
                 payload.stock_unlimited = true
                 payload.stock = 0
@@ -108,7 +108,7 @@ export async function PATCH(req: NextRequest) {
             }
         }
 
-        // qty_step: per per_kg valida e normalizza, per per_unit forza 1
+        // qty_step: for per_kg valid and normalize, for per_unit force 1
         let patchUnitType = payload.unit_type
         if (patchUnitType === undefined) {
             const { data: cur } = await supabase.from('products').select('unit_type').eq('id', id).single()
@@ -119,7 +119,7 @@ export async function PATCH(req: NextRequest) {
             if (raw != null && raw !== '') {
                 const n = Number(raw)
                 if (!Number.isFinite(n) || n <= 0 || n > 10) {
-                    return NextResponse.json({ error: 'qty_step deve essere un numero tra 0 e 10 (max 3 decimali)' }, { status: 400 })
+                    return NextResponse.json({ error: 'qty_step must be a number between 0 and 10 (max 3 decimals)' }, { status: 400 })
                 }
                 payload.qty_step = Math.round((n + Number.EPSILON) * 1000) / 1000
             } else {
@@ -129,7 +129,7 @@ export async function PATCH(req: NextRequest) {
             payload.qty_step = 1
         }
 
-        // Rimuovi stock_baseline se presente: deve essere gestito SOLO dal trigger DB
+        // Remove stock_baseline if present: it must be managed ONLY by the DB trigger
         delete payload.stock_baseline
 
         let { data, error } = await supabase
@@ -149,12 +149,12 @@ export async function PATCH(req: NextRequest) {
 
         return NextResponse.json({ product: data })
     } catch (e: any) {
-        console.error('Errore PATCH prodotto:', e)
+        console.error('Error patching product:', e)
         return NextResponse.json({ error: e.message }, { status: 400 })
     }
 }
 
-// DELETE prodotto (soft delete con archivio)
+// DELETE product (soft delete with archive)
 export async function DELETE(req: NextRequest) {
     const supabase = supabaseServer()
     try {
@@ -162,10 +162,10 @@ export async function DELETE(req: NextRequest) {
         const { id } = body
 
         if (!id) {
-            return NextResponse.json({ error: 'ID mancante' }, { status: 400 })
+            return NextResponse.json({ error: 'id is required' }, { status: 400 })
         }
 
-        // Recupera il prodotto
+        // Retrieve the product
         const { data: product, error: fetchError } = await supabase
             .from('products')
             .select('*')
@@ -173,7 +173,7 @@ export async function DELETE(req: NextRequest) {
             .single()
 
         if (fetchError) {
-            console.error('Errore fetch prodotto:', fetchError)
+            console.error('Product fetch error:', fetchError)
             return NextResponse.json({ status: 'not_found' }, { status: 404 })
         }
 
@@ -182,11 +182,11 @@ export async function DELETE(req: NextRequest) {
         }
 
         if (product.deleted_at) {
-            // Già archiviato
+            // Already archived
             return NextResponse.json({ status: 'already_archived' })
         }
 
-        // Controlla se esistono ordini legati al prodotto
+        // Check if there are orders related to the product
         const { count, error: orderError } = await supabase
             .from('order_items')
             .select('*', { count: 'exact', head: true })
@@ -194,9 +194,9 @@ export async function DELETE(req: NextRequest) {
 
         if (orderError) throw orderError
 
-        // QA: Browser A carrello con prodotto, Browser B archivia prodotto, Browser A conferma ordine → 409 PRODUCTS_NOT_AVAILABLE, carrello riconciliato.
+        // QA: Browser A cart with product, Browser B archive product, Browser A confirm order → 409 PRODUCTS_NOT_AVAILABLE, cart reconciled.
         if (count && count > 0) {
-            // Prodotto collegato a ordini → archivia (archived=true per trigger DB order_items)
+            // Product linked to orders → archive (archived=true for DB order_items trigger)
             const { error: archiveError } = await supabase
                 .from('products')
                 .update({
@@ -210,7 +210,7 @@ export async function DELETE(req: NextRequest) {
 
             return NextResponse.json({ status: 'archived' })
         } else {
-            // Soft delete normale (archived=true per trigger DB order_items)
+            // Normal soft delete (archived=true for DB order_items trigger)
             const { error: deleteError } = await supabase
                 .from('products')
                 .update({
@@ -226,7 +226,7 @@ export async function DELETE(req: NextRequest) {
 
         }
     } catch (e: any) {
-        console.error('Errore DELETE prodotto:', e)
+        console.error('Error deleting product:', e)
         return NextResponse.json({ error: e.message }, { status: 400 })
     }
 }

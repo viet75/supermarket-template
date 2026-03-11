@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useMemo, useState, useEffect, useCallback } from 'react'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { toDisplayStock, getUnitLabel } from '@/lib/stock'
 import { formatPrice } from '@/lib/pricing'
 import { vtNavigate } from '@/lib/viewTransition'
@@ -28,6 +28,7 @@ type Product = {
 function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => void }) {
   const router = useRouter()
   const t = useTranslations()
+  const locale = useLocale()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
@@ -137,10 +138,15 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
 
           <div className="mt-1 flex items-baseline gap-2">
             <span className="text-base font-semibold text-gray-900 dark:text-zinc-100">
-              {formatPrice(effective)} / {getUnitLabel(p as any)}
+              {formatPrice(effective)}
             </span>
+
+            <span className="text-sm text-gray-500 dark:text-zinc-400">
+              / {getUnitLabel(p as any, locale)}
+            </span>
+
             {sale != null && sale > 0 && sale < base && (
-              <span className="text-sm text-gray-500 dark:text-zinc-300 line-through">
+              <span className="text-sm text-gray-500 dark:text-zinc-300 line-through ml-1">
                 {formatPrice(base)}
               </span>
             )}
@@ -159,7 +165,7 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
           />
 
           {/* CTA SEMPRE IN FONDO */}
-          <div className="mt-auto pt-3">
+          <div className="mt-auto pt-2">
             <AddToCartControls p={p} img={img} onAdded={onAdded} />
           </div>
         </div>

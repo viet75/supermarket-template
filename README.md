@@ -1,239 +1,288 @@
 # Supermarket PWA Template
 
-**Next.js · Supabase · Stripe · PWA**
+🌍 Available languages:
 
-Supermarket PWA Template è un modello **production-ready** di Progressive Web App
-per supermercati e negozi alimentari locali.
+- 🇬🇧 English
+- 🇮🇹 Italiano → [README.it.md](README.it.md)
 
-È pensato per **sviluppatori, freelance e agenzie** che vogliono consegnare
-rapidamente una soluzione completa di **e-commerce + gestione ordini + consegna**,
-senza dover progettare architettura, database o flussi di pagamento da zero.
+Next.js · Supabase · Stripe · PWA
 
-Il template include:
-- una **vetrina pubblica** per i clienti
-- una **dashboard admin protetta**
-- un **database DB-first** con logica critica nel backend (Supabase)
+Supermarket PWA Template is a production-ready Progressive Web App
+template for supermarkets and local grocery stores.
 
-Il proprietario del negozio gestisce tutto dal pannello admin,
-senza mai interagire direttamente con Stripe, Supabase o il database.
+It is designed for developers, freelancers and agencies who want to quickly deliver
+a complete e-commerce + order management + delivery solution
+without having to design architecture, database or payment flows from scratch.
 
----
+The template includes:
 
-## 🚀 Demo
+a public storefront for customers
 
-### 🎬 Video Demo
+a protected admin dashboard
 
-Guarda il funzionamento completo del template:
+a DB-first database architecture with critical logic handled in the backend (Supabase)
+
+The store owner manages everything from the admin panel,
+without ever interacting directly with Stripe, Supabase or the database.
+
+🚀 Demo
+🎬 Video Demo
+
+Watch the full template in action:
 
 👉 https://youtu.be/FVi38J3yYIo
 
-**Live Demo**
+Live Demo
 
 👉 https://supermarketpwa.com
 
+🧪 Demo Mode
 
-### 🧪 Demo Mode
+The demo is configured to simulate a local supermarket with home delivery.
 
-La demo è configurata per simulare un supermercato locale con consegna a domicilio.
+Demo configuration:
 
-Configurazione demo:
+City: Milan
+ZIP code: 20121
 
-Città: **Milano**  
-CAP: **20121**
+To properly test checkout and delivery verification,
+use an address located within this area.
 
-Per testare correttamente il checkout e la verifica di consegna, utilizza un indirizzo situato in questa area.
+The system uses these coordinates to:
 
-Il sistema utilizza queste coordinate per:
+automatically calculate delivery distance
 
-- calcolare automaticamente la distanza di consegna
-- verificare la copertura del servizio
-- determinare se un indirizzo è servito
+verify delivery coverage
 
+determine whether an address is serviceable
 
-### 🔐 Accesso pannello Admin (Demo)
+🔐 Admin Panel Access (Demo)
 
-Puoi accedere al pannello amministrativo della demo utilizzando:
+You can access the administrative panel of the demo using:
 
 Admin panel:
 
 👉 https://supermarketpwa.com/admin
 
-Credenziali demo:
+Demo credentials:
 
-Email: `admin@demo.com`  
-Password: `demo123`
+Email: admin@demo.com
+Password: demo123
 
+⚠️ Note
 
-⚠️ **Nota**
+The demo uses test data only.
 
-La demo utilizza esclusivamente dati di prova.
+No real payments are processed
 
-- Nessun pagamento reale viene elaborato
-- Tutti gli ordini sono simulati
-- L'ambiente viene periodicamente ripristinato
----
+All orders are simulated
 
-## 🧱 Stack tecnologico
+The environment is periodically reset
 
-- **Next.js** (App Router)
-- **Supabase**
-  - PostgreSQL
-  - Auth
-  - Storage
-- **Stripe** (pagamenti online)
-- **Tailwind CSS**
-- **Progressive Web App (PWA)**
-- **Runtime Node.js**  
-  (Edge Runtime intenzionalmente non utilizzato)
+🧱 Tech Stack
 
----
+Next.js (App Router)
 
-## ✨ Funzionalità
+Supabase
 
-### Vetrina clienti
-- Catalogo prodotti
-- Categorie
-- Carrello
-- Checkout
-- Validazione indirizzo
-- Calcolo distanza di consegna
-- Calcolo spese di consegna
-- PWA installabile (mobile e desktop)
+PostgreSQL
 
-### Pagamenti
-- Carta online (Stripe Checkout)
-- POS alla consegna
-- Pagamento in contanti alla consegna 
+Auth
 
-### No PayPal
-PayPal non è incluso per scelta progettuale.
+Storage
 
-Il template è progettato principalmente per supermercati locali,
-dove il cliente conosce già il negozio e ha un rapporto diretto di fiducia.
-In questi contesti, i metodi più utilizzati sono:
+Stripe (online payments)
 
-- pagamento alla consegna (contanti)
-- pagamento POS alla consegna
-- pagamento con carta online (Stripe Checkout)
+Tailwind CSS
 
-Stripe garantisce già elevati standard di sicurezza e conformità (PCI DSS).
+Progressive Web App (PWA)
 
-PayPal può essere integrato successivamente se richiesto,
-ma non è incluso per mantenere il template più semplice,
-leggero e focalizzato sul caso d’uso reale dei supermercati locali.
+Node.js Runtime
+(Edge Runtime intentionally not used)
 
-### Dashboard di amministrazione
-- Gestione prodotti
-- Gestione categorie
-- Gestione ordini
-- Configurazione consegna
-- Caricamento immagini (Supabase Storage)
-- Gestione manuale pagamenti offline
+✨ Features
+Customer storefront
 
----
+Product catalog
 
-## 🏪 Panoramica del progetto
+Categories
 
-Il template è progettato per supermercati locali che necessitano
-di una soluzione moderna per ordini online e consegne a domicilio.
+Shopping cart
 
-Tutte le operazioni quotidiane (prodotti, ordini, pagamenti, consegna)
-sono gestite **esclusivamente dal pannello admin**.
+Checkout
 
----
+Address validation
 
-## 💳 Logica di pagamento
+Delivery distance calculation
 
-### Carta online
-- Gestita tramite **Stripe Checkout**
-- `payment_status` diventa automaticamente `paid` al completamento
+Delivery fee calculation
 
-### POS / Contanti
-- Ordini creati come **non pagati**
-- Stato aggiornato manualmente dall’admin
+Installable PWA (mobile and desktop)
+
+Payments
+
+Online card payment (Stripe Checkout)
+
+POS on delivery
+
+Cash on delivery
+
+No PayPal
+
+PayPal is intentionally not included.
+
+The template is designed primarily for local supermarkets,
+where customers already know the store and have a direct trust relationship.
+
+In these contexts, the most common payment methods are:
+
+cash on delivery
+
+POS payment on delivery
+
+online card payment (Stripe Checkout)
+
+Stripe already guarantees high security and compliance standards (PCI DSS).
+
+PayPal can be integrated later if required,
+but it is not included in order to keep the template simpler,
+lighter and focused on the real use case of local grocery stores.
+
+Admin dashboard
+
+Product management
+
+Category management
+
+Order management
+
+Delivery configuration
+
+Image upload (Supabase Storage)
+
+Manual offline payment management
+
+🏪 Project Overview
+
+The template is designed for local supermarkets that need
+a modern solution for online orders and home delivery.
+
+All daily operations (products, orders, payments, delivery)
+are managed exclusively from the admin panel.
+
+💳 Payment Logic
+Online card
+
+Managed via Stripe Checkout
+
+payment_status automatically becomes paid after successful payment
+
+POS / Cash
+
+Orders are created as unpaid
+
+Status is manually updated by the admin
+
+### Refunds
+
+Refunds for online payments are handled directly from the Stripe Dashboard.
+
+Stripe is the single source of truth for all payment operations, including:
+
+- full refunds
+- partial refunds
+- payment disputes
+- payment history
+
+Managing refunds directly in Stripe avoids inconsistencies between the payment provider and the application database.
+
+For orders paid via **POS** or **cash on delivery**, refunds can be handled manually by the store.
 
 🗄 Database Setup (ONE-SHOT)
 
-Il template è progettato per essere installato su un progetto Supabase completamente vuoto utilizzando un unico script SQL.
+The template is designed to be installed on a completely empty Supabase project using a single SQL script.
 
-Questo approccio permette di configurare l’intero backend in pochi minuti.
+This approach allows you to configure the entire backend in just a few minutes.
 
-Step 1 — Creare un progetto Supabase
+Step 1 — Create a Supabase project
 
-Vai su
+Go to
+
 https://supabase.com
 
-Crea un nuovo progetto.
+Create a new project.
 
-Apri SQL Editor.
+Open SQL Editor.
 
-Step 2 — Eseguire lo script di installazione
+Step 2 — Run the installation script
 
-Apri il file:
+Open the file:
 
 supabase/setup.sql
 
-Copia l’intero contenuto e incollalo nello SQL Editor di Supabase, quindi eseguilo.
+Copy the entire content and paste it into the Supabase SQL Editor, then run it.
 
-Lo script esegue automaticamente:
+The script automatically performs:
 
-creazione di tutte le tabelle
+creation of all tables
 
-creazione delle funzioni RPC
+creation of RPC functions
 
-configurazione RLS e policies
+configuration of RLS and policies
 
-creazione dei bucket Supabase Storage
+creation of Supabase Storage buckets
 
-inserimento di dati demo
+insertion of demo data
 
-applicazione di patch SAFE ALTER
+application of SAFE ALTER patches
 
-⚠️ Lo script è idempotente
-può essere eseguito più volte senza generare errori.
+⚠️ The script is idempotent
+It can be executed multiple times without generating errors.
 
-🌱 Dati demo (seed)
+🌱 Demo Data (Seed)
 
-Il file supabase/setup.sql inserisce automaticamente:
+The file supabase/setup.sql automatically inserts:
 
-categorie di esempio
+example categories
 
-prodotti demo (per_unit e per_kg)
+demo products (per_unit and per_kg)
 
-Questo permette di avere una demo funzionante immediatamente.
+This allows you to have a working demo immediately.
 
-Se desideri un database completamente vuoto per la produzione, puoi:
+If you want a completely empty database for production, you can:
 
-commentare
+comment
+or
 
-oppure rimuovere
+remove
 
-il blocco DEMO SEED presente nel file setup.sql.
+the DEMO SEED block inside the setup.sql file.
 
-👤 Configurazione utente Admin (OBBLIGATORIA)
+👤 Admin User Setup (REQUIRED)
 
-⚠️ Prima di creare l’utente admin è obbligatorio aver eseguito supabase/setup.sql.
+⚠️ Before creating the admin user it is mandatory to run supabase/setup.sql.
 
-Senza questo step:
+Without this step:
 
-la tabella public.profiles non esiste
+the public.profiles table does not exist
 
-la promozione admin fallirà
+the admin promotion will fail
 
-Step 1 — Creare un utente
+Step 1 — Create a user
 
-Vai su:
+Go to:
 
 Supabase Dashboard → Authentication → Users → Add user
 
-Crea un nuovo utente con email e password.
+Create a new user with email and password.
 
-Nota:
-Quando un utente viene creato in Supabase Auth, una riga in public.profiles viene creata automaticamente tramite trigger database.
+Note:
+When a user is created in Supabase Auth, a row in public.profiles
+is automatically created through a database trigger.
 
-Step 2 — Promuovere l’utente ad admin
+Step 2 — Promote the user to admin
 
-Dopo aver creato l’utente, apri SQL Editor ed esegui:
+After creating the user, open SQL Editor and run:
 
 update public.profiles
 set role = 'admin'
@@ -242,23 +291,22 @@ where id = (
   where email = 'YOUR_ADMIN_EMAIL'
 );
 
-Sostituisci YOUR_ADMIN_EMAIL con l’email dell’utente che hai appena creato.
+Replace YOUR_ADMIN_EMAIL with the email of the user you just created.
 
-Accesso al pannello admin
+Accessing the Admin Panel
 
-Una volta assegnato il ruolo admin, potrai accedere al pannello amministrativo:
+Once the admin role is assigned, you will be able to access the admin panel:
 
 /admin
+🔑 Environment Variables (REQUIRED)
 
-🔑 Variabili ambiente (OBBLIGATORIE)
+Create a .env.local file in the root of the project.
 
-Crea un file .env.local nella root del progetto.
-
-Puoi copiare il file .env.example incluso nel template e modificarlo con i tuoi valori reali.
+You can copy the .env.example file included in the template and modify it with your real values.
 
 cp .env.example .env.local
 
-Esempio configurazione:
+Example configuration:
 
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
@@ -276,21 +324,21 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 # Admin
 INTERNAL_ADMIN_KEY=your_generated_key
 
-# Google Maps (Geolocalizzazione consegne)
+# Google Maps (Delivery geolocation)
 GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 
-# Coordinate negozio (OBBLIGATORIE per il calcolo consegna)
+# Store coordinates (REQUIRED for delivery calculation)
 NEXT_PUBLIC_STORE_LAT=40.000000
 NEXT_PUBLIC_STORE_LNG=16.000000
 NEXT_PUBLIC_STORE_NAME=Your Store Name
-Dove trovare le chiavi
+Where to find the keys
 Supabase
 
-Vai su:
+Go to:
 
 Project Settings → API
 
-Copia:
+Copy:
 
 Project URL
 
@@ -300,29 +348,29 @@ service_role key
 
 Stripe
 
-Vai su:
+Go to:
 
 Developers → API Keys
 
-Copia:
+Copy:
 
 Publishable key
 
 Secret key
 
-Google Maps API (Geolocalizzazione consegne)
+Google Maps API (Delivery geolocation)
 
-Serve per:
+Required for:
 
-calcolare la distanza di consegna
+calculating delivery distance
 
-verificare la copertura dell'indirizzo del cliente
+verifying customer address coverage
 
-Vai su:
+Go to:
 
 https://console.cloud.google.com/
 
-Abilita le seguenti API:
+Enable the following APIs:
 
 Maps JavaScript API
 
@@ -330,55 +378,70 @@ Geocoding API
 
 Distance Matrix API
 
-Coordinate del negozio
+Store Coordinates
 
-Puoi ottenere le coordinate da:
+You can get store coordinates from:
 
 https://maps.google.com
 
-Click destro sulla posizione del negozio → copia coordinate
+Right click on the store location → copy coordinates.
 
-Esempio:
+Example:
 
 40.8518
 14.2681
-⚠️ Importante
 
-Senza Google Maps API e coordinate del negozio:
+⚠️ Important
 
-il calcolo della distanza non funzionerà
+Without Google Maps API and store coordinates:
 
-la verifica dell’area di consegna non funzionerà
+delivery distance calculation will not work
 
-il checkout potrebbe essere bloccato
+delivery area verification will not work
 
-⚠️ Sicurezza
+checkout may be blocked
 
-Non committare mai .env.local nel repository.
+⚠️ Security
 
-Questo file contiene chiavi private e deve rimanere solo nell'ambiente locale o nel server di produzione.
+Never commit .env.local to the repository.
+
+This file contains private keys and must remain only in the local environment or production server.
 
 🕐 Store hours & closures
 
-Orari di apertura, cutoff orario e giorni di chiusura sono gestiti in DB-first: la RPC get_fulfillment_preview() è l’unica fonte di verità per UI e API ordini.
+Opening hours, cutoff time and closure days are managed DB-first:
+the RPC get_fulfillment_preview() is the single source of truth for both UI and order APIs.
 
-Configurazione (Admin)
+Configuration (Admin)
 
-In Admin → Impostazioni consegna (sezione “Orari e chiusure”):
+In Admin → Delivery Settings (section “Store hours & closures”):
 
-Cutoff orario (es. 19:00): dopo quest’ora gli ordini vengono evasi dal giorno successivo (o dal primo giorno utile).
+Cutoff time (e.g. 19:00)
+After this time, orders will be fulfilled the next day (or the next available day).
 
-Accetta ordini quando chiuso: se attivo, fuori orario/chiusura gli ordini sono accettati e slittano al primo giorno utile; se disattivo, il checkout viene bloccato.
+Accept orders when closed
+If enabled, orders placed outside opening hours are accepted and scheduled for the next available day.
+If disabled, checkout is blocked.
 
-Timezone (es. Europe/Rome): usata per “ora corrente” e date.
+Timezone (e.g. Europe/Rome)
+Used for current time calculations.
 
-Giorni di preparazione: giorni aggiuntivi prima dell’evasione (0 = stesso giorno).
+Preparation days
+Additional days before order fulfillment (0 = same day).
 
-Date di chiusura: una data per riga, formato YYYY-MM-DD (es. festivi).
+Closed dates
+One date per line, format YYYY-MM-DD.
 
-Orari settimanali (JSON): chiavi 0 (domenica) … 6 (sabato); valore null = chiuso, oppure intervallo "09:00-19:00".
+Weekly hours (JSON)
+Keys 0 (Sunday) → 6 (Saturday)
 
-Esempio weekly_hours (orari settimanali)
+Value options:
+
+null → closed
+
+"09:00-19:00" → open time range
+
+Example weekly_hours
 {
   "0": null,
   "1": "09:00-19:00",
@@ -389,439 +452,517 @@ Esempio weekly_hours (orari settimanali)
   "6": "09:00-13:00"
 }
 
-Domenica chiuso, lun–ven 9–19, sabato 9–13.
+Sunday closed
+Monday–Friday 9–19
+Saturday 9–13
 
-Esempio closed_dates
+Example closed_dates
 
-Una data per riga (es. in Admin come textarea):
+One date per line:
 
 2025-12-25
 2025-01-01
-Comportamento
+Behavior
 
-In checkout il cliente vede un messaggio (es. “Ordine evaso dal DD/MM/YYYY”) e non può confermare se il negozio non accetta ordini.
+During checkout the customer sees a message like:
 
-In POST /api/orders viene chiamata la stessa RPC: se can_accept === false si risponde con 409 e code: "STORE_CLOSED".
+Order will be fulfilled starting from DD/MM/YYYY
 
-La data di evasione (next_fulfillment_date) viene salvata in orders.fulfillment_date (tipo date).
+If the store does not accept orders, checkout is blocked.
 
+Backend validation
 
-🔐 Sicurezza e RLS
+In POST /api/orders the same RPC is called.
 
-Il database utilizza Row Level Security (RLS).
+If:
 
-Configurazione automatica tramite setup.sql:
+can_accept === false
 
-Utenti pubblici:
+The API responds with:
 
-lettura prodotti e categorie attive
+409
+code: "STORE_CLOSED"
 
-Utenti admin:
+The fulfillment date (next_fulfillment_date) is saved in:
 
-gestione prodotti
+orders.fulfillment_date
 
-gestione categorie
+(type date)
 
-gestione ordini
+🔐 Security and RLS
 
-modifica impostazioni negozio
+The database uses Row Level Security (RLS).
 
-L’accesso admin è basato su:
+Configuration is automatically handled by setup.sql.
+
+Public users
+
+Can read:
+
+active products
+
+active categories
+
+Admin users
+
+Can manage:
+
+products
+
+categories
+
+orders
+
+store settings
+
+Admin access is based on:
 
 public.profiles.role = 'admin'
-
 🔐 Security – INTERNAL_ADMIN_KEY (REQUIRED)
-Il progetto utilizza una chiave interna di sicurezza per proteggere
-le azioni admin sensibili (Server Actions e API).
 
-Devi generare una chiave unica per ogni installazione.
+The project uses an internal security key to protect sensitive admin actions.
 
-Esempio:
+This key is required for:
+
+Server Actions
+
+protected API routes
+
+You must generate a unique key for every installation.
+
+Example:
 
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-Poi impostarla nelle variabili ambiente:
+
+Then add it to your environment variables:
 
 INTERNAL_ADMIN_KEY=your_generated_key
-⚠️ IMPORTANTE:
 
-Deve essere sempre cambiata in produzione
+⚠️ IMPORTANT
 
-Non va mai committata nel repository
+It must always be changed in production
 
-Ogni installazione cliente deve avere una chiave diversa
+It must never be committed to the repository
+
+Each client installation must have a different key
 
 ⚙️ Admin Settings
-Il pannello admin fornisce due sezioni di configurazione separate.
+
+The admin panel provides two configuration sections.
 
 General Settings
-Percorso:
+
+Path:
 
 /admin/settings
-Permette di configurare le informazioni pubbliche del negozio:
 
-Nome negozio
+Allows configuration of public store information:
 
-Indirizzo
+Store name
+
+Address
 
 Email
 
-Telefono
+Phone
 
-Orari di apertura
+Opening hours
 
-Link Google Maps
+Google Maps link
 
-Questi dati vengono mostrati automaticamente nel footer pubblico.
+These values are automatically displayed in the public footer.
 
 Delivery Settings
-Percorso:
+
+Path:
 
 /admin/settings/delivery
-Permette di configurare:
 
-Attivazione/disattivazione consegna
+Allows configuration of:
 
-Costo base consegna
+Enable / disable delivery
 
-Costo extra per km
+Base delivery cost
 
-Distanza massima
+Extra cost per km
 
-Metodi di pagamento disponibili
+Maximum delivery distance
 
-💳 Testing Stripe in locale
+Available payment methods
 
-Per testare i pagamenti online in locale è necessario Stripe CLI.
+💳 Testing Stripe locally
 
-Installazione
+To test online payments locally you need the Stripe CLI.
+
+Installation
 winget install Stripe.StripeCLI
-
 Login
 stripe login
-
-Avvio listener webhook
+Start webhook listener
 stripe listen --forward-to localhost:3000/api/webhooks/stripe
 
-Riceverai una chiave:
+Stripe will return a webhook key:
 
 whsec_xxxxxxxxx
 
-Inseriscila in .env.local:
+Add it to .env.local:
 
 STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxx
 
-Riavvia:
+Restart the development server:
 
 npm run dev
+Test card
+Number: 4242 4242 4242 4242
+Expiry: any future date
+CVC: any
+🔧 First delivery configuration (REQUIRED)
 
-Carta di test
+For security reasons, delivery is disabled by default after a new database installation.
 
-Numero: 4242 4242 4242 4242
-Scadenza: qualsiasi futura
-CVC: qualsiasi
+This behavior prevents the store from accepting orders before it has been properly configured.
 
-🔧 Prima configurazione consegna (OBBLIGATORIO)
+🛑 Expected initial behavior
 
-Per motivi di sicurezza, la consegna è disabilitata di default dopo una nuova installazione del database.
+Immediately after installation:
 
-Questo comportamento evita che il negozio accetti ordini prima di essere configurato.
+❌ Checkout blocked
+❌ "Confirm order" button disabled
 
-🛑 Comportamento iniziale previsto
+⚠️ Message shown to the customer:
 
-Subito dopo l'installazione:
+Deliveries are temporarily disabled
 
-❌ Checkout bloccato
+This is normal.
 
-❌ Pulsante "Conferma ordine" disabilitato
+✅ How to enable delivery
 
-⚠️ Messaggio mostrato al cliente:
+Go to:
 
-Le consegne sono temporaneamente disabilitate
+Admin → Delivery settings
 
-Questo è normale.
+Configure at least:
 
-✅ Come abilitare la consegna
+Included distance (km)
 
-Vai in:
+Maximum distance (km)
 
-Admin → Impostazioni consegna
+Then enable:
 
-Configura almeno:
+Enable home delivery
 
-Distanza inclusa (km)
+Save.
 
-Distanza massima (km)
+Delivery will be immediately active.
 
-Poi abilita:
+🛡️ Security
 
-☑ Abilita consegna a domicilio
+This system protects against:
 
-Salva.
+accidental orders after installation
 
-La consegna sarà immediatamente attiva.
+unconfigured store
 
-🛡️ Sicurezza
+customers outside delivery area
 
-Questo sistema protegge da:
+🧠 Architecture
 
-ordini accidentali dopo installazione
+The delivery guard is implemented on three levels:
 
-negozio non configurato
+1️⃣ UI (CheckoutForm)
+2️⃣ API (/api/orders)
+3️⃣ Database trigger (guard_orders_delivery_enabled)
 
-clienti fuori zona
-
-🧠 Architettura
-
-Il blocco è implementato su 3 livelli:
-
-UI (CheckoutForm)
-
-API (/api/orders)
-
-Database trigger (guard_orders_delivery_enabled)
-
-Anche in caso di bypass client, l'ordine viene bloccato dal database.
+Even if the client bypasses the UI,
+the database still blocks the order.
 
 🗂 Supabase Storage
 
-Il bucket product-images viene creato automaticamente da setup.sql.
+The bucket product-images is automatically created by setup.sql.
 
-Non è necessario creare nulla manualmente nella dashboard Supabase.
+No manual configuration is required in the Supabase dashboard.
 
-📦 Sistema Stock (DB-first, RPC)
+📦 Stock System (DB-first, RPC)
 
-Lo stock è gestito esclusivamente dal database tramite funzioni RPC PostgreSQL.
+Stock is managed exclusively by the database through PostgreSQL RPC functions.
 
-Node / Next.js non deve mai modificare direttamente lo stock.
+Node / Next.js must never modify stock directly.
 
-RPC pubbliche (PostgREST):
-
+Public RPC functions (PostgREST)
 reserve_order_stock(order_id uuid)
 release_order_stock(order_id uuid)
 cleanup_expired_reservations()
+Legacy compatibility
 
-Compatibilità (nomi legacy supportati):
+Older function names are still supported:
 
 reserveOrderStock(order_id uuid)
 releaseOrderStock(order_id uuid)
 cleanupExpiredReservations()
+Order flow
 
-Flusso:
+When an order is created:
 
-Alla creazione di un ordine:
+1️⃣ orders and order_items are created
 
-vengono creati orders e order_items
+2️⃣ the function is called:
 
-viene chiamata reserve_order_stock(order_id)
+reserve_order_stock(order_id)
 
-lo stock viene scalato nel database
+3️⃣ stock is reduced inside the database
 
 orders.stock_reserved = true
-
-Per card_online:
-
+Online payments (card)
 payment_status = pending
 reserve_expires_at = now + TTL
 
-se il pagamento non avviene → cleanup_expired_reservations()
+If payment does not complete:
 
-Per cash / pos_on_delivery:
+cleanup_expired_reservations()
+Cash / POS on delivery
 
-stock scalato subito
-se annullato → release_order_stock(order_id)
+Stock is reduced immediately.
 
-## 📦 Cosa include il template
+If the order is cancelled:
 
-Questo template include tutto il necessario per lanciare un servizio di consegna a domicilio per supermercati o negozi alimentari locali:
+release_order_stock(order_id)
 
-- Applicazione completa Next.js
-- Dashboard amministrativa
-- Schema database Supabase con funzioni RPC
-- Integrazione Stripe Checkout
-- Calcolo distanza di consegna (Google Maps API)
-- Sistema gestione stock (architettura DB-first)
-- Progressive Web App (PWA)
-- File di configurazione ambiente (.env.example)
-- Documentazione completa di installazione
+📦 What the template includes
 
-⚠️ Limitazioni note
+This template includes everything required to launch a local grocery delivery service for supermarkets or small food stores:
 
-Supporto single-store (no multi-tenant)
-Nessuna autenticazione cliente
-PayPal non incluso
-Google Maps API può avere costi
+Complete Next.js application
 
-È necessario generare una INTERNAL_ADMIN_KEY univoca per ogni installazione.
+Administrative dashboard
 
-Questa chiave viene utilizzata internamente dal backend per proteggere i percorsi API sensibili.
+Supabase database schema with RPC functions
 
-Esempio:
+Stripe Checkout integration
+
+Delivery distance calculation (Google Maps API)
+
+Stock management system (DB-first architecture)
+
+Progressive Web App (PWA)
+
+Environment configuration file (.env.example)
+
+Complete installation documentation
+
+⚠️ Known limitations
+
+Single-store support (no multi-tenant)
+
+No customer authentication
+
+PayPal not included
+
+Google Maps API may incur costs
+
+A unique INTERNAL_ADMIN_KEY must be generated for every installation.
+
+This key is used internally by the backend to protect sensitive API routes.
+
+Example:
+
 openssl rand -hex 32
 
-Quindi impostala nel tuo ambiente:
-INTERNAL_ADMIN_KEY=chiave_generata
+Then add it to your environment:
 
-## 🧾 Requisiti
+INTERNAL_ADMIN_KEY=generated_key
+🧾 Requirements
 
-Prima di installare il template è necessario disporre di:
+Before installing the template you must have:
 
-- Node.js 18 o superiore
-- Un account Supabase
-- Un account Stripe
-- Un account Google Cloud (per le Google Maps API)
-- Un account Vercel (consigliato per il deploy)
+Node.js 18 or higher
 
-📄 Licenza
+A Supabase account
 
-Questo progetto è distribuito con Licenza Commerciale.
+A Stripe account
 
-✔ Puoi utilizzare questo template per progetti personali e per progetti di clienti
-✔ Puoi modificare il template in base alle tue esigenze
+A Google Cloud account (for Google Maps APIs)
 
-❌ NON puoi rivendere questo template
-❌ NON puoi redistribuire il codice sorgente
-❌ NON puoi utilizzare (use this template) per creare template concorrenti o prodotti SaaS concorrenti
+A Vercel account (recommended for deployment)
 
-Il codice sorgente è concesso in licenza, non venduto.
-La piena proprietà resta all’autore.
+📄 License
 
-Consulta il file LICENSE.txt per i termini completi.
+This project is distributed under a Commercial License.
 
-🧑‍💻 Supporto
+✔ You may use this template for personal projects and client projects
+✔ You may modify the template according to your needs
 
-Supporto via Gumroad
-Bugfix inclusi
-Sviluppo custom escluso
+❌ You may NOT resell this template
+❌ You may NOT redistribute the source code
+❌ You may NOT use it to create competing templates or SaaS products
 
-🕒 Gestione Orari e Chiusure (Avanzata)
+The source code is licensed, not sold.
+Full ownership remains with the author.
 
-Orari settimanali configurabili a fasce multiple
-(es. 09:00–13:00 / 17:00–21:00)
+See the LICENSE.txt file for full terms.
 
-Supporto riapertura nella stessa giornata
-Ordine tra due fasce → evasione nello stesso giorno
+🧑‍💻 Support
 
-Cutoff giornaliero configurabile
-Ordini dopo l’orario limite → primo giorno utile
+Support is provided via Gumroad.
 
-Ferie e chiusure straordinarie
+Included:
 
-Date singole
+Bug fixes
 
-Intervalli con motivo personalizzato
+Not included:
 
-Modalità “Accetta e slitta” (default)
-Se il negozio è chiuso, l’ordine viene accettato e programmato al primo giorno utile
+Custom development
 
-Messaggio dinamico pre-checkout
-Mostra in tempo reale:
+🕒 Advanced store hours & closures
 
-apertura futura
+Features include:
 
-riapertura pomeridiana
+Configurable weekly opening hours with multiple time slots
 
-ordine fuori orario
+Example:
 
-ferie con motivo
+09:00–13:00 / 17:00–21:00
 
-fulfillment_date salvata su ogni ordine
-Calcolata lato database (DB-first logic)
+Support for same-day reopening
+Orders placed between two time slots → fulfilled the same day.
 
-📦 Indicatore stock nelle card prodotto
+Daily cutoff time
 
-Ogni prodotto mostra:
+Orders placed after the configured cutoff time are scheduled for the next available day.
 
-Testo preciso: Disponibili: X unità / kg
+Holidays and special closures
 
-Barra visiva di disponibilità
+Supported options:
 
-Il testo è il valore reale e preciso letto dal database.
+Single dates
 
-La barra è solo indicativa e serve come riferimento visivo rapido.
+Date ranges with custom reason
 
-Scala utilizzata:
+“Accept and postpone” mode (default)
 
-Prodotti a unità → scala visiva basata su 30 unità
+If the store is closed, the order is accepted and automatically scheduled for the next available day.
 
-Prodotti a peso → scala visiva basata su 20 kg
+Dynamic pre-checkout message
 
-Questo non influisce sulla logica di acquisto o sui controlli di stock, che restano sempre basati sul valore reale.
-▲ Deploy su Vercel (Produzione)
+The system can display real-time messages such as:
 
-Vai su https://vercel.com
+upcoming opening
 
-Importa il repository GitHub
+afternoon reopening
 
-Aggiungi tutte le variabili ambiente
+order outside working hours
+
+holiday closures with reason
+
+fulfillment_date saved for each order
+
+The fulfillment date is calculated on the database side and stored in:
+
+orders.fulfillment_date
+
+(DB-first logic)
+
+📦 Stock indicator on product cards
+
+Each product shows:
+
+Precise text: Available: X units / kg
+
+Visual availability bar
+
+The text shows the exact real value from the database.
+
+The bar is only a visual indicator.
+
+Visual scale used
+
+Unit-based products:
+
+visual scale based on 30 units
+
+Weight-based products:
+
+visual scale based on 20 kg
+
+This does not affect the purchasing logic or stock validation.
+
+All stock validation is always based on the real database value.
+
+▲ Deploy on Vercel (Production)
+
+Go to:
+
+https://vercel.com
+
+Steps:
+
+Import the GitHub repository
+
+Add all environment variables
 
 Deploy
 
-Il deploy è automatico ad ogni push su:
+Deployment runs automatically on every push to:
 
 master branch
 
-Dopo il deploy:
+After deployment:
 
-il sito sarà live
+the website will be live
 
-l’admin sarà disponibile su:
+the admin panel will be available at:
 
 /admin
+⚡ Real-time stock updates
 
-⚡ Aggiornamento stock in tempo reale
+The template uses Supabase Realtime.
 
-Il template utilizza Supabase Realtime.
+Whenever:
 
-Quando:
+an order is created
 
-un ordine viene creato
+an order is cancelled
 
-un ordine viene annullato
+stock is modified
 
-lo stock viene modificato
+the UI updates automatically.
 
-la UI si aggiorna automaticamente.
+No manual refresh is required.
 
-Non è necessario refresh manuale.
+⚖️ Weight-based selling (qty_step)
 
-⚖️ Vendita a peso (qty_step)
+The system supports:
 
-Il sistema supporta:
+selling by units
 
-vendita a pezzi
-vendita a peso
+selling by weight
 
-Esempi:
+Examples:
 
 0.1 → 100g
 0.25 → 250g
 0.5 → 500g
 1 → 1kg
 
-Configurabile da admin.
+Configurable directly from the admin panel.
 
 🖼 Supabase Storage
 
-Il bucket product-images viene creato automaticamente da setup.sql.
+The bucket product-images is automatically created by setup.sql.
 
-Non è necessario creare nulla manualmente.
+No manual configuration is required.
 
-📱 Installazione PWA
+📱 PWA installation
 
-Su mobile:
+On mobile devices:
 
-Apri il sito
+Open the website
 
-Premi "Aggiungi a Home"
+Tap Add to Home Screen
 
-L'app sarà installata.
+The app will be installed like a native application.
 
-🧾 Requisiti
-
+🧾 Requirements
 Node.js 18+
-
 Supabase account
-
 Stripe account
-
 Vercel account
