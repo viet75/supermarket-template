@@ -18,7 +18,7 @@ type RealtimePostgresChangesPayload<T = Record<string, any>> = {
 export default function CategoryChipsContainer({
   activeId,
   onChange,
-  show = true, // ✅ opzionale: default = visibile
+  show = true, // ✅ optional: default = visible
 }: {
   activeId: string | null
   onChange: (id: string | null) => void
@@ -38,21 +38,21 @@ export default function CategoryChipsContainer({
           .order('name')
 
         if (error) {
-          console.error('Errore caricamento categorie:', error.message)
+          console.error('Category loading error:', error.message)
           return
         }
 
         setCategories(data ?? [])
       } catch (err) {
-        console.error('Errore caricamento categorie:', err)
+        console.error('Category loading error:', err)
         setCategories([])
       }
     }
 
-    // Prima chiamata
+    // First call
     load()
 
-    // 🔁 Realtime: ricarica sempre se cambia qualcosa
+    // 🔁 Realtime: reload always if something changes
     const channel = supabase
       .channel('realtime:categories')
       .on(

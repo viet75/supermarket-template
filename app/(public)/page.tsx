@@ -15,7 +15,7 @@ export default async function Page() {
     .order('name', { ascending: true })
 
   if (categoriesError) {
-    console.error('❌ Errore caricamento categorie:', categoriesError)
+    console.error('❌ Error loading categories:', categoriesError)
   }
 
   // products
@@ -36,7 +36,7 @@ export default async function Page() {
     productsError = result.error
 
     if (productsError) {
-      console.error('❌ Errore caricamento prodotti:', productsError.message)
+      console.error('❌ Error loading products:', productsError.message)
     }
 
     if (products) {
@@ -50,7 +50,7 @@ export default async function Page() {
     }
   } catch (err: any) {
     productsError = err
-    console.error('❌ Eccezione caricamento prodotti:', err?.message)
+    console.error('❌ Products loading exception:', err?.message)
   }
 
   return (

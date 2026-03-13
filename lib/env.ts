@@ -28,8 +28,8 @@ type Env = {
   }
   
   /**
-   * Lazy + memoized: evita valori “stale” da hot-reload e
-   * impedisce crash a import-time.
+   * Lazy + memoized: avoids stale values from hot-reload and
+   * prevents crash at import-time.
    */
   export function getEnv(): Env {
     if (_memo) return _memo

@@ -4,9 +4,9 @@ import Stripe from 'stripe';
 let _stripe: Stripe | null = null;
 
 /**
- * Restituisce un'istanza singleton di Stripe.
- * - Se STRIPE_API_VERSION è settato in .env → usa quella versione (pinnata).
- * - Altrimenti fallback alla API version configurata nell'account Stripe.
+ * Returns a singleton instance of Stripe.
+ * - If STRIPE_API_VERSION is set in .env → use that version (pinned).
+ * - Otherwise fallback to the API version configured in the Stripe account.
  */
 export function getStripe() {
     if (_stripe) return _stripe;

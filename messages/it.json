@@ -45,7 +45,14 @@
   "checkout": {
     "title": "Checkout",
     "backToStore": "Torna al negozio",
-    "settingsError": "Non è stato possibile caricare le impostazioni del negozio."
+    "settingsError": "Non è stato possibile caricare le impostazioni del negozio.",
+    "invalidRequestBody": "Richiesta non valida.",
+    "missingOrderData": "Dati ordine mancanti.",
+    "checkoutDisabled": "Il checkout non è disponibile in questo momento.",
+    "deliveryDisabled": "Le consegne sono temporaneamente disabilitate.",
+    "orderNotFound": "Ordine non trovato.",
+    "addressUpdateFailed": "Errore durante l'aggiornamento dell'indirizzo.",
+    "stripeSessionCreationFailed": "Errore nella creazione della sessione di pagamento."
   },
   "checkoutForm": {
     "customerDataTitle": "📍 Dati cliente",
@@ -102,7 +109,14 @@
     "storeOpensLaterTodayAt": "Il negozio apre più tardi oggi. Il tuo ordine verrà evaso dalle {time}.",
     "storeReopensLaterTodayAt": "Il negozio riapre più tardi oggi. Il tuo ordine verrà evaso dalle {time}.",
     "deliveryOutOfRange": "La consegna non è disponibile per questo indirizzo ({distance} km, massimo {max} km).",
-    "checkingAvailability": "Verifica orari e disponibilità..."
+    "checkingAvailability": "Verifica orari e disponibilità...",
+    "estimate": "stima",
+    "paymentMethodUnavailable": "Metodo di pagamento non disponibile",
+    "productsNotFound": "Alcuni prodotti nel carrello non sono più disponibili. Svuota il carrello e riprova.",
+    "productsNotAvailable": "Alcuni prodotti non sono più disponibili. Abbiamo aggiornato il carrello.",
+    "stockInsufficient": "Alcuni prodotti non sono più disponibili. Abbiamo aggiornato il carrello.",
+    "invalidQuantityStep": "Quantità non valida per questo prodotto.",
+    "invalidQuantityUnit": "Quantità non valida per questo prodotto."
   },
   "header": {
     "defaultStoreName": "Supermarket Template",
@@ -162,7 +176,23 @@
     "notesPrefix": "Note",
     "totalLabel": "Totale",
     "drawerProductsTitle": "Prodotti dell'ordine #{id}",
-    "courierNotes": "Note per il corriere"
+    "courierNotes": "Note per il corriere",
+    "orderNotFound": "Ordine non trovato.",
+    "ordersLoadFailed": "Errore durante il caricamento degli ordini.",
+    "missingId": "ID mancante.",
+    "orderDeleteFailed": "Errore durante l'eliminazione dell'ordine.",
+    "invalidOrderAction": "Azione non valida: specificare action, status o payment_status.",
+    "cancelledOrderOperationNotAllowed": "Ordine annullato: operazione non consentita.",
+    "paidOrderCannotBeCancelled": "Impossibile annullare un ordine già pagato.",
+    "paidOrderHandlingFailed": "Errore durante la gestione dell'ordine pagato.",
+    "genericError": "Si è verificato un errore.",
+    "missingStatusUpdateParams": "Parametri mancanti per aggiornare lo stato.",
+    "markPaidFirst": "Segna prima l'ordine come pagato.",
+    "invalidStatus": "Stato non valido.",
+    "statusUpdateFailed": "Errore durante l'aggiornamento dello stato.",
+    "missingPaymentUpdateParams": "Parametri mancanti per aggiornare il pagamento.",
+    "invalidPaymentStatus": "Stato pagamento non valido.",
+    "paymentUpdateFailed": "Errore durante l'aggiornamento del pagamento."
   },
   "adminProducts": {
     "title": "Gestione prodotti",
@@ -367,5 +397,22 @@
     "message": "Grazie! Il tuo ordine è stato ricevuto correttamente.",
     "orderId": "ID ordine",
     "backToStore": "Torna allo store"
+  },
+  "adminOrderDetail": {
+    "missingOrderId": "ID ordine mancante",
+    "orderNotFound": "Ordine non trovato",
+    "orderLoadFailed": "Errore caricamento ordine",
+    "genericError": "Errore",
+    "loading": "Caricamento…",
+    "backToOrders": "Torna alla lista ordini",
+    "order": "Ordine",
+    "ordersList": "Lista ordini",
+    "courierNotes": "Note per il corriere",
+    "products": "Prodotti",
+    "product": "Prodotto",
+    "costSummary": "Riepilogo costi",
+    "subtotalProducts": "Subtotale prodotti",
+    "deliveryCost": "Costo consegna",
+    "total": "Totale"
   }
 }

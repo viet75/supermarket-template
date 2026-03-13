@@ -85,7 +85,7 @@ export default function HomeClient() {
         </div>
       </div>
 
-      {/* Categorie: qui NON passiamo show (fallback true nel container) */}
+      {/* Categories: here we do not pass show (fallback true in the container) */}
       <CategoryChipsContainer activeId={cat} onChange={setCat} />
 
       {loading ? (

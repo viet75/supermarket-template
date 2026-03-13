@@ -3,42 +3,42 @@
 import { supabaseServiceRole } from '@/lib/supabaseService'
 
 /**
- * Rilascia stock per ordini card_online scaduti usando RPC DB-side.
+ * Release stock for expired card_online orders using DB-side RPC.
  * 
- * La logica di selezione e cleanup è completamente delegata al database
- * tramite la RPC cleanup_expired_reservations(), che usa now() di Postgres
- * per confronti temporali affidabili e timezone-safe.
+ * The selection and cleanup logic is completely delegated to the database
+ * through the cleanup_expired_reservations() RPC, which uses now() of Postgres
+ * for reliable temporal comparisons and timezone-safe.
  * 
- * Questo garantisce:
- * - Confronti temporali sempre corretti (DB-side con now() UTC)
- * - Nessuna dipendenza da timezone del runtime o scheduler
- * - Comportamento deterministico identico tra manual trigger e scheduler
- * - Architettura robusta stile Amazon
+ * This ensures:
+ * - Temporal comparisons are always correct (DB-side with now() UTC)
+ * - No dependency on runtime or scheduler timezone
+ * - Deterministic behavior identical between manual trigger and scheduler
+ * - Robust architecture 
  * 
- * @returns Numero di ordini per cui lo stock è stato rilasciato
+ * @returns Number of orders for which stock has been released
  */
 export async function cleanupExpiredReservations(): Promise<number> {
     const svc = supabaseServiceRole
 
     try {
-        // Chiama RPC DB-side: tutta la logica è nel database
+        // Call DB-side RPC: all logic is in the database
         const { data, error } = await svc.rpc('cleanup_expired_reservations')
 
         if (error) {
-            console.error('[cleanupExpiredReservations] Errore RPC cleanup:', error)
+            console.error('[cleanupExpiredReservations] Error RPC cleanup:', error)
             return 0
         }
 
-        // La RPC ritorna il numero di ordini processati
+        // The RPC returns the number of orders processed
         const processedCount = typeof data === 'number' ? data : 0
 
         if (processedCount > 0) {
-            console.log(`[cleanupExpiredReservations] ✅ Rilasciati ${processedCount} ordini scaduti`)
+            console.log(`[cleanupExpiredReservations] ✅ Released ${processedCount} expired orders`)
         }
 
         return processedCount
     } catch (err) {
-        console.error('[cleanupExpiredReservations] Errore chiamata RPC:', err)
+        console.error('[cleanupExpiredReservations] Error calling RPC:', err)
         return 0
     }
 }

@@ -36,7 +36,7 @@ function parseOptionalNumber(v: string): number | null {
 
 const YYYY_MM_DD = /^\d{4}-\d{2}-\d{2}$/
 
-/** Estrae date valide YYYY-MM-DD da testo (newline, spazi, tab, virgole). Deduplica e ordina. */
+/** Extracts valid YYYY-MM-DD dates from text (newline, spaces, tabs, commas). Deduplicates and sorts. */
 function parseClosedDates(input: string): string[] {
   const tokens = input.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean)
   const valid = tokens.filter((t) => YYYY_MM_DD.test(t))
@@ -45,7 +45,7 @@ function parseClosedDates(input: string): string[] {
   return unique
 }
 
-/** Formatta l'array di date per la textarea (una per riga). */
+/** Formats the array of dates for the textarea (one per line). */
 function formatClosedDates(dates: string[]): string {
   return Array.isArray(dates) ? dates.join('\n') : ''
 }
@@ -66,7 +66,7 @@ export default function DeliverySettingsPage() {
   const [closedMessage, setClosedMessage] = useState('')
   const [weeklyHours, setWeeklyHours] = useState<WeeklyHours>(() => parseWeeklyHours(null))
 
-  // Valori visualizzati per i campi numerici: vuoto se 0, altrimenti stringa
+  // Display values for numeric fields: empty if 0, otherwise string
   const [numDisplay, setNumDisplay] = useState({
     delivery_base_km: '',
     delivery_base_fee: '',
@@ -74,7 +74,7 @@ export default function DeliverySettingsPage() {
     delivery_max_km: '',
   })
 
-  // Caricamento iniziale
+  // Initial loading
   useEffect(() => {
     fetch('/api/admin/settings/delivery')
       .then((res) => res.json())
@@ -216,10 +216,10 @@ export default function DeliverySettingsPage() {
   function togglePaymentMethod(method: string) {
     setPaymentMethods((prev) => {
       if (prev.includes(method)) {
-        // Rimuove la chiave se già presente
+        // Remove the key if it is already present
         return prev.filter((m) => m !== method)
       } else {
-        // Aggiunge la chiave se non presente
+        // Add the key if it is not present
         return [...prev, method]
       }
     })
@@ -309,7 +309,7 @@ export default function DeliverySettingsPage() {
         </div>
       </div>
 
-      {/* Sezione Orari e chiusure */}
+      {/* Section Hours and closures */}
       <div className="space-y-4 border-t border-gray-200 dark:border-gray-700 pt-6">
         <h2 className="text-xl font-semibold">{t('hoursAndClosures')}</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -381,7 +381,7 @@ export default function DeliverySettingsPage() {
         />
       </div>
 
-      {/* Sezione Metodi di pagamento */}
+      {/* Section Payment methods */}
       <div className="space-y-4">
         <h2 className="text-xl font-semibold">{t('paymentMethods')}</h2>
 

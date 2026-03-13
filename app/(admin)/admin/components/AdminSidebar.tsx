@@ -30,7 +30,7 @@ export default function AdminSidebar() {
 
   return (
     <>
-      {/* Header mobile con hamburger, titolo e spazio */}
+      {/* Mobile header with hamburger, title and space */}
       <header
         className="fixed top-0 left-0 right-0 z-50 md:hidden
                    flex items-center justify-between
@@ -39,7 +39,7 @@ export default function AdminSidebar() {
                    border-b border-gray-200 dark:border-gray-700
                    shadow-sm"
       >
-        {/* Hamburger a sinistra - larghezza fissa */}
+        {/* Left hamburger - fixed width */}
         <button
           className="w-10 h-10 flex items-center justify-center
                      rounded-md
@@ -55,7 +55,7 @@ export default function AdminSidebar() {
           )}
         </button>
 
-        {/* Titolo al centro - flex-1, centrato, truncate */}
+        {/* Center title - flex-1, centered, truncated */}
         <h1
           className="flex-1 min-w-0 text-center
                      text-lg font-semibold
@@ -65,18 +65,18 @@ export default function AdminSidebar() {
           {process.env.NEXT_PUBLIC_STORE_NAME ?? 'Supermarket Template'}
         </h1>
 
-        {/* Spazio a destra per bilanciamento - larghezza fissa */}
+        {/* Right space for balancing - fixed width */}
         <div className="w-10" />
       </header>
 
-      {/* Overlay scuro animato su mobile */}
+      {/* Dark overlay animated on mobile */}
       <div
         className={`fixed inset-0 bg-black transition-opacity duration-300 ease-in-out z-40 md:hidden
                     ${open ? 'bg-opacity-40 visible' : 'bg-opacity-0 invisible'}`}
         onClick={() => setOpen(false)}
       />
 
-      {/* Sidebar */}
+      {/* Mobile sidebar */}
       <aside
         className={`fixed top-0 left-0 h-screen w-64
                     bg-white dark:bg-zinc-900
@@ -131,8 +131,8 @@ export default function AdminSidebar() {
 
         {/* ============================
             SAFE-AREA FIX iOS PWA
-            - evita che il CTA bottom venga tagliato
-            - mantiene anche una separazione visiva
+            - avoid that the bottom CTA is cut
+            - also maintains a visual separation
            ============================ */}
         <div className="border-t border-gray-200 dark:border-zinc-800 mx-4" />
 

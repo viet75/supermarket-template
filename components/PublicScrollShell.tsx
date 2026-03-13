@@ -13,7 +13,7 @@ export default function PublicScrollShell({
 }) {
   const ref = useRef<HTMLDivElement | null>(null)
 
-  // Espone lo scroll host per i componenti client che vogliono leggerlo
+  // Expose the scroll host for client components that want to read it
   useEffect(() => {
     const el = ref.current
     if (!el) return

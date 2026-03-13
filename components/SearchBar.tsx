@@ -25,7 +25,7 @@ export default function SearchBar({ onChange }: { onChange: (q: string) => void 
                 role="search"
                 aria-label={t('search.label')}
             >
-                {/* icona lente */}
+                {/* lens icon */}
                 <span
                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-zinc-500"
                     aria-hidden
@@ -53,7 +53,7 @@ export default function SearchBar({ onChange }: { onChange: (q: string) => void 
           "
                 />
 
-                {/* bottone clear */}
+                {/* clear button */}
                 {q && (
                     <button
                         type="button"

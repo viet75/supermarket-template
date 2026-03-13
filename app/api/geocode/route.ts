@@ -5,20 +5,20 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q");
-  const zip = searchParams.get("zip"); // CAP inserito dall'utente (opzionale)
-  const city = searchParams.get("city"); // Città inserita dall'utente (opzionale)
+  const zip = searchParams.get("zip"); // CAP entered by the user (optional)
+  const city = searchParams.get("city"); // City entered by the user (optional)
   if (!q) return NextResponse.json({ ok: false, error: "Missing q" }, { status: 400 });
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) return NextResponse.json({ ok: false, error: "Missing API key" }, { status: 500 });
 
-  // Costruisci la URL Google con URLSearchParams
+  // Build the Google URL with URLSearchParams
   const geocodeParams = new URLSearchParams();
   geocodeParams.set("address", q);
   geocodeParams.set("language", "it");
   geocodeParams.set("region", "it");
   
-  // Se è presente il parametro zip valido (5 cifre, != 00000), aggiungi components
+  // If the zip parameter is present (5 digits, != 00000), add components
   if (zip) {
     const zipTrimmed = String(zip).trim();
     if (/^\d{5}$/.test(zipTrimmed) && zipTrimmed !== "00000") {
@@ -32,27 +32,27 @@ export async function GET(req: NextRequest) {
   const MAPS_UNAVAILABLE = {
     ok: false,
     code: "MAPS_UNAVAILABLE",
-    message: "Servizio mappe temporaneamente non disponibile. Riprova più tardi.",
+    message: "Maps service temporarily unavailable. Please try again later.",
   } as const;
 
   try {
     const res = await fetch(url);
 
-    // Gestione errori Google Maps: quota, billing, limiti
+    // Handling Google Maps errors: quota, billing, limits
     if (res.status === 429 || res.status === 403) {
       return NextResponse.json(MAPS_UNAVAILABLE, { status: 503, headers: { "Cache-Control": "no-store" } });
     }
 
     const json = await res.json();
 
-    // Se Google geocoding ritorna 0 risultati -> return 400
+    // If Google geocoding returns 0 results -> return 400
     if (json.status !== "OK" || !json.results || json.results.length === 0) {
-      return NextResponse.json({ ok: false, error: "Indirizzo non trovato" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "Address not found" }, { status: 400 });
     }
 
     const result = json.results[0];
     
-    // Estrai postal_code da address_components
+    // Extract postal_code from address_components
     let postal_code: string | null = null;
     if (result.address_components) {
       for (const component of result.address_components) {
@@ -65,34 +65,34 @@ export async function GET(req: NextRequest) {
 
     // Se postal_code assente o non matcha /^\d{5}$/ -> return 400
     if (!postal_code || !/^\d{5}$/.test(postal_code)) {
-      return NextResponse.json({ ok: false, error: "CAP non valido o non trovato" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "Invalid postal code or not found" }, { status: 400 });
     }
 
-    // Tratta "00000" come non valido -> return 400
+    // Treat "00000" as invalid -> return 400
     if (postal_code === "00000") {
-      return NextResponse.json({ ok: false, error: "CAP non valido" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "Invalid postal code" }, { status: 400 });
     }
 
-    // Se zip è presente, valida formato e confronta con postal_code
+    // If zip is present, validate format and compare with postal_code
     if (zip) {
       const zipTrimmed = String(zip).trim();
-      // Valida formato /^\d{5}$/ e zip !== "00000" (mantieni blocco per CAP non valido)
+      // Validate format /^\d{5}$/ and zip !== "00000" (keep block for invalid CAP)
       if (!/^\d{5}$/.test(zipTrimmed) || zipTrimmed === "00000") {
-        return NextResponse.json({ ok: false, error: "CAP non valido" }, { status: 400 });
+        return NextResponse.json({ ok: false, error: "Invalid postal code" }, { status: 400 });
       }
       
-      // Se Google restituisce location_type = ROOFTOP o RANGE_INTERPOLATED,
-      // accetta l'indirizzo anche se postal_code non matcha perfettamente
+      // If Google returns location_type = ROOFTOP or RANGE_INTERPOLATED,
+      // accept the address even if postal_code does not match perfectly
       const locationType = result.geometry.location_type;
       const isPreciseLocation = locationType === "ROOFTOP" || locationType === "RANGE_INTERPOLATED";
       
-      // Confronta zip con postal_code solo se non è una location precisa
+      // Compare zip with postal_code only if not a precise location
       if (!isPreciseLocation && zipTrimmed !== postal_code) {
-        return NextResponse.json({ ok: false, error: "CAP non corrisponde all'indirizzo" }, { status: 400 });
+        return NextResponse.json({ ok: false, error: "Postal code does not match the address" }, { status: 400 });
       }
     }
 
-    // Estrai città ufficiale da address_components (priorità: locality > postal_town > administrative_area_level_3 > administrative_area_level_2)
+    // Extract official city from address_components (priority: locality > postal_town > administrative_area_level_3 > administrative_area_level_2)
     let cityFromGoogle: string | null = null;
     if (result.address_components) {
       for (const component of result.address_components) {
@@ -127,39 +127,39 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Funzione helper per normalizzare stringhe (lowercase, trim, rimuovi accenti)
+    // Helper function to normalize strings (lowercase, trim, remove accents)
     const normalizeString = (str: string): string => {
       return str
         .toLowerCase()
         .trim()
         .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "") // rimuovi accenti
-        .replace(/\s+/g, " "); // normalizza spazi
+        .replace(/[\u0300-\u036f]/g, "") // remove accents
+        .replace(/\s+/g, " "); // normalize spaces
     };
 
-    // Se city è presente, la validazione città è OBBLIGATORIA
+    // If city is present, city validation is REQUIRED
     if (city) {
-      // Se cityFromGoogle è null -> return 400 "Città non verificabile per questo indirizzo"
+      // If cityFromGoogle is null -> return 400 "City not verifiable for this address"
       if (!cityFromGoogle) {
-        return NextResponse.json({ ok: false, error: "Città non verificabile per questo indirizzo" }, { status: 400 });
+        return NextResponse.json({ ok: false, error: "City not verifiable for this address" }, { status: 400 });
       }
       
-      // Altrimenti confronta con logica include/equal
+      // Otherwise compare with include/equal logic
       const normalizedCity = normalizeString(cityFromGoogle);
       const normalizedCityFromParam = normalizeString(city);
       
-      // Verifica che la città inserita sia contenuta o combaci con quella di Google
+      // Verify that the city entered is contained or matches with that of Google
       const cityMatches = 
         normalizedCity === normalizedCityFromParam ||
         normalizedCity.includes(normalizedCityFromParam) ||
         normalizedCityFromParam.includes(normalizedCity);
 
       if (!cityMatches) {
-        return NextResponse.json({ ok: false, error: "Città non coerente con indirizzo e CAP" }, { status: 400 });
+        return NextResponse.json({ ok: false, error: "City not consistent with address and postal code" }, { status: 400 });
       }
     }
 
-    // Risposta JSON deve includere lat/lng, postal_code e city_google quando valido
+    // JSON response must include lat/lng, postal_code and city_google when valid
     return NextResponse.json({
       ok: true,
       lat: result.geometry.location.lat,
@@ -169,7 +169,7 @@ export async function GET(req: NextRequest) {
       ...(cityFromGoogle ? { city_google: cityFromGoogle } : {}),
     });
   } catch (e) {
-    // Rete, timeout, parsing: messaggio user-friendly, nessun dettaglio tecnico
+    // Network, timeout, parsing: user-friendly message, no technical details
     return NextResponse.json(MAPS_UNAVAILABLE, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 }

@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from 'react'
 
 type Options = {
-  threshold?: number        // px accumulati prima di cambiare stato
-  revealAtTopPx?: number    // vicino al top mostra sempre
-  cooldownMs?: number       // tempo minimo tra un toggle e l’altro (anti tremolio)
-  minDeltaPx?: number       // ignora micro-jitter
+  threshold?: number        // px accumulated before changing state
+  revealAtTopPx?: number    // always show near the top
+  cooldownMs?: number       // minimum time between a toggle and the other (anti-tremolo)
+  minDeltaPx?: number       // ignore micro-jitter
 }
 
 export function useSmartStickyScroll<T extends HTMLElement>(
@@ -49,7 +49,7 @@ export function useSmartStickyScroll<T extends HTMLElement>(
 
         const y = getY()
 
-        // sempre visibile vicino al top
+        // always visible near the top
         if (y <= revealAtTopPx) {
           accRef.current = 0
           lastYRef.current = y
@@ -60,11 +60,11 @@ export function useSmartStickyScroll<T extends HTMLElement>(
         const dy = y - lastYRef.current
         lastYRef.current = y
 
-        // ignora jitter microscopico
+        // ignore microscopical jitter
         if (Math.abs(dy) < minDeltaPx) return
 
         accRef.current += dy
-        // reset accumulatore quando cambia direzione (animazione più morbida)
+        // reset accumulator when direction changes (smoother animation)
         if ((dy > 0 && accRef.current < 0) || (dy < 0 && accRef.current > 0)) {
           accRef.current = dy
         }
@@ -87,7 +87,7 @@ export function useSmartStickyScroll<T extends HTMLElement>(
           if (!showRef.current) setShow(true)
         }
 
-        // AUTO-SHOW dopo inattività scroll (UX stile Amazon)
+        // AUTO-SHOW after scroll inactivity 
         if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
         idleTimerRef.current = setTimeout(() => {
           setShow((prev) => (prev ? prev : true))

@@ -20,15 +20,15 @@ async function normalizeOrderRow(o: any): Promise<Order> {
 
     const normalizedItems: any[] = Array.isArray(o.order_items)
         ? o.order_items.map((it: any) => {
-                let productData = it.products || it.product || null
-                if (Array.isArray(productData)) productData = productData[0] || null
-                const quantity = Number(it.quantity)
-                const unitPrice = Number(it.price ?? 0)
-                const product = productData
-                    ? { id: productData.id, name: productData.name, unit_type: productData.unit_type }
-                    : { id: '', name: 'Prodotto', unit_type: null }
-                return { quantity, price: unitPrice, product }
-            })
+            let productData = it.products || it.product || null
+            if (Array.isArray(productData)) productData = productData[0] || null
+            const quantity = Number(it.quantity)
+            const unitPrice = Number(it.price ?? 0)
+            const product = productData
+                ? { id: productData.id, name: productData.name, unit_type: productData.unit_type }
+                : { id: '', name: 'Prodotto', unit_type: null }
+            return { quantity, price: unitPrice, product }
+        })
         : []
 
     return {
@@ -78,7 +78,15 @@ export async function GET(req: NextRequest) {
                 .eq('id', singleId)
                 .maybeSingle()
             if (error) throw error
-            if (!row) return NextResponse.json({ error: 'Ordine non trovato' }, { status: 404 })
+            if (!row) {
+                return NextResponse.json(
+                    {
+                        error_code: 'order_not_found',
+                        error: 'Order not found',
+                    },
+                    { status: 404 }
+                )
+            }
             const order = await normalizeOrderRow(row)
             return NextResponse.json({ order })
         }
@@ -124,10 +132,10 @@ export async function GET(req: NextRequest) {
         // 🔎 Search: public_id or name/surname (exclusive strategy)
         if (search) {
             const trimmedSearch = search.trim()
-            
+
             // Pattern public_id: exactly 8 hexadecimal characters (abbreviated UUID)
             const isPublicId = /^[0-9a-f]{8}$/i.test(trimmedSearch)
-            
+
             if (isPublicId) {
                 // Search by public_id: partial search on text column
                 q = q.ilike('public_id', `%${trimmedSearch}%`)
@@ -165,7 +173,10 @@ export async function GET(req: NextRequest) {
     } catch (e: any) {
         console.error('❌ GET /api/admin/orders error:', e)
         return NextResponse.json(
-            { error: e?.message ?? 'Errore caricamento ordini' },
+            {
+                error_code: 'orders_load_failed',
+                error: e?.message ?? 'Failed to load orders',
+            },
             { status: 500 },
         )
     }
@@ -180,7 +191,13 @@ export async function DELETE(req: NextRequest) {
         const body = await req.json()
         const { id } = body ?? {}
         if (!id) {
-            return NextResponse.json({ error: 'id obbligatorio' }, { status: 400 })
+            return NextResponse.json(
+                {
+                    error_code: 'missing_id',
+                    error: 'Missing id',
+                },
+                { status: 400 }
+            )
         }
 
         const svc = supabaseServer()
@@ -190,7 +207,10 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json({ ok: true })
     } catch (e: any) {
         return NextResponse.json(
-            { error: e?.message ?? 'Errore eliminazione ordine' },
+            {
+                error_code: 'order_delete_failed',
+                error: e?.message ?? 'Failed to delete order',
+            },
             { status: 500 },
         )
     }
@@ -207,12 +227,21 @@ export async function PATCH(req: NextRequest) {
 
         // 2) Validation
         if (!id) {
-            return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+            return NextResponse.json(
+                {
+                    error_code: 'invalid_order_action',
+                    error: 'Invalid action: specify action, status or payment_status',
+                },
+                { status: 400 }
+            )
         }
 
         if (!status && !payment_status && !action) {
             return NextResponse.json(
-                { error: 'Azione non valida: specificare action, status o payment_status' },
+                {
+                    error_code: 'invalid_order_action',
+                    error: 'Invalid action: specify action, status or payment_status',
+                },
                 { status: 400 }
             )
         }
@@ -231,7 +260,10 @@ export async function PATCH(req: NextRequest) {
         // Canceled order block
         if (existingOrder.status === 'cancelled') {
             return NextResponse.json(
-                { error: 'Ordine annullato: operazione non consentita' },
+                {
+                    error_code: 'cancelled_order_operation_not_allowed',
+                    error: 'Cancelled order: operation not allowed',
+                },
                 { status: 400 }
             )
         }
@@ -271,7 +303,10 @@ export async function PATCH(req: NextRequest) {
             // Protection against canceled paid order
             if (finalStatus === 'cancelled' && existingOrder.payment_status === 'paid') {
                 return NextResponse.json(
-                    { error: 'Impossibile annullare un ordine già pagato' },
+                    {
+                        error_code: 'paid_order_cannot_be_cancelled',
+                        error: 'Cannot cancel an order that is already paid',
+                    },
                     { status: 400 }
                 )
             }
@@ -309,7 +344,10 @@ export async function PATCH(req: NextRequest) {
                 const handleResult = await handleOrderPaid(id)
                 if (handleResult && !handleResult.ok) {
                     return NextResponse.json(
-                        { error: handleResult.error || 'Errore gestione ordine pagato' },
+                        {
+                            error_code: 'paid_order_handling_failed',
+                            error: handleResult.error || 'Failed to handle paid order',
+                        },
                         { status: 400 }
                     )
                 }

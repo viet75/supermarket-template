@@ -1,21 +1,21 @@
 import { supabaseServiceRole } from '@/lib/supabaseService'
 
 /**
- * Gestisce le operazioni post-pagamento per un ordine pagato.
- * NOTA: Lo stock viene ora riservato alla creazione ordine (reserveOrderStock),
- * non più al pagamento. Questa funzione mantiene solo le altre logiche post-paid.
- * - Legge l'ordine dal database
- * - Esce se payment_status !== 'paid'
- * - Idempotente: può essere chiamata più volte senza effetti collaterali
+ * Handles post-payment operations for a paid order.
+ * NOTE: Stock is now reserved at order creation (reserveOrderStock), not at payment.
+ * This function maintains only other post-paid logic.
+ * - Reads the order from the database
+ * - Exits if payment_status !== 'paid'
+ * - Idempotent: can be called multiple times without side effects
  */
 export async function handleOrderPaid(orderId: string): Promise<{ ok: boolean; error?: string }> {
     if (!orderId) {
-        return { ok: false, error: 'orderId mancante' }
+        return { ok: false, error: 'orderId missing' }
     }
 
     const svc = supabaseServiceRole
 
-    // Legge l'ordine dal database
+    // Reads the order from the database
     const { data: order, error: orderError } = await svc
         .from('orders')
         .select('payment_status')
@@ -23,18 +23,18 @@ export async function handleOrderPaid(orderId: string): Promise<{ ok: boolean; e
         .single()
 
     if (orderError || !order) {
-        return { ok: false, error: orderError?.message || 'Ordine non trovato' }
+        return { ok: false, error: orderError?.message || 'Order not found' }
     }
 
-    // Esce se payment_status !== 'paid'
+    // Exits if payment_status !== 'paid'
     if (order.payment_status !== 'paid') {
-        return { ok: true } // Non è un errore, semplicemente non serve processare
+        return { ok: true } // Not an error, simply do not process
     }
 
-    // NOTA: Lo stock è già stato riservato alla creazione ordine (reserveOrderStock).
-    // Non serve più scalare stock qui. Questa funzione è idempotente e può essere chiamata
-    // più volte senza effetti collaterali.
-    // Per ora non ci sono altre logiche post-paid da gestire.
+    // NOTE: Stock is already reserved at order creation (reserveOrderStock).
+    // No need to scale stock here. This function is idempotent and can be called
+    // multiple times without side effects.
+    // For now, there is no other post-paid logic to handle.
 
     return { ok: true }
 }

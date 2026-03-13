@@ -32,8 +32,8 @@ export default function DisableIOSZoom() {
     }
 
     const onOrientationChange = () => {
-      // Se l'utente ruota mentre la pagina è zoomata, Safari ricalcola il viewport e può "esplodere".
-      // Reload controllato per tornare a scale=1.
+      // If the user rotates the device while the page is zoomed, Safari recalculates the viewport and things can "break".
+      // Controlled reload to return to scale=1.
       if (isZoomed()) {
         setTimeout(() => window.location.reload(), 50)
       }

@@ -68,6 +68,7 @@ export default function CheckoutForm({ settings }: Props) {
     const router = useRouter()
     const t = useTranslations('checkoutForm')
     const locale = useLocale()
+
     const formatFulfillmentDate = (dateStr: string | null | undefined) => {
         if (!dateStr) return ''
         const date = new Date(`${dateStr}T00:00:00`)
@@ -77,6 +78,71 @@ export default function CheckoutForm({ settings }: Props) {
             year: 'numeric',
         }).format(date)
     }
+
+    function mapApiErrorMessage(
+        errorCode: string | null | undefined,
+        fallback?: string | null
+    ) {
+        switch (errorCode) {
+            case 'empty_cart':
+                return t('emptyCart')
+            case 'incomplete_address':
+                return t('incompleteAddress')
+            case 'invalid_zip':
+                return t('invalidZipCode')
+            case 'outside_delivery_area':
+                return t('addressOutOfDeliveryRange')
+            case 'delivery_disabled':
+                return t('deliveryDisabled')
+            case 'store_closed':
+                return t('storeClosed')
+            case 'payment_method_unavailable':
+                return t('paymentMethodUnavailable')
+            case 'products_not_found':
+                return t('productsNotFound')
+            case 'products_not_available':
+                return t('productsNotAvailable')
+            case 'stock_insufficient':
+                return t('stockInsufficient')
+            case 'invalid_qty_step':
+                return t('invalidQuantityStep')
+            case 'invalid_qty_unit':
+                return t('invalidQuantityUnit')
+            default:
+                return fallback || t('genericError')
+        }
+    }
+
+    const isZipLikeError = (message: string | null | undefined) => {
+        if (!message) return false
+        const m = message.toLowerCase()
+        return (
+            m.includes('cap') ||
+            m.includes('zip') ||
+            m.includes('postal') ||
+            m.includes('codice postale') ||
+            m.includes('invalid zip')
+        )
+    }
+
+    const isOutOfRangeLikeError = (message: string | null | undefined) => {
+        if (!message) return false
+        const m = message.toLowerCase()
+        return (
+            m.includes('fuori dal raggio') ||
+            m.includes('out of delivery range') ||
+            m.includes('outside delivery area') ||
+            m.includes('non è disponibile') ||
+            m.includes('not available')
+        )
+    }
+
+    const shouldShowCartLink = (message: string | null | undefined) => {
+        if (!message) return false
+        const m = message.toLowerCase()
+        return m.includes('aggiornato il carrello') || m.includes('updated the cart')
+    }
+
     const getFulfillmentMessage = (f: FulfillmentPreview | null) => {
         if (!f) return ''
 
@@ -121,11 +187,13 @@ export default function CheckoutForm({ settings }: Props) {
                 return f.message || ''
         }
     }
+
     const PAYMENT_METHOD_CONFIG: Record<PaymentMethod, { icon: string; label: string }> = {
         cash: { icon: '💵', label: t('paymentCash') },
         pos_on_delivery: { icon: '💳🏠', label: t('paymentPosOnDelivery') },
         card_online: { icon: '💳', label: t('paymentCardOnline') },
     }
+
     const CAP_ERR = t('capInvalidFull')
     const [mounted, setMounted] = useState(false)
     useEffect(() => setMounted(true), [])
@@ -163,25 +231,27 @@ export default function CheckoutForm({ settings }: Props) {
             setErrorMessage(null)
             return
         }
+
         const errorLower = newError.toLowerCase()
-        // Priority: if contains "invalid CAP" or CAP keywords -> show only that
-        if (newError.includes("CAP non valido") ||
-            errorLower.includes("cap") ||
-            errorLower.includes("postal") ||
-            errorLower.includes("codice postale") ||
-            errorLower.includes("corrisponde")) {
+
+        // Priority: ZIP / postal code errors
+        if (
+            isZipLikeError(newError) ||
+            errorLower.includes('corrisponde')
+        ) {
             setErrorMessage(newError)
             return
         }
-        // Priority: if contains "out of radius" or "not available" -> show only that
-        if (newError.includes("fuori dal raggio") || newError.includes("non è disponibile")) {
+
+        // Priority: out of range / unavailable
+        if (isOutOfRangeLikeError(newError)) {
             setErrorMessage(newError)
         } else {
             // Otherwise show only "address not recognized, insert complete street..."
             const geocodeError = t('fullAddressExample')
             // Update only if there is no "out of radius" error
             setErrorMessage((prev) => {
-                if (prev && (prev.includes("fuori dal raggio") || prev.includes("non è disponibile"))) {
+                if (prev && isOutOfRangeLikeError(prev)) {
                     return prev
                 }
                 return geocodeError
@@ -379,7 +449,7 @@ export default function CheckoutForm({ settings }: Props) {
                     setDistanceKm(0)
                 }
             } catch (err) {
-                console.error('Errore geocodifica:', err)
+                console.error('Geocoding error:', err)
                 setIsAddressValid(false)
                 const geocodeError = t('fullAddressExample')
                 setDistanceError(geocodeError)
@@ -465,16 +535,19 @@ export default function CheckoutForm({ settings }: Props) {
                     if (res.status === 400) {
                         try {
                             const errorData = JSON.parse(text)
-                            const errorText = errorData.error || ''
+                            const errorText = mapApiErrorMessage(errorData.error_code, errorData.error)
 
                             const errorTextLower = errorText.toLowerCase()
 
                             // If contains "out of radius" shows only that
-                            if (errorText.includes("fuori dal raggio") || errorText.includes("non è disponibile")) {
+                            if (isOutOfRangeLikeError(errorText)) {
                                 setDistanceError(errorText)
                                 setIsAddressValid(false)
                                 updateErrorMessage(errorText)
-                            } else if (errorTextLower.includes("cap") || errorTextLower.includes("postal") || errorTextLower.includes("codice postale")) {
+                            } else if (
+                                isZipLikeError(errorText) ||
+                                errorTextLower.includes('codice postale')
+                            ) {
                                 // If contains CAP/postal errors, show serverErr directly
                                 setDistanceError(errorText)
                                 setIsAddressValid(false)
@@ -504,8 +577,9 @@ export default function CheckoutForm({ settings }: Props) {
 
                 // If data.ok === false, handle error and return
                 if (data.ok === false) {
-                    setDistanceError(data.error)
-                    updateErrorMessage(data.error)
+                    const mappedError = mapApiErrorMessage(data.error_code, data.error)
+                    setDistanceError(mappedError)
+                    updateErrorMessage(mappedError)
                     setPreviewDistanceKm(null)
                     setPreviewDeliveryFee(null)
                     setIsAddressValid(false)
@@ -518,7 +592,7 @@ export default function CheckoutForm({ settings }: Props) {
                 // If the delivery preview succeeds, reset errorMessage (but keep "out of radius" errors if present)
                 updateErrorMessage(null)
             } catch (err) {
-                console.error('Errore preview consegna:', err)
+                console.error('Delivery preview error:', err)
                 setPreviewDeliveryFee(null)
                 setPreviewDistanceKm(null)
             } finally {
@@ -655,7 +729,8 @@ export default function CheckoutForm({ settings }: Props) {
             return
         }
         if (!validation.ok) {
-            // Use errorMessage if available, otherwise validation.reason
+            // This block remains unchanged in logic:
+            // there is no error_code in the scope, so we use the local flow.
             const errorText = errorMessage || validation.reason || t('invalidAddress')
             setMsg({ type: 'error', text: errorText })
             setSaving(false)
@@ -703,12 +778,27 @@ export default function CheckoutForm({ settings }: Props) {
 
             if (!res.ok) {
                 let apiMsg = `${t('apiError')} (${res.status})`
+
                 try {
                     const data = await res.json()
-                    apiMsg = data?.message || data?.error || apiMsg
+
+                    apiMsg = mapApiErrorMessage(
+                        data?.error_code,
+                        data?.message || data?.error || apiMsg
+                    )
+
+                    const shouldReconcile =
+                        data?.error_code === 'products_not_available' ||
+                        data?.error_code === 'products_not_found' ||
+                        data?.error_code === 'stock_insufficient'
+
+                    if (shouldReconcile && Array.isArray(data?.products)) {
+                        reconcileWithProducts(data.products)
+                    }
                 } catch {
                     // ignore JSON parse errors
                 }
+
                 setMsg({ type: 'error', text: apiMsg })
                 setSaving(false)
                 return
@@ -736,7 +826,7 @@ export default function CheckoutForm({ settings }: Props) {
             // For other payment methods, redirect to success
             setMsg({ type: 'success', text: t('orderCreated') })
             clearCart()
-            router.push(`/order/success?id=${encodeURIComponent(orderId)}`)
+            router.push(`/${locale}/order/success?id=${encodeURIComponent(orderId)}`)
         } catch (e: any) {
             console.error(e)
             setMsg({ type: 'error', text: e?.message ?? t('unexpectedError') })
@@ -760,7 +850,7 @@ export default function CheckoutForm({ settings }: Props) {
                         >
                             {msg.type === 'error' ? '⚠️' : '✅'} {msg.text}
                         </div>
-                        {msg.type === 'error' && msg.text.includes('aggiornato il carrello') && (
+                        {msg.type === 'error' && shouldShowCartLink(msg.text) && (
                             <Link
                                 href="/cart"
                                 className="shrink-0 rounded-md border border-red-300 dark:border-red-800 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-4 py-2 text-sm font-medium hover:bg-red-200 dark:hover:bg-red-800/50 transition-colors text-center"
@@ -880,7 +970,7 @@ export default function CheckoutForm({ settings }: Props) {
                                 {t('capRequired')}
                             </p>
                         )}
-                        {isCapInvalidFull(addr.cap) && errorMessage && errorMessage.includes("CAP non valido") && (
+                        {isCapInvalidFull(addr.cap) && errorMessage && isZipLikeError(errorMessage) && (
                             <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                                 {errorMessage}
                             </p>
@@ -896,7 +986,7 @@ export default function CheckoutForm({ settings }: Props) {
                     </div>
                 </div>
 
-                {/* Mostra errore CAP/indirizzo sempre visibile, anche se delivery è disabilitata */}
+                {/* Show CAP/address error always visible, even if delivery is disabled */}
                 {errorMessage && !settings.delivery_enabled && (
                     <div className="mt-4">
                         <p className="text-sm text-red-600 dark:text-red-400 p-3 bg-red-50 dark:bg-red-900/30 rounded-lg border border-red-200 dark:border-red-800">
@@ -961,7 +1051,12 @@ export default function CheckoutForm({ settings }: Props) {
                 <ul className="divide-y divide-gray-200 dark:divide-zinc-800 text-sm">
                     {items.map((it: any) => (
                         <li key={it.id} className="flex justify-between py-2 text-gray-900 dark:text-zinc-100">
-                            <span>{it.name} × {formatQty(Number(it.qty), it.unit ?? 'per_unit', it.qty_step)}</span>
+                            <span>{it.name} × {formatQty(
+                                Number(it.qty),
+                                it.unit ?? 'per_unit',
+                                it.qty_step,
+                                locale === 'en' ? 'en' : 'it'
+                            )}</span>
                             <span>{formatPrice(Number(it.price) * it.qty)}</span>
                         </li>
                     ))}
@@ -983,7 +1078,7 @@ export default function CheckoutForm({ settings }: Props) {
                                     : previewDeliveryFee !== null
                                         ? previewDeliveryFee === 0
                                             ? t('freeDeliveryEstimate')
-                                            : `${formatPrice(previewDeliveryFee)} (stima)`
+                                            : `${formatPrice(previewDeliveryFee)} (${t('estimate')})`
                                         : loadingPreview || loadingDistance
                                             ? '...'
                                             : '—'}
@@ -996,7 +1091,7 @@ export default function CheckoutForm({ settings }: Props) {
                             {backendTotal !== null
                                 ? formatPrice(backendTotal)
                                 : previewDeliveryFee !== null
-                                    ? `${formatPrice(subtotal + previewDeliveryFee)} (stima)`
+                                    ? `${formatPrice(subtotal + previewDeliveryFee)} (${t('estimate')})`
                                     : formatPrice(subtotal)}
                         </span>
                     </div>

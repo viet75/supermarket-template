@@ -38,23 +38,23 @@ export default function ProductsAdminPage() {
     const [saving, setSaving] = useState(false)
     const [deleting, setDeleting] = useState<string | null>(null)
 
-    // categorie disponibili per il dropdown
+    // available categories for the dropdown
     const [categories, setCategories] = useState<Category[]>([])
     const [newCategoryName, setNewCategoryName] = useState('')
     const [creatingCategory, setCreatingCategory] = useState(false)
     const [message, setMessage] = useState<string | null>(null)
 
-    // filtri e ricerca
+    // filters and search
     const [filterCategory, setFilterCategory] = useState<string>('all')
     const [filterStatus, setFilterStatus] = useState<string>('all')
     const [search, setSearch] = useState('')
-    // paginazione
+    // pagination
     const [currentPage, setCurrentPage] = useState(1)
     const [itemsPerPage, setItemsPerPage] = useState(20)
-    // archivio
+    // archive
     const [showArchived, setShowArchived] = useState(false)
 
-    // upload immagine
+    // upload image
     const [uploadingImage, setUploadingImage] = useState(false)
     const [uploadError, setUploadError] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -64,7 +64,7 @@ export default function ProductsAdminPage() {
 
 
 
-    // 🔎 Filtro ricerca + categoria + stato
+    // 🔎 Search filter + category + status
     const filteredItems = items
         .filter((p) =>
             p.name.toLowerCase().includes(search.toLowerCase())
@@ -83,7 +83,7 @@ export default function ProductsAdminPage() {
             }
             return true
         })
-    // prodotti paginati
+    // paginated products
     const startIndex = (currentPage - 1) * itemsPerPage
     const endIndex = startIndex + itemsPerPage
     const paginatedItems = filteredItems.slice(startIndex, endIndex)
@@ -93,23 +93,23 @@ export default function ProductsAdminPage() {
 
 
 
-    // Funzione per caricare categorie
+    // Function to load categories
     const loadCategories = useCallback(async () => {
         try {
             const { data, error } = await sb
                 .from('categories')
-                .select('id, name, deleted_at') // aggiunto deleted_at
-                .is('deleted_at', null)         // mostra solo categorie attive
+                .select('id, name, deleted_at') // added deleted_at
+                .is('deleted_at', null)         // show only active categories
                 .order('name')
 
             if (error) throw error
             setCategories(data || [])
         } catch (e) {
-            console.error('Errore caricamento categorie:', e)
+            console.error('Error loading categories:', e)
         }
     }, [sb])
 
-    // Helper: errore PostgREST quando la colonna qty_step non è ancora in schema cache
+    // Helper: error PostgREST when the qty_step column is not in the schema cache
     const isQtyStepSchemaError = (err: any) => {
         const msg = String(err?.message ?? err?.error_description ?? err ?? '')
         const code = err?.code
@@ -120,7 +120,7 @@ export default function ProductsAdminPage() {
         )
     }
 
-    // Funzione per caricare prodotti
+    // Function to load products
     const loadProducts = useCallback(async () => {
         setLoading(true)
         try {
@@ -140,12 +140,12 @@ export default function ProductsAdminPage() {
             }
             if (error) throw error
 
-            // doppia cintura: filtro anche client-side nel caso in cui il server filtrasse male
+            // double filter: filter also client-side in case the server filtered badly
             const filtered = (data ?? []).filter((p: Product) =>
                 showArchived ? p.deleted_at !== null : p.deleted_at === null
             )
 
-            // diagnostica: vedi cosa sta arrivando
+            // diagnose: see what is coming
             console.log('loadProducts', {
                 showArchived,
                 total: data?.length ?? 0,
@@ -154,28 +154,28 @@ export default function ProductsAdminPage() {
 
             setItems(filtered)
         } catch (e) {
-            console.error('Errore caricamento prodotti:', e)
+            console.error('Error loading products:', e)
             setItems([])
         } finally {
             setLoading(false)
         }
     }, [sb, showArchived])
 
-    // Funzione di refetch completa (categorie + prodotti)
+    // Function to refetch complete (categories + products)
     const refetchAll = useCallback(() => {
         loadCategories()
         loadProducts()
     }, [loadCategories, loadProducts])
 
-    // Hook per refetch automatico quando l'app torna in foreground
+    // Hook for automatic refetch when the app returns to the foreground
     useRefetchOnResume(refetchAll)
 
-    // Carica categorie all'avvio
+    // Load categories at startup
     useEffect(() => {
         loadCategories()
     }, [loadCategories])
 
-    // Carica prodotti (attivi o archivio)
+    // Load products (active or archive)
     useEffect(() => {
         loadProducts()
     }, [loadProducts])
@@ -242,9 +242,9 @@ export default function ProductsAdminPage() {
                 category_id: editing?.category_id || null,
                 stock: (() => {
                     const val = editing?.stock
-                    if (val == null) return null // null o undefined → stock illimitato
+                    if (val == null) return null // null or undefined → unlimited stock
                     const strVal = String(val).trim()
-                    if (strVal === '') return null // stringa vuota → stock illimitato
+                    if (strVal === '') return null // empty string → unlimited stock
                     return Number(val) // numero valido
                 })(),
                 is_active:
@@ -269,14 +269,14 @@ export default function ProductsAdminPage() {
                 // UPDATE via PATCH
                 let res
                 if (editing?.id) {
-                    // ✅ Aggiorna prodotto esistente
+                    // ✅ Update existing product
                     res = await fetch('/api/admin/products', {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ id: editing.id, ...payload }),
                     })
                 } else {
-                    // ✅ Crea nuovo prodotto
+                    // ✅ Create new product
                     res = await fetch('/api/admin/products', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -303,7 +303,6 @@ export default function ProductsAdminPage() {
     }
 
     // DELETE
-    // DELETE
     async function doDelete(id: string) {
         if (!id) return
         const ok = window.confirm(t('archiveConfirm'))
@@ -319,7 +318,7 @@ export default function ProductsAdminPage() {
 
             if (!res.ok) {
                 const errorText = await res.text()
-                console.error('Errore HTTP archiviazione:', errorText)
+                console.error('HTTP archive error:', errorText)
                 alert(`⚠️ ${t('archiveError')}`)
                 return
             }
@@ -329,7 +328,7 @@ export default function ProductsAdminPage() {
             switch (data.status) {
                 case 'archived':
                     alert(`📦 ${t('productArchived')}`)
-                    setItems(prev => prev.filter(p => p.id !== id)) // rimuove subito dalla lista corrente
+                    setItems(prev => prev.filter(p => p.id !== id)) // remove immediately from the current list
                     break
                 case 'already_archived':
                     alert(`ℹ️ ${t('productAlreadyArchived')}`)
@@ -343,7 +342,7 @@ export default function ProductsAdminPage() {
 
             setEditing(cur => (cur?.id === id ? null : cur))
         } catch (e) {
-            console.error('Eccezione archiviazione:', e)
+            console.error('Archive exception:', e)
             alert(t('archiveUnexpectedError'))
         } finally {
             setDeleting(null)
@@ -384,7 +383,7 @@ export default function ProductsAdminPage() {
                     <span className="text-lg">＋</span> {t('newProduct')}
                 </button>
             </header>
-            {/* Toggle Archivio */}
+            {/* Toggle Archive */}
             <div className="mb-4">
                 <label className="flex items-center gap-2 text-sm">
                     <input
@@ -397,7 +396,7 @@ export default function ProductsAdminPage() {
             </div>
 
 
-            {/* 🔎 Barra ricerca: subito sotto l’header */}
+            {/* 🔎 Search bar: immediately below the header */}
             <div className="w-full max-w-md mb-6">
                 <input
                     type="text"
@@ -408,9 +407,9 @@ export default function ProductsAdminPage() {
 
                 />
             </div>
-            {/* Filtri */}
+            {/* Filters */}
             <div className="flex flex-wrap gap-3 mb-6">
-                {/* Filtro categoria */}
+                {/* Category filter */}
                 <select
                     value={filterCategory}
                     onChange={(e) => setFilterCategory(e.target.value)}
@@ -425,7 +424,7 @@ export default function ProductsAdminPage() {
                     ))}
                 </select>
 
-                {/* Filtro stato */}
+                {/* Status filter */}
                 <select
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
@@ -442,12 +441,12 @@ export default function ProductsAdminPage() {
 
 
 
-            {/* Lista prodotti desktop */}
+            {/* List of products desktop */}
             {loading ? (
                 <p className="text-sm text-gray-500">{t('loading')}</p>
             ) : (
                 <>
-                    {/* Vista desktop */}
+                    {/* Desktop view */}
                     <ul className="hidden md:block divide-y divide-gray-200 dark:divide-gray-700 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
 
                         {paginatedItems.map((p) => {
@@ -514,8 +513,8 @@ export default function ProductsAdminPage() {
                                                 className="rounded-md border border-green-300 text-green-700 px-3 py-1.5 hover:bg-green-50"
                                                 onClick={async () => {
                                                     try {
-                                                        // QA: Ripristino prodotto - deve includere archived=false, is_active=true, deleted_at=null
-                                                        // per evitare che il trigger DB blocchi order_items su prodotti ripristinati
+                                                        // QA: Restore product - must include archived=false, is_active=true, deleted_at=null
+                                                        // to avoid the DB trigger blocking order_items on restored products
                                                         const { error } = await sb
                                                             .from('products')
                                                             .update({
@@ -525,16 +524,16 @@ export default function ProductsAdminPage() {
                                                             })
                                                             .eq('id', p.id)
                                                         if (error) {
-                                                            console.error('Errore ripristino:', error)
+                                                            console.error('Restore error:', error)
                                                             alert(`⚠️ ${t('restoreError')}`)
                                                             return
                                                         }
 
-                                                        // Rimuove subito il prodotto dalla lista archivio
+                                                        // Remove immediately from the archive list
                                                         setItems(prev => prev.filter(prod => prod.id !== p.id))
                                                         alert(`✅ ${t('productRestored')}`)
                                                     } catch (e) {
-                                                        console.error('Eccezione ripristino:', e)
+                                                        console.error('Restore exception:', e)
                                                         alert(`⚠️ ${t('restoreError')}`)
                                                     }
                                                 }}
@@ -578,7 +577,7 @@ export default function ProductsAdminPage() {
 
 
 
-                    {/* Vista mobile */}
+                    {/* Mobile view */}
                     <div className="space-y-4 md:hidden">
                         {paginatedItems.map((p) => {
                             const first = Array.isArray(p.images) ? p.images[0] : null
@@ -644,8 +643,8 @@ export default function ProductsAdminPage() {
                                                 className="flex-1 rounded-md border border-green-300 text-green-700 px-3 py-2 hover:bg-green-50 text-sm"
                                                 onClick={async () => {
                                                     try {
-                                                        // QA: Ripristino prodotto - deve includere archived=false, is_active=true, deleted_at=null
-                                                        // per evitare che il trigger DB blocchi order_items su prodotti ripristinati
+                                                        // QA: Restore product - must include archived=false, is_active=true, deleted_at=null
+                                                        // to avoid the DB trigger blocking order_items on restored products
                                                         const { data, error } = await sb
                                                             .from('products')
                                                             .update({
@@ -658,7 +657,7 @@ export default function ProductsAdminPage() {
                                                             .single()
 
                                                         if (error) {
-                                                            console.error('Errore ripristino:', error)
+                                                            console.error('Restore error:', error)
                                                             alert(`⚠️ ${t('restoreError')}`)
                                                             return
                                                         }
@@ -672,7 +671,7 @@ export default function ProductsAdminPage() {
                                                         }
                                                         alert(`✅ ${t('productRestored')}`)
                                                     } catch (e) {
-                                                        console.error('Eccezione ripristino:', e)
+                                                        console.error('Restore exception:', e)
                                                         alert(`⚠️ ${t('restoreError')}`)
                                                     }
                                                 }}
@@ -712,28 +711,28 @@ export default function ProductsAdminPage() {
                             )
                         })}
                     </div>
-                    {/* Controlli di paginazione */}
+                    {/* Pagination controls */}
                     {!loading && filteredItems.length > 0 && (
                         <div className="flex items-center justify-between mt-6">
-                            {/* Mobile: Precedente / Successivo */}
+                            {/* Mobile: Previous / Next */}
                             <div className="flex w-full justify-between md:hidden">
                                 <button
                                     disabled={currentPage === 1}
                                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                                     className="px-3 py-2 text-sm rounded-md border disabled:opacity-50"
                                 >
-                                    ← Precedente
+                                    ← Previous
                                 </button>
                                 <button
                                     disabled={currentPage === totalPages}
                                     onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                                     className="px-3 py-2 text-sm rounded-md border disabled:opacity-50"
                                 >
-                                    Successivo →
+                                    Next →
                                 </button>
                             </div>
 
-                            {/* Desktop: numeri di pagina */}
+                            {/* Desktop: page numbers */}
                             <div className="hidden md:flex gap-2">
                                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                                     <button
@@ -749,19 +748,19 @@ export default function ProductsAdminPage() {
                                 ))}
                             </div>
 
-                            {/* Desktop: select prodotti per pagina */}
+                            {/* Desktop: select products per page */}
                             <div className="hidden md:block">
                                 <select
                                     value={itemsPerPage}
                                     onChange={(e) => {
                                         setItemsPerPage(Number(e.target.value))
-                                        setCurrentPage(1) // resetta alla prima pagina
+                                        setCurrentPage(1) // reset to the first page
                                     }}
                                     className="rounded-md border px-2 py-1 text-sm"
                                 >
-                                    <option value={20}>20 per pagina</option>
-                                    <option value={50}>50 per pagina</option>
-                                    <option value={100}>100 per pagina</option>
+                                    <option value={20}>20 per page</option>
+                                    <option value={50}>50 per page</option>
+                                    <option value={100}>100 per page</option>
                                 </select>
                             </div>
                         </div>
@@ -773,7 +772,7 @@ export default function ProductsAdminPage() {
             )}
 
 
-            {/* Modal edit/nuovo */}
+            {/* Modal edit/new */}
             {editing && (
                 <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
                     <div className="w-full max-w-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-6 rounded shadow-lg max-h-[80vh] overflow-y-auto">
@@ -870,11 +869,11 @@ export default function ProductsAdminPage() {
                                     </div>
                                 )}
 
-                                {/* Immagine */}
+                                {/* Image */}
                                 <fieldset className="rounded-xl border border-gray-200 p-3">
                                     <legend className="px-1 text-sm font-medium text-gray-700 dark:text-zinc-400">{t('image')}</legend>
 
-                                    {/* Input file nascosto */}
+                                    {/* Hidden file input */}
                                     <input
                                         ref={fileInputRef}
                                         type="file"
@@ -884,7 +883,7 @@ export default function ProductsAdminPage() {
                                             const file = e.target.files?.[0]
                                             if (!file) return
 
-                                            // Validazioni (stessa logica di AdminImageUploader)
+                                            // Validations (same logic as AdminImageUploader)
                                             if (!file.type.startsWith('image/')) {
                                                 setUploadError(t('imageOnly'))
                                                 return
@@ -914,7 +913,7 @@ export default function ProductsAdminPage() {
                                         disabled={uploadingImage}
                                     />
 
-                                    {/* Dropzone cliccabile */}
+                                    {/* Clickable dropzone */}
                                     <div
                                         onClick={() => fileInputRef.current?.click()}
                                         className={`
@@ -929,21 +928,21 @@ export default function ProductsAdminPage() {
                                     >
                                         {editing.image_url ? (
                                             <>
-                                                {/* Preview immagine */}
+                                                {/* Preview image */}
                                                 <div className="relative aspect-video w-full overflow-hidden rounded-lg">
                                                     <img
                                                         src={editing.image_url}
                                                         alt={t('preview')}
                                                         className="h-full w-full object-cover"
                                                     />
-                                                    {/* Overlay "Cambia immagine" */}
+                                                    {/* Overlay "Change image" */}
                                                     <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity">
                                                         <span className="text-white font-medium">{t('changeImage')}</span>
                                                     </div>
                                                 </div>
                                             </>
                                         ) : (
-                                            /* Placeholder quando non c'è immagine */
+                                            /* Placeholder when there is no image */
                                             <div className="flex flex-col items-center justify-center py-12 px-4">
                                                 <svg
                                                     className="w-12 h-12 text-gray-400 mb-3"
@@ -968,7 +967,7 @@ export default function ProductsAdminPage() {
                                         )}
                                     </div>
 
-                                    {/* Messaggi di stato */}
+                                    {/* Status messages */}
                                     {uploadingImage && (
                                         <p className="text-sm text-gray-500 mt-2">{t('imageUploading')}</p>
                                     )}
@@ -976,7 +975,7 @@ export default function ProductsAdminPage() {
                                         <p className="text-sm text-red-600 mt-2">{uploadError}</p>
                                     )}
 
-                                    {/* Pulsante rimuovi immagine */}
+                                    {/* Remove image button */}
                                     {editing.image_url && (
                                         <button
                                             type="button"
@@ -988,7 +987,7 @@ export default function ProductsAdminPage() {
                                     )}
                                 </fieldset>
 
-                                {/* Categoria & Stock */}
+                                {/* Category & Stock */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
                                         {/* Categoria */}
@@ -1020,7 +1019,7 @@ export default function ProductsAdminPage() {
                                             step={editing.unit_type === 'per_kg' ? (Number(editing.qty_step) || 0.1) : 1}
                                             className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2"
 
-                                            value={editing.stock ?? ''} // '' quando null (valore già in formato display)
+                                            value={editing.stock ?? ''} // '' when null (value already in display format)
                                             onChange={(e) => {
                                                 const val = e.target.value
                                                 setEditing({
@@ -1046,14 +1045,14 @@ export default function ProductsAdminPage() {
                                             }
                                         />
                                         <p className="text-xs text-gray-500 mt-1">
-                                            Numero per ordinare i prodotti nello shop (1 = in cima).
+                                            Number to order products in the shop (1 = at the top).
                                         </p>
                                     </div>
 
 
                                 </div>
 
-                                {/* Stato */}
+                                {/* Status */}
                                 <label className="flex items-center gap-2">
                                     <input
                                         type="checkbox"
@@ -1071,14 +1070,14 @@ export default function ProductsAdminPage() {
                         </div>
 
                         <div className="flex items-center justify-between gap-2 border-t border-gray-100 px-4 py-3">
-                            {/* Elimina nel modal (solo se esiste id) */}
+                            {/* Delete in the modal (only if id exists) */}
                             {editing.id ? (
                                 <button
                                     className="rounded-md border border-red-300 text-red-700 px-3 py-2 hover:bg-red-50 disabled:opacity-50"
                                     onClick={() => editing.id && doDelete(editing.id)}
                                     disabled={deleting === editing.id}
                                 >
-                                    {deleting === editing.id ? 'Eliminazione…' : 'Elimina'}
+                                    {deleting === editing.id ? 'Deletion…' : 'Delete'}
                                 </button>
                             ) : (
                                 <span />

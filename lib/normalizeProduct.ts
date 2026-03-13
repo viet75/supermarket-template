@@ -1,8 +1,8 @@
 // lib/normalizeProduct.ts
 
 /**
- * Converte un valore in numero se possibile,
- * altrimenti ritorna null.
+ * Converts a value to a number if possible,
+ * otherwise returns null.
  */
 function numOrNull(v: unknown): number | null {
     if (v === null || v === undefined || v === '') return null
@@ -11,8 +11,8 @@ function numOrNull(v: unknown): number | null {
 }
 
 /**
- * Converte un valore in numero obbligatorio.
- * Lancia un errore se non valido.
+ * Converts a value to a required number.
+ * Throws an error if invalid.
  */
 function mustNumber(v: unknown, field = 'number'): number {
     const n = Number(v)
@@ -23,8 +23,8 @@ function mustNumber(v: unknown, field = 'number'): number {
 }
 
 /**
- * Normalizza un prodotto preso dal DB
- * forzando i campi numerici in valori consistenti.
+ * Normalizes a product taken from the DB
+ * by forcing numeric fields to consistent values.
  */
 export function normalizeProduct(p: any) {
     return {

@@ -9,7 +9,7 @@ type ToastProps = {
 
 export default function Toast({ message, onClose }: ToastProps) {
     useEffect(() => {
-        const t = setTimeout(onClose, 2000) // auto-hide dopo 2s
+        const t = setTimeout(onClose, 2000) // auto-hide after 2s
         return () => clearTimeout(t)
     }, [onClose])
 

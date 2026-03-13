@@ -2,8 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * Factory "safe": valida le env solo quando viene chiamata,
- * NON a import-time (evita 500 immediati nelle route).
+ * Factory "safe": validates env only when called,
+ * not at import-time (avoids 500s immediately in routes).
  */
 export function supabaseServer() {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

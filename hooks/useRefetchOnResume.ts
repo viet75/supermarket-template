@@ -3,27 +3,27 @@
 import { useEffect, useRef } from 'react'
 
 /**
- * Hook che chiama automaticamente refetch() quando l'app torna in foreground
- * (quando l'utente torna all'app su mobile o quando la finestra riprende focus).
+ * Hook that automatically calls refetch() when the app returns to the foreground
+ * (when the user returns to the app on mobile or when the window gains focus).
  * 
- * @param refetch - Funzione da chiamare quando l'app torna visibile
+ * @param refetch - Function to call when the app returns visible
  */
 export function useRefetchOnResume(refetch: () => void) {
     const refetchRef = useRef(refetch)
     const lastRunRef = useRef<number>(0)
 
-    // Mantiene sempre la versione più recente di refetch
+    // Always keep the most recent version of refetch
     useEffect(() => {
         refetchRef.current = refetch
     }, [refetch])
 
     useEffect(() => {
-        // Funzione helper con guard temporale per evitare doppio refetch
+        // Helper function with timeout guard to avoid double refetch
         const executeRefetch = () => {
             const now = Date.now()
             const timeSinceLastRun = now - lastRunRef.current
 
-            // Ignora se chiamata entro 500ms dall'ultima esecuzione
+            // Ignore if called within 500ms of the last execution
             if (timeSinceLastRun < 500) {
                 return
             }
@@ -32,22 +32,22 @@ export function useRefetchOnResume(refetch: () => void) {
             refetchRef.current()
         }
 
-        // Funzione helper che verifica se il documento è visibile e chiama refetch
+        // Helper function to check if the document is visible and call refetch
         const handleVisibilityChange = () => {
             if (document.hidden === false) {
                 executeRefetch()
             }
         }
 
-        // Funzione helper per il focus della finestra
+        // Helper function to handle window focus
         const handleFocus = () => {
             executeRefetch()
         }
 
-        // Ascolta i cambiamenti di visibilità (utile su mobile quando si torna dallo switcher)
+        // Listen to visibility changes (useful on mobile when returning from the switcher)
         document.addEventListener('visibilitychange', handleVisibilityChange)
 
-        // Ascolta il focus della finestra (utile su desktop e mobile)
+        // Listen to window focus (useful on desktop and mobile)
         window.addEventListener('focus', handleFocus)
 
         // Cleanup
@@ -55,5 +55,5 @@ export function useRefetchOnResume(refetch: () => void) {
             document.removeEventListener('visibilitychange', handleVisibilityChange)
             window.removeEventListener('focus', handleFocus)
         }
-    }, []) // Array vuoto: setup solo al mount, cleanup al unmount
+    }, []) // Empty array: setup only on mount, cleanup on unmount
 }

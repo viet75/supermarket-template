@@ -4,10 +4,10 @@ import { supabaseServiceRole } from '@/lib/supabaseService'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-/** GET: preview evasione (orari, cutoff, chiusure). Public, no auth. */
+/** GET: fulfillment preview (hours, cutoff, closures). Public, no auth. */
 export async function GET() {
   try {
-    // 1) Carica settings: qui decidiamo la priorità "delivery disabled"
+    // 1) Load settings: here we decide the priority "delivery disabled"
     const { data: settings, error: settingsErr } = await supabaseServiceRole
       .from('store_settings')
       .select('delivery_enabled')
@@ -22,7 +22,7 @@ export async function GET() {
       )
     }
 
-    // ✅ Priorità assoluta: se consegna disabilitata => blocca e NON chiamare la RPC orari
+    // ✅ Absolute priority: if delivery is disabled => block and do NOT call the RPC hours
     if (settings?.delivery_enabled !== true) {
       return NextResponse.json(
         {
@@ -38,7 +38,7 @@ export async function GET() {
       )
     }
 
-    // 2) Se consegna abilitata => usa la single source of truth: RPC
+    // 2) If delivery is enabled => use the single source of truth: RPC
     const { data, error } = await supabaseServiceRole.rpc('get_fulfillment_preview')
     const preview = (Array.isArray(data) ? data[0] : data) ?? null
 

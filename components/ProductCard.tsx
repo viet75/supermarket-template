@@ -37,10 +37,10 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
   const effective = sale != null && !Number.isNaN(sale) && sale > 0 ? sale : base
 
   const img = useMemo(() => {
-    // 1) immagine caricata dall'admin via Supabase Storage
+    // 1) image loaded from admin via Supabase Storage
     if (p?.image_url?.trim()) return p.image_url.trim()
 
-    // 2) prima immagine dell'array (se usi images[])
+    // 2) first image of the array (if using images[])
     const first = Array.isArray(p?.images) ? p.images[0] : null
     if (typeof first === 'string' && first.trim()) return first.trim()
     if (typeof first === 'object' && first && 'url' in (first as any)) {
@@ -48,10 +48,10 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
       if (url?.trim()) return url.trim()
     }
 
-    // 3) immagine demo statica dal campo "image"
+    // 3) static demo image from the "image" field
     if ((p as any).image?.trim()) return (p as any).image.trim()
 
-    // 4) fallback al placeholder locale
+    // 4) fallback to locale placeholder
     return '/placeholder-product.png'
   }, [p?.image_url, p?.images, (p as any)?.image])
 
@@ -59,7 +59,7 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
   const isUnlimited = stockNum === null
   const outOfStock = !isUnlimited && stockNum === 0
 
-  // Usa sempre slug se presente e non vuoto, altrimenti id
+  // Use slug if present and not empty, otherwise id
   const productKey = useMemo(() => {
     const slug = p.slug?.trim()
     return slug && slug.length > 0 ? slug : String(p.id)
@@ -90,7 +90,7 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
       }}
       aria-label={`${t('product.open')} ${p.name}`}
     >
-      {/* Badge esaurito / offerta */}
+      {/* Badge out of stock / offer */}
       {outOfStock && (
         <span className="absolute right-3 top-3 z-30 rounded-full bg-red-500/90 px-3 py-1 text-xs font-medium text-white shadow">
           {t('product.outOfStock')}
@@ -102,7 +102,7 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
         </span>
       )}
 
-      {/* Contenuto card sopra overlay */}
+      {/* Content card above overlay */}
       <div className="relative z-20 flex flex-col flex-grow">
         {/* Immagine */}
         <div className="aspect-square w-full overflow-hidden rounded-xl bg-gray-50 dark:bg-zinc-900">
@@ -113,7 +113,7 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
             style={{ viewTransitionName: `pimg-${p.id}` } as React.CSSProperties}
             loading="lazy"
             onError={(e) => {
-              // Fallback a placeholder se l'URL è rotto
+              // Fallback to placeholder if the URL is broken
               const target = e.target as HTMLImageElement
               if (target.src !== '/placeholder-product.png') {
                 target.src = '/placeholder-product.png'
@@ -122,7 +122,7 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
           />
         </div>
 
-        {/* Contenuto testuale */}
+        {/* Textual content */}
         <div className="flex flex-col flex-grow mt-3">
           <div className="line-clamp-2 text-sm font-medium text-gray-900 dark:text-zinc-100 min-h-[2.5rem]">
             {p.name}
@@ -164,7 +164,7 @@ function ProductCard({ p, onAdded }: { p: Product; onAdded?: (name: string) => v
             }
           />
 
-          {/* CTA SEMPRE IN FONDO */}
+          {/* CTA ALWAYS IN BACKGROUND */}
           <div className="mt-auto pt-2">
             <AddToCartControls p={p} img={img} onAdded={onAdded} />
           </div>

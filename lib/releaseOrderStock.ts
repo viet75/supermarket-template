@@ -1,10 +1,10 @@
 import { supabaseServiceRole } from '@/lib/supabaseService'
 
 /**
- * Rilascia stock riservato per un ordine.
- * Thin wrapper: chiama solo la DB RPC public.release_order_stock(p_order_id).
- * Tutta la logica (order_items, increment, stock_committed, ecc.) è nel DB.
- * Idempotente: la RPC ritorna ok senza operazioni se già rilasciato.
+ * Releases reserved stock for an order.
+ * Thin wrapper: calls only the DB RPC public.release_order_stock(p_order_id).
+ * All logic (order_items, increment, stock_committed, etc.) is in the DB.
+ * Idempotent: the RPC returns ok without operations if already released.
  */
 export async function release_order_stock(
     orderId: string

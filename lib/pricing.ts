@@ -10,9 +10,9 @@ const formatter = new Intl.NumberFormat('it-IT', {
 })
 
 /**
- * Formatta un numero come prezzo in euro (es. €6,49).
- * Evita problemi di floating point.
- * Robusta contro NaN/null/undefined: restituisce €0,00 se valore non finito.
+ * Formats a number as a price in euros (e.g. €6,49).
+ * Avoids floating point issues.
+ * Robust against NaN/null/undefined: returns €0,00 if value is not finite.
  */
 export function formatPrice(
     value: number | null | undefined,
@@ -36,7 +36,7 @@ export function formatPrice(
     return formatter.format(n)
   }
 
-// Back-compat: se chiami con (distance, subtotal) usa default; se passi cfg, usa cfg.
+// Back-compat: if called with (distance, subtotal) uses default; if passed cfg, uses cfg.
 export function deliveryFeeFor(distanceKm: number, subtotal: number, cfg?: DeliverySettings) {
     const conf = cfg ?? DEFAULTS;
     if (subtotal >= conf.free_over) return 0;

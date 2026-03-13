@@ -5,8 +5,8 @@ export const runtime = 'nodejs'
 
 /**
  * POST /api/orders/cleanup?secret=...
- * Rilascia stock per ordini card_online scaduti (TTL).
- * Protezione: richiede CRON_SECRET in query param.
+ * Releases stock for expired card_online orders (TTL).
+ * Protection: requires CRON_SECRET in query param.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
 
     if (!expectedSecret) {
       return NextResponse.json(
-        { error: 'CRON_SECRET non configurato' },
+        { error: 'CRON_SECRET not configured' },
         { status: 500 }
       )
     }
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Supporta sia ritorno "number" che oggetto (per robustezza)
+    // Supports both "number" return and object (for robustness)
     const result: any = await cleanupExpiredReservations()
     const releasedCount =
       typeof result === 'number'
@@ -37,16 +37,16 @@ export async function POST(req: NextRequest) {
       released: releasedCount,
     })
   } catch (err: any) {
-    console.error('[cleanup] Errore:', err)
+    console.error('[cleanup] Error:', err)
     return NextResponse.json(
-      { error: err?.message ?? 'Errore interno' },
+      { error: err?.message ?? 'Internal error' },
       { status: 500 }
     )
   }
 }
 
 /**
- * GET non consentito: endpoint pensato per essere chiamato solo da scheduler.
+ * GET not allowed: endpoint intended to be called only by scheduler.
  */
 export async function GET() {
   return NextResponse.json({ error: 'Method not allowed' }, { status: 405 })

@@ -64,10 +64,10 @@ export default function ProductDetailCTA({ product, heroImage }: Props) {
       onClick={handleAdd}
       disabled={outOfStock}
       className="w-full rounded-xl bg-green-600 hover:bg-green-700 px-4 py-3 text-center text-base font-semibold text-white disabled:bg-gray-300 dark:disabled:bg-zinc-700 disabled:text-gray-600 dark:disabled:text-zinc-400 transition-colors"
-      title={outOfStock ? 'Prodotto esaurito' : 'Aggiungi al carrello'}
+      title={outOfStock ? 'Product out of stock' : 'Add to cart'}
       aria-label="Aggiungi al carrello"
     >
-      {outOfStock ? 'Esaurito' : 'Aggiungi al carrello'}
+      {outOfStock ? 'Out of stock' : 'Add to cart'}
     </button>
   )
 }

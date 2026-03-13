@@ -11,7 +11,7 @@ export async function POST(req: Request) {
   const whsec = process.env.STRIPE_WEBHOOK_SECRET
 
   if (!sig || !whsec) {
-    console.error('❌ Webhook non configurato correttamente.')
+    console.error('❌ Webhook misconfigured.')
     return NextResponse.json({ error: 'Webhook misconfigured' }, { status: 400 })
   }
 
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     const rawBody = await req.text()
     event = stripe.webhooks.constructEvent(rawBody, sig, whsec)
   } catch (err: any) {
-    console.error('⚠️ Errore verifica firma webhook:', err.message)
+    console.error('⚠️ Webhook signature verification error:', err.message)
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
@@ -34,16 +34,16 @@ export async function POST(req: Request) {
   try {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as any
-      // ✅ Leggi orderId esclusivamente da session.metadata.orderId
+      // ✅ Read orderId exclusively from session.metadata.orderId
       const orderId = session.metadata?.orderId
 
-      // ✅ Se orderId manca, logga e ritorna 200 (mai 500)
+      // ✅ If orderId is missing, log and return 200 (never 500)
       if (!orderId) {
-        console.error('⚠️ orderId mancante nella metadata Stripe session:', session.id)
+        console.error('⚠️ orderId missing in Stripe session metadata:', session.id)
         return NextResponse.json({ received: true }, { status: 200 })
       }
 
-      // ✅ IDEMPOTENZA: Verifica stato ordine prima di aggiornare
+      // ✅ IDEMPOTENZA: Check order status before updating
       const { data: existingOrder, error: fetchError } = await supabase
         .from('orders')
         .select('payment_status, stock_reserved')
@@ -51,32 +51,32 @@ export async function POST(req: Request) {
         .single()
 
       if (fetchError || !existingOrder) {
-        console.error('❌ Errore lettura ordine nel webhook:', fetchError)
+        console.error('❌ Order read error in webhook:', fetchError)
         return NextResponse.json({ received: true }, { status: 200 })
       }
 
-      // ✅ Se già pagato, ritorna 200 senza side-effects (idempotenza)
+      // ✅ If already paid, return 200 without side-effects (idempotency)
       if (existingOrder.payment_status === 'paid') {
-        console.log(`✅ Ordine ${orderId} già pagato, webhook idempotente`)
+        console.log(`✅ Order ${orderId} already paid, idempotent webhook`)
         return NextResponse.json({ received: true }, { status: 200 })
       }
 
       // ✅ Guard-rail: Se stock_reserved=false (caso anomalo), fallback con riserva
       // Questo protegge da race conditions o errori nella creazione ordine
       if (existingOrder.stock_reserved === false) {
-        console.warn(`⚠️ Ordine ${orderId} non ha stock riservato, tentativo fallback riserva`)
+        console.warn(`⚠️ Order ${orderId} has no reserved stock, fallback reservation attempt`)
         try {
           const { reserveOrderStock } = await import('@/lib/reserveOrderStock')
           await reserveOrderStock(orderId)
-          console.log(`✅ Fallback riserva stock riuscito per ordine ${orderId}`)
+          console.log(`✅ Fallback stock reservation successful for order ${orderId}`)
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto'
-          console.error(`❌ Fallback riserva stock fallito per ordine ${orderId}:`, errorMessage)
-          // Continua comunque con l'aggiornamento payment_status (non bloccare)
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+          console.error(`❌ Fallback stock reservation failed for order ${orderId}:`, errorMessage)
+          // Continue with payment_status update (do not block)
         }
       }
 
-      // ✅ Aggiorna payment_status, status e stock_reserved/reserve_expires_at (NON toccare stock)
+      // ✅ Update payment_status, status and stock_reserved/reserve_expires_at (do not touch stock)
       const { error } = await supabase
         .from('orders')
         .update({
@@ -84,14 +84,14 @@ export async function POST(req: Request) {
           status: 'confirmed', 
           stripe_payment_intent_id: session.payment_intent ?? null,
           stripe_session_id: session.id,
-          stock_reserved: false,  // Riserva temporanea scaduta: ordine pagato
+          stock_reserved: false,  // Temporary reservation expired: order paid
           reserve_expires_at: null,  // Reset TTL
         })
         .eq('id', orderId)
-        .eq('payment_status', 'pending') // Guard aggiuntiva: aggiorna solo se ancora pending
+        .eq('payment_status', 'pending') // Additional guard: update only if still pending
 
       if (error) {
-        console.error('❌ Errore aggiornamento ordine in Supabase:', {
+        console.error('❌ Order update error in Supabase:', {
           orderId,
           sessionId: session.id,
           error: error.message,
@@ -100,8 +100,8 @@ export async function POST(req: Request) {
         return NextResponse.json({ received: true }, { status: 200 })
       }
 
-      // NOTA: Non toccare stock qui - lo stock è già scalato alla creazione ordine
-      // Solo aggiorniamo i flag di riserva temporanea (ora completata)
+      // NOTE: Do not touch stock here - stock was scaled at order creation
+      // We only update the temporary reservation flags (now completed)
     }
 
     // Gestione checkout.session.expired, checkout.session.async_payment_failed, checkout.session.async_payment_succeeded
@@ -113,11 +113,11 @@ export async function POST(req: Request) {
       const orderId = session.metadata?.orderId
 
       if (!orderId) {
-        console.error('⚠️ orderId mancante nella metadata Stripe session:', session.id)
+        console.error('⚠️ orderId missing in Stripe session metadata:', session.id)
         return NextResponse.json({ received: true }, { status: 200 })
       }
 
-      // Verifica che l'ordine non sia già pagato e che lo stock sia committed
+      // Verify that the order is not already paid and that the stock is committed
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .select('payment_status, stock_committed')
@@ -125,24 +125,24 @@ export async function POST(req: Request) {
         .single()
 
       if (orderError || !order) {
-        console.error('❌ Errore lettura ordine:', orderError)
+        console.error('❌ Order read error:', orderError)
         return NextResponse.json({ received: true }, { status: 200 })
       }
 
-      // Rilascia stock solo se non pagato e stock committed
+      // Release stock only if not paid and stock committed
       if (order.payment_status !== 'paid' && order.stock_committed === true) {
         const releaseResult = await release_order_stock(orderId)
         if (releaseResult.ok) {
-          console.log('✅ Stock rilasciato per ordine scaduto/fallito:', orderId)
+          console.log('✅ Stock released for expired/failed order:', orderId)
         } else {
-          console.error('❌ Errore rilascio stock:', releaseResult.error)
+          console.error('❌ Stock release error:', releaseResult.error)
         }
       }
     }
 
     return NextResponse.json({ received: true }, { status: 200 })
   } catch (err: any) {
-    console.error('❌ Errore interno webhook:', err.message, err)
+    console.error('❌ Internal webhook error:', err.message, err)
     return NextResponse.json({ received: true }, { status: 200 })
   }
 }

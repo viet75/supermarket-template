@@ -18,7 +18,7 @@ export default function CartBar({ onCheckout }: CartBarProps) {
 
     const items = useCartStore((s) => s.items)
 
-    if (!mounted) return null // Evita errori di hydration
+    if (!mounted) return null // Prevent hydration errors
 
     const count = items.length
     const total = items.reduce((acc, it) => {

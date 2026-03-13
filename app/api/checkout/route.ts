@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server'
 import { getStripe } from '@/lib/stripe'
 import { supabaseServiceRole } from '@/lib/supabaseService'
@@ -35,34 +34,55 @@ export async function POST(req: NextRequest) {
     } | null
 
     if (!body) {
-      return NextResponse.json({ error: 'Corpo richiesta non valido' }, { status: 400 })
+      return NextResponse.json(
+        { error_code: 'invalid_request_body', error: 'Invalid request body' },
+        { status: 400 }
+      )
     }
 
     const { orderId, items } = body
+
+    const pathname = new URL(req.url).pathname
+    const locale = pathname.startsWith('/it') ? 'it' : 'en'
+
+    const fallbackProductName = locale === 'it' ? 'Prodotto' : 'Product'
+    const deliveryFeeLabel = locale === 'it' ? 'Spese di consegna' : 'Delivery fee'
+    const pieceLabel = locale === 'it' ? 'pz' : 'pcs'
+
     if (!orderId || !items || items.length === 0) {
-      return NextResponse.json({ error: 'Dati ordine mancanti' }, { status: 400 })
+      return NextResponse.json(
+        { error_code: 'missing_order_data', error: 'Missing order data' },
+        { status: 400 }
+      )
     }
 
     // ============================================================
     // 0) BLOCK CHECKOUT BEFORE ANY GOOGLE / STRIPE CALL
     // ============================================================
+
     const { data: preview, error: previewError } = await supabaseServiceRole.rpc(
       'get_fulfillment_preview'
     )
 
     if (previewError) {
       return NextResponse.json(
-        { error: 'FULFILLMENT_PREVIEW_FAILED', details: previewError.message },
+        {
+          error_code: 'fulfillment_preview_failed',
+          error: 'Fulfillment preview failed',
+          details: previewError.message,
+        },
         { status: 500 }
       )
     }
 
     const p = preview as FulfillmentPreview | null
+
     if (p && p.can_accept === false) {
       return NextResponse.json(
         {
-          code: 'CHECKOUT_DISABLED',
-          message: p.message || 'Checkout non disponibile in questo momento.',
+          error_code: 'checkout_disabled',
+          error: 'Checkout not available',
+          message: p.message || 'Checkout not available',
           next_fulfillment_date: p.next_fulfillment_date ?? null,
           after_cutoff: p.after_cutoff ?? null,
           is_open_now: p.is_open_now ?? null,
@@ -71,7 +91,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Check delivery_enabled (before Google/Stripe)
     const { data: settings, error: settingsError } = await supabaseServiceRole
       .from('store_settings')
       .select('delivery_enabled')
@@ -80,21 +99,29 @@ export async function POST(req: NextRequest) {
 
     if (settingsError) {
       return NextResponse.json(
-        { error: 'SETTINGS_READ_FAILED', details: settingsError.message },
+        {
+          error_code: 'settings_read_failed',
+          error: 'Failed to read store settings',
+          details: settingsError.message,
+        },
         { status: 500 }
       )
     }
 
     if (settings?.delivery_enabled === false) {
       return NextResponse.json(
-        { code: 'DELIVERY_DISABLED', message: 'Le consegne sono temporaneamente disabilitate' },
+        {
+          error_code: 'delivery_disabled',
+          error: 'Delivery temporarily disabled',
+        },
         { status: 409 }
       )
     }
 
     // ============================================================
-    // 1) Retrieve order (delivery_fee + address)
+    // 1) Retrieve order
     // ============================================================
+
     const { data: order, error: orderError } = await supabaseServiceRole
       .from('orders')
       .select('delivery_fee, total, address')
@@ -102,59 +129,69 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (orderError || !order) {
-      return NextResponse.json({ error: 'Ordine non trovato' }, { status: 404 })
+      return NextResponse.json(
+        { error_code: 'order_not_found', error: 'Order not found' },
+        { status: 404 }
+      )
     }
 
     const deliveryFee = Number(order.delivery_fee ?? 0)
 
-    // Determine the fields to validate: use body.address if present, otherwise fallback to order.address
     const orderAddress = order.address as { cap?: string; line1?: string; city?: string } | null
     const bodyAddress = body.address
 
-    // If body.address contains non-empty line1/city/cap -> use them, otherwise fallback to order.address
     const line1 =
       bodyAddress?.line1 && bodyAddress.line1.trim()
         ? String(bodyAddress.line1).trim()
         : orderAddress?.line1
-          ? String(orderAddress.line1).trim()
-          : null
+        ? String(orderAddress.line1).trim()
+        : null
+
     const city =
       bodyAddress?.city && bodyAddress.city.trim()
         ? String(bodyAddress.city).trim()
         : orderAddress?.city
-          ? String(orderAddress.city).trim()
-          : null
+        ? String(orderAddress.city).trim()
+        : null
+
     const zip =
       bodyAddress?.cap && bodyAddress.cap.trim()
         ? String(bodyAddress.cap).trim()
         : orderAddress?.cap
-          ? String(orderAddress.cap).trim()
-          : null
+        ? String(orderAddress.cap).trim()
+        : null
 
-    // If city/zip missing -> 400 (do not create Stripe session)
     if (!city || !zip) {
-      return NextResponse.json({ error: 'CAP non valido o indirizzo non trovato' }, { status: 400 })
+      return NextResponse.json(
+        { error_code: 'invalid_zip', error: 'Invalid ZIP code or address not found' },
+        { status: 400 }
+      )
     }
 
-    // Valida formato CAP
     if (!/^\d{5}$/.test(zip) || zip === '00000') {
-      return NextResponse.json({ error: 'CAP non valido o indirizzo non trovato' }, { status: 400 })
+      return NextResponse.json(
+        { error_code: 'invalid_zip', error: 'Invalid ZIP code or address not found' },
+        { status: 400 }
+      )
     }
 
     // ============================================================
-    // 2) GOOGLE GEOCODE ONLY AFTER BLOCKERS (preview + delivery)
+    // 2) GOOGLE GEOCODE
     // ============================================================
+
     try {
-      // Build address query (only line1 if available, otherwise use zip+city)
       const query = line1 ? [line1, zip, city].filter(Boolean).join(', ') : [zip, city].join(', ')
 
       if (!query) {
-        return NextResponse.json({ error: 'CAP non valido o indirizzo non trovato' }, { status: 400 })
+        return NextResponse.json(
+          { error_code: 'invalid_zip', error: 'Invalid ZIP code or address not found' },
+          { status: 400 }
+        )
       }
 
-      // Derive baseUrl from req.url instead of using localhost hardcoded
       const url = new URL(req.url)
       const baseUrl = `${url.protocol}//${url.host}`
+
       const geocodeUrl =
         `${baseUrl}/api/geocode?q=${encodeURIComponent(query)}` +
         `&zip=${encodeURIComponent(zip)}` +
@@ -162,26 +199,33 @@ export async function POST(req: NextRequest) {
 
       const geocodeRes = await fetch(geocodeUrl)
 
-      // Gestione sicura del parsing JSON
       let geocodeData: any = null
+
       try {
         const text = await geocodeRes.text()
         geocodeData = JSON.parse(text)
       } catch {
-        return NextResponse.json({ error: 'CAP non valido o indirizzo non trovato' }, { status: 400 })
+        return NextResponse.json(
+          { error_code: 'invalid_zip', error: 'Invalid ZIP code or address not found' },
+          { status: 400 }
+        )
       }
 
       if (!geocodeData.ok) {
-        return NextResponse.json({ error: 'CAP non valido o indirizzo non trovato' }, { status: 400 })
+        return NextResponse.json(
+          { error_code: 'invalid_zip', error: 'Invalid ZIP code or address not found' },
+          { status: 400 }
+        )
       }
     } catch {
-      return NextResponse.json({ error: 'CAP non valido o indirizzo non trovato' }, { status: 400 })
+      return NextResponse.json(
+        { error_code: 'invalid_zip', error: 'Invalid ZIP code or address not found' },
+        { status: 400 }
+      )
     }
 
-    // If body.address is present (at least one of line1/city/cap), update Supabase BEFORE creating the Stripe session
     if (bodyAddress && (bodyAddress.line1 || bodyAddress.city || bodyAddress.cap)) {
       try {
-        // Simple merge: use the final values determined (line1, city, zip) that already have priority body.address > order.address
         const mergedAddress = {
           ...(orderAddress || {}),
           ...(line1 ? { line1 } : {}),
@@ -192,44 +236,49 @@ export async function POST(req: NextRequest) {
         await supabaseServiceRole.from('orders').update({ address: mergedAddress }).eq('id', orderId)
       } catch (updateError) {
         console.error('Errore aggiornamento indirizzo:', updateError)
-        return NextResponse.json({ error: 'Errore aggiornamento indirizzo' }, { status: 500 })
+
+        return NextResponse.json(
+          { error_code: 'address_update_failed', error: 'Failed to update address' },
+          { status: 500 }
+        )
       }
     }
 
-    // Derive siteUrl from req.url instead of using localhost hardcoded
     const url = new URL(req.url)
     const siteUrl = `${url.protocol}//${url.host}`
 
-    // generate line_items from frontend items with safe numerical conversion
     const line_items = items.map((it) => {
       const price = parseFloat(String(it.price).replace(',', '.')) || 0
       const qRaw = parseFloat(String(it.quantity ?? 1).replace(',', '.'))
       const quantity = Number.isFinite(qRaw) && qRaw > 0 ? qRaw : 1
 
-      // ✅ Stripe accepts only integer quantities
-      // if the product is "per_kg", incorporate the quantity into the price
       if (it.unit === 'per_kg') {
         const qty3 = Math.round((quantity + Number.EPSILON) * 1000) / 1000
         const isEttiExact =
           Number.isInteger(Math.round(qty3 * 10)) &&
           Math.abs(qty3 * 10 - Math.round(qty3 * 10)) < 1e-9
         const ettoCount = Math.round(qty3 * 10)
-        const labelQty = isEttiExact ? `${ettoCount} etti` : `${qty3} kg`
+
+        const labelQty =
+          locale === 'it'
+            ? isEttiExact
+              ? `${ettoCount} etti`
+              : `${qty3} kg`
+            : `${qty3} kg`
+
         return {
-          quantity: 1, // always 1 for weight products
+          quantity: 1,
           price_data: {
             currency: 'eur',
-            // total price (price per kg × quantity in kg)
             unit_amount: Math.round(price * qty3 * 100),
             product_data: {
-              name: `${it.name ?? 'Prodotto'} (${labelQty})`,
+              name: `${it.name ?? fallbackProductName} (${labelQty})`,
               ...(it.image_url ? { images: [it.image_url] } : {}),
             },
           },
         }
       }
 
-      // ✅ products sold "per piece"
       const qtyInt = Math.max(1, Math.round(quantity))
 
       return {
@@ -238,14 +287,13 @@ export async function POST(req: NextRequest) {
           currency: 'eur',
           unit_amount: Math.round(price * 100),
           product_data: {
-            name: `${it.name ?? 'Product'} (${qtyInt} pcs)`,
+            name: `${it.name ?? fallbackProductName} (${qtyInt} ${pieceLabel})`,
             ...(it.image_url ? { images: [it.image_url] } : {}),
           },
         },
       }
     })
 
-    // Add delivery fee as a separate line item if > 0
     if (deliveryFee > 0) {
       line_items.push({
         quantity: 1,
@@ -253,7 +301,7 @@ export async function POST(req: NextRequest) {
           currency: 'eur',
           unit_amount: Math.round(deliveryFee * 100),
           product_data: {
-            name: 'Delivery fee',
+            name: deliveryFeeLabel,
           },
         },
       })
@@ -261,35 +309,33 @@ export async function POST(req: NextRequest) {
 
     const stripe = getStripe()
 
-    // create the Stripe session
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card'],
       line_items,
-      success_url: `${siteUrl}/order/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${siteUrl}/checkout?cancelled=1&id=${orderId}`,
+      success_url: `${siteUrl}/${locale}/order/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${siteUrl}/${locale}/checkout?cancelled=1&id=${orderId}`,
       metadata: { orderId },
     })
 
-      // update the status in background (do not block the redirect)
-      ; (async () => {
-        try {
-          await supabaseServiceRole
-            .from('orders')
-            .update({
-              stripe_session_id: session.id,
-            })
-            .eq('id', orderId)
-        } catch {
-          /* ignore */
-        }
-      })()
+    ;(async () => {
+      try {
+        await supabaseServiceRole
+          .from('orders')
+          .update({
+            stripe_session_id: session.id,
+          })
+          .eq('id', orderId)
+      } catch {}
+    })()
 
-    // redirect immediately to Stripe
     return NextResponse.json({ url: session.url, id: session.id })
   } catch (err: any) {
     return NextResponse.json(
-      { error: err?.message ?? 'Errore creazione sessione di pagamento' },
+      {
+        error_code: 'stripe_session_creation_failed',
+        error: err?.message ?? 'Failed to create payment session',
+      },
       { status: 500 }
     )
   }

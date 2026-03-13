@@ -27,7 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="it">
       <head>
-        {/* 🔹 Manifest e icone PWA (icon + apple da metadata.icons) */}
+        {/* 🔹 Manifest and PWA icons (icon + apple from metadata.icons) */}
         <link rel="manifest" href="/manifest.json" />
 
         <meta name="apple-mobile-web-app-capable" content="yes" />

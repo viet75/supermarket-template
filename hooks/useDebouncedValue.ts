@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 
 /**
- * Hook che restituisce un valore "debounced"
- * cioè aggiornato solo dopo che l'utente smette di scrivere per un certo delay
+ * Hook that returns a "debounced" value
+ * i.e. updated only after the user stops writing for a certain delay
  */
 export function useDebouncedValue<T>(value: T, delay = 300): T {
     const [debounced, setDebounced] = useState(value)

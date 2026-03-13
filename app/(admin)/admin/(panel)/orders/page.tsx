@@ -6,6 +6,7 @@ import type { Order } from '@/lib/types'
 import { useRefetchOnResume } from '@/hooks/useRefetchOnResume'
 import { formatPrice } from '@/lib/pricing'
 import { useTranslations } from 'next-intl'
+import { useLocale } from 'next-intl'
 
 function formatQuantity(q: number, unit?: string | null) {
     if (!unit) return q.toString()
@@ -13,6 +14,7 @@ function formatQuantity(q: number, unit?: string | null) {
 }
 
 function ProductListCell({ items, t }: { items: any[]; t: any }) {
+    const locale = useLocale()
     const [showAll, setShowAll] = useState(false)
     const itemsToShow = showAll ? items : items.slice(0, 3)
 
@@ -21,29 +23,29 @@ function ProductListCell({ items, t }: { items: any[]; t: any }) {
     }
 
     function formatUnit(unit?: string | null): string {
-        if (unit === 'per_unit') return '(pz)'
+        if (unit === 'per_unit') return locale === 'en' ? '(pcs)' : '(pz)'
         if (unit === 'per_kg') return '(kg)'
-        return '(pz)'
+        return locale === 'en' ? '(pcs)' : '(pz)'
     }
 
     return (
         <ul className="space-y-1 md:space-y-1.5 text-gray-700 dark:text-gray-300 leading-tight">
             {itemsToShow.map((item, i) => {
-                const name = item.product?.name ?? "Prodotto"
+                const name = item.product?.name ?? 'Product'
                 const quantity = Number(item.quantity)
                 const unit = item.product?.unit_type ?? null
                 const unitLabel = formatUnit(unit)
 
                 return (
                     <li key={i} className="flex flex-row items-center">
-                        {/* Mobile: layout verticale - INVARIATO */}
+                        {/* Mobile: vertical layout - UNCHANGED */}
                         <div className="md:hidden text-sm flex flex-col gap-1">
                             <span className="font-medium text-gray-900 dark:text-gray-100">{name}</span>
                             <span className="text-gray-500 dark:text-gray-400 text-xs">
                                 {quantity} {unitLabel}
                             </span>
                         </div>
-                        {/* Desktop: layout compatto su una riga */}
+                        {/* Desktop: compact layout on one line */}
                         <div className="hidden md:flex md:flex-row md:items-center md:whitespace-nowrap">
                             <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{name}</span>
                             <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">× {quantity} {unitLabel}</span>
@@ -131,7 +133,7 @@ function PaymentBadge(
 ) {
     const normalizedStatus = status || 'pending'
 
-    // Logica per determinare badge e stile
+    // Logic to determine badge and style
     let badgeStyle: string
     let badgeLabel: string
     let tooltip: string | undefined
@@ -211,14 +213,14 @@ function formatPayment(pm: string, t: any) {
     }
 }
 
-// Componente per scrollbar orizzontale superiore sincronizzata (solo desktop)
+// Component for horizontal scrollbar (only desktop)
 function SyncedHorizontalScroll({ children }: { children: React.ReactNode }) {
     const topScrollRef = useRef<HTMLDivElement>(null)
     const topSpacerRef = useRef<HTMLDivElement>(null)
     const bottomScrollRef = useRef<HTMLDivElement>(null)
     const [showTopScroll, setShowTopScroll] = useState(false)
 
-    // Effetto per rilevare overflow orizzontale
+    // Effect to detect horizontal overflow
     useEffect(() => {
         const bottomEl = bottomScrollRef.current
         if (!bottomEl) return
@@ -230,11 +232,11 @@ function SyncedHorizontalScroll({ children }: { children: React.ReactNode }) {
             }
         }
 
-        // ResizeObserver per rilevare overflow orizzontale
+        // ResizeObserver to detect horizontal overflow
         const resizeObserver = new ResizeObserver(checkOverflow)
         resizeObserver.observe(bottomEl)
 
-        // Controllo iniziale
+        // Initial check
         checkOverflow()
 
         return () => {
@@ -242,7 +244,7 @@ function SyncedHorizontalScroll({ children }: { children: React.ReactNode }) {
         }
     }, [])
 
-    // Effetto per sincronizzare scroll e aggiornare lo spacer
+    // Effect to synchronize scroll and update the spacer
     useEffect(() => {
         if (!showTopScroll) return
 
@@ -252,23 +254,23 @@ function SyncedHorizontalScroll({ children }: { children: React.ReactNode }) {
 
         if (!bottomEl) return
 
-        // Funzione per aggiornare lo spacer
+        // Function to update the spacer
         const updateSpacer = () => {
             if (topSpacerEl && bottomEl) {
                 topSpacerEl.style.width = `${bottomEl.scrollWidth}px`
             }
         }
 
-        // ResizeObserver per aggiornare lo spacer quando cambia la dimensione
+        // ResizeObserver to update the spacer when the size changes
         const resizeObserver = new ResizeObserver(updateSpacer)
         resizeObserver.observe(bottomEl)
 
-        // Aggiorna lo spacer inizialmente (con delay per assicurarsi che topEl sia nel DOM)
+        // Update the spacer initially (with delay to ensure topEl is in the DOM)
         const timeoutId = setTimeout(() => {
             updateSpacer()
         }, 10)
 
-        // Sincronizzazione scroll
+        // Synchronize scroll
         if (!topEl) {
             return () => {
                 resizeObserver.disconnect()
@@ -313,7 +315,7 @@ function SyncedHorizontalScroll({ children }: { children: React.ReactNode }) {
 
     return (
         <>
-            {/* Scrollbar superiore - solo desktop, sticky, visibile solo se c'è overflow */}
+            {/* Upper scrollbar - only desktop, sticky, visible only if there is overflow */}
             {showTopScroll && (
                 <div
                     className="hidden md:block sticky top-0 z-30 overflow-x-auto overflow-y-hidden"
@@ -323,7 +325,7 @@ function SyncedHorizontalScroll({ children }: { children: React.ReactNode }) {
                     <div ref={topSpacerRef} style={{ height: '1px' }} />
                 </div>
             )}
-            {/* Contenitore scrollabile con overflow-x-auto */}
+            {/* Scrollable container with overflow-x-auto */}
             <div ref={bottomScrollRef} className="overflow-x-auto">
                 {children}
             </div>
@@ -333,6 +335,28 @@ function SyncedHorizontalScroll({ children }: { children: React.ReactNode }) {
 
 export default function OrdersAdminPage() {
     const t = useTranslations('adminOrders')
+    function mapAdminOrderError(errorCode?: string | null, fallback?: string | null) {
+        switch (errorCode) {
+            case 'order_not_found':
+                return t('orderNotFound')
+            case 'orders_load_failed':
+                return t('ordersLoadFailed')
+            case 'missing_id':
+                return t('missingId')
+            case 'order_delete_failed':
+                return t('orderDeleteFailed')
+            case 'invalid_order_action':
+                return t('invalidOrderAction')
+            case 'cancelled_order_operation_not_allowed':
+                return t('cancelledOrderOperationNotAllowed')
+            case 'paid_order_cannot_be_cancelled':
+                return t('paidOrderCannotBeCancelled')
+            case 'paid_order_handling_failed':
+                return t('paidOrderHandlingFailed')
+            default:
+                return fallback || t('genericError')
+        }
+    }
     const [orders, setOrders] = useState<any[]>([])
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true)
@@ -378,29 +402,29 @@ export default function OrdersAdminPage() {
         }
     }, [statusFilter, paymentFilter, searchTerm])
 
-    // Refetch wrapper che usa la pagina corrente
+    // Refetch wrapper that uses the current page
     const refetchCurrentPage = useCallback(() => {
         loadOrders(page)
     }, [loadOrders, page])
 
-    // Hook per refetch automatico quando l'app torna in foreground
+    // Hook for automatic refetch when the app returns to the foreground
     useRefetchOnResume(refetchCurrentPage)
 
-    // Auto-refresh ogni 30 secondi solo quando la pagina è visibile
+    // Auto-refresh every 30 seconds only when the page is visible
     useEffect(() => {
         let intervalId: NodeJS.Timeout | null = null
 
         const startPolling = () => {
-            // Pulisci interval esistente se presente
+            // Clear existing interval if present
             if (intervalId) {
                 clearInterval(intervalId)
             }
-            // Crea nuovo interval
+            // Create new interval
             intervalId = setInterval(() => {
                 if (!document.hidden) {
                     loadOrders(page)
                 }
-            }, 30000) // 30 secondi
+            }, 30000) // 30 seconds
         }
 
         const stopPolling = () => {
@@ -410,21 +434,21 @@ export default function OrdersAdminPage() {
             }
         }
 
-        // Listener per gestire visibility change
+        // Listener to handle visibility change
         const handleVisibilityChange = () => {
             if (document.hidden) {
-                // Pausa il polling quando la pagina è nascosta
+                // Pause the polling when the page is hidden
                 stopPolling()
             } else {
-                // Riprendi il polling quando la pagina diventa visibile
-                // Ricarica immediatamente quando torna visibile
+                // Resume the polling when the page becomes visible
+                // Reload immediately when visible
                 loadOrders(page)
-                // Poi continua con l'interval
+                // Then continue with the interval
                 startPolling()
             }
         }
 
-        // Avvia il polling se la pagina è visibile
+        // Start the polling if the page is visible
         if (!document.hidden) {
             startPolling()
         }
@@ -441,7 +465,7 @@ export default function OrdersAdminPage() {
         loadOrders(1)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [statusFilter, paymentFilter])
-    // 🔍 Ricarica ordini quando cambia la ricerca
+    // 🔍 Reload orders when the search changes
     useEffect(() => {
         const delay = setTimeout(() => {
             loadOrders(1)
@@ -451,9 +475,9 @@ export default function OrdersAdminPage() {
 
 
     const updateStatus = useCallback(async (id: string, status: Order['status']) => {
-        // Validazione: status deve essere presente
+        // Validation: status must be present
         if (!id || !status) {
-            alert('Errore: parametri mancanti per aggiornare lo stato')
+            alert(t('missingStatusUpdateParams'))
             return
         }
 
@@ -463,13 +487,13 @@ export default function OrdersAdminPage() {
             return
         }
 
-        // Verifica: impedisci di segnare come delivered un ordine offline non pagato
+        // Verify: prevent marking as delivered an offline order that is not paid
         if (
             order.payment_method !== 'card_online' &&
             order.payment_status !== 'paid' &&
             status === 'delivered'
         ) {
-            alert('Segna prima l\'ordine come pagato')
+            alert(t('markPaidFirst'))
             setUpdating(null)
             return
         }
@@ -477,9 +501,9 @@ export default function OrdersAdminPage() {
         setUpdating(id)
         try {
             const payload: { id: string; status: Order['status'] } = { id, status }
-            // Verifica finale: payload deve contenere almeno status
+            // Final verification: payload must contain at least status
             if (!payload.status) {
-                alert('Errore: stato non valido')
+                alert(t('invalidStatus'))
                 setUpdating(null)
                 return
             }
@@ -500,32 +524,46 @@ export default function OrdersAdminPage() {
                 } catch {
                     errorData = {}
                 }
-                const errorMessage = (typeof errorData === 'object' && errorData !== null && 'error' in errorData && typeof errorData.error === 'string')
-                    ? errorData.error
-                    : 'Errore durante l\'aggiornamento dello stato'
-                alert(errorMessage)
+
+                const errorCode =
+                    typeof errorData === 'object' &&
+                        errorData !== null &&
+                        'error_code' in errorData &&
+                        typeof errorData.error_code === 'string'
+                        ? errorData.error_code
+                        : undefined
+
+                const fallbackError =
+                    typeof errorData === 'object' &&
+                        errorData !== null &&
+                        'error' in errorData &&
+                        typeof errorData.error === 'string'
+                        ? errorData.error
+                        : t('statusUpdateFailed')
+
+                alert(mapAdminOrderError(errorCode, fallbackError))
             }
         } catch (error) {
             console.error('Errore updateStatus:', error)
-            alert('Errore durante l\'aggiornamento dello stato')
+            alert(t('statusUpdateFailed'))
         } finally {
             setUpdating(null)
         }
     }, [orders])
 
     const updatePaymentStatus = useCallback(async (id: string, payment_status: 'paid') => {
-        // Validazione: payment_status deve essere presente
+        // Validation: payment_status must be present
         if (!id || !payment_status) {
-            alert('Errore: parametri mancanti per aggiornare il pagamento')
+            alert(t('missingPaymentUpdateParams'))
             return
         }
 
         setUpdating(id)
         try {
             const payload: { id: string; payment_status: 'paid' } = { id, payment_status }
-            // Verifica finale: payload deve contenere almeno payment_status
+            // Final verification: payload must contain at least payment_status
             if (!payload.payment_status) {
-                alert('Errore: stato pagamento non valido')
+                alert(t('invalidPaymentStatus'))
                 setUpdating(null)
                 return
             }
@@ -550,14 +588,28 @@ export default function OrdersAdminPage() {
                 } catch {
                     errorData = {}
                 }
-                const errorMessage = (typeof errorData === 'object' && errorData !== null && 'error' in errorData && typeof errorData.error === 'string')
-                    ? errorData.error
-                    : 'Errore durante l\'aggiornamento del pagamento'
-                alert(errorMessage)
+
+                const errorCode =
+                    typeof errorData === 'object' &&
+                        errorData !== null &&
+                        'error_code' in errorData &&
+                        typeof errorData.error_code === 'string'
+                        ? errorData.error_code
+                        : undefined
+
+                const fallbackError =
+                    typeof errorData === 'object' &&
+                        errorData !== null &&
+                        'error' in errorData &&
+                        typeof errorData.error === 'string'
+                        ? errorData.error
+                        : t('paymentUpdateFailed')
+
+                alert(mapAdminOrderError(errorCode, fallbackError))
             }
         } catch (error) {
             console.error('Errore updatePaymentStatus:', error)
-            alert('Errore durante l\'aggiornamento del pagamento')
+            alert(t('paymentUpdateFailed'))
         } finally {
             setUpdating(null)
         }
@@ -605,7 +657,7 @@ export default function OrdersAdminPage() {
                     </select>
                 </div>
 
-                {/* Barra di ricerca - solo desktop */}
+                {/* Search bar - only desktop */}
                 <div className="hidden md:flex items-center mb-4 w-full md:w-1/3 relative">
                     <span className="absolute left-3 text-gray-400">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none"
@@ -627,17 +679,17 @@ export default function OrdersAdminPage() {
                 </div>
 
 
-                {/* Tabella desktop */}
+                {/* Table desktop */}
                 <div className="hidden md:flex justify-center w-full">
                     <div className="relative w-full max-w-7xl">
-                        {/* Ombra indicatore scroll */}
+                        {/* Scroll indicator shadow */}
                         <div
                             className="pointer-events-none absolute right-0 top-0 h-full w-8
                                        bg-gradient-to-l from-gray-50 to-transparent
                                        dark:from-gray-900 z-20"
                         />
 
-                        {/* Scroll container con scrollbar superiore sincronizzata */}
+                        {/* Scroll container with synchronized upper scrollbar */}
                         <SyncedHorizontalScroll>
                             <table className="min-w-[900px] w-full table-auto border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 shadow-sm">
 
@@ -663,7 +715,7 @@ export default function OrdersAdminPage() {
                                             className="border-t border-gray-200 dark:border-gray-700 even:bg-gray-50 dark:even:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
 
                                         >
-                                            {/* ID */}
+                                            {/* Order ID */}
                                             <td className="px-4 py-2 text-sm align-top">
                                                 <Link
                                                     href={`/admin/orders/${o.id}`}
@@ -679,7 +731,7 @@ export default function OrdersAdminPage() {
                                                 {formatDate(o.created_at)}
                                             </td>
 
-                                            {/* Indirizzo */}
+                                            {/* Address */}
                                             <td
                                                 className="px-4 py-2 text-sm text-gray-600 max-w-xs dark:text-gray-300 align-top"
                                                 title={`${o.address?.line1}, ${o.address?.cap} ${o.address?.city}${o.address?.note?.trim() ? `\nNote: ${o.address.note}` : ''}`}
@@ -692,7 +744,7 @@ export default function OrdersAdminPage() {
                                                 )}
                                             </td>
 
-                                            {/* Cliente */}
+                                            {/* Customer */}
                                             <td
                                                 className="px-4 py-2 text-sm text-gray-700 font-medium truncate max-w-xs dark:text-gray-300 align-top"
                                                 title={`${(o.first_name || o.address?.firstName) ?? ''} ${(o.last_name || o.address?.lastName) ?? ''}`}
@@ -706,24 +758,24 @@ export default function OrdersAdminPage() {
                                                 ) : null}
                                             </td>
 
-                                            {/* Prodotti */}
+                                            {/* Products */}
                                             <td className="px-4 py-2 text-sm max-w-xs align-top">
                                                 <ProductListCell items={o.order_items || []} t={t} />
                                             </td>
 
-                                            {/* Totale */}
+                                            {/* Total */}
                                             <td className="px-4 py-2 text-sm font-semibold text-right text-gray-900 dark:text-gray-100 whitespace-nowrap min-w-[90px] w-24 align-top">
 
                                                 {formatPrice(o.total)}
                                             </td>
 
-                                            {/* Pagamento */}
+                                            {/* Payment */}
                                             <td className="px-4 py-2 text-center text-sm align-top">
                                                 <div className="flex flex-col items-center gap-1">
-                                                    {/* ✅ Badge stato pagamento */}
+                                                    {/* ✅ Payment status badge */}
                                                     <PaymentBadge status={o.payment_status} payment_method={o.payment_method} t={t} />
 
-                                                    {/* Metodo di pagamento */}
+                                                    {/* Payment method */}
                                                     <span
                                                         className="text-xs text-gray-500 truncate max-w-[24ch] dark:text-gray-300"
                                                         title={formatPayment(o.payment_method, t)}
@@ -737,12 +789,12 @@ export default function OrdersAdminPage() {
                                             </td>
 
 
-                                            {/* Stato */}
+                                            {/* Status */}
                                             <td className="px-4 py-2 text-center align-top">
                                                 <StatusBadge status={o.status} t={t} />
                                             </td>
 
-                                            {/* Azioni */}
+                                            {/* Actions */}
                                             <td className="px-4 py-2 whitespace-nowrap pr-5 align-top">
                                                 <div className="flex flex-col items-center gap-2">
                                                     <div className="flex justify-center gap-2">
@@ -801,7 +853,7 @@ export default function OrdersAdminPage() {
 
 
                 </div>
-                {/* Paginazione */}
+                {/* Pagination */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between mt-6 gap-2 md:gap-0 w-full max-w-7xl mx-auto px-2">
                     <span className="text-sm text-gray-500 dark:text-gray-400 text-center md:text-left">
 
@@ -827,7 +879,7 @@ export default function OrdersAdminPage() {
 
 
 
-                {/* MOBILE VIEW (card) */}
+                {/* MOBILE VIEW (mobile view) */}
                 <div className="flex md:hidden items-center mb-4 w-full relative">
                     <span className="absolute left-3 text-gray-400 dark:text-gray-500">
 

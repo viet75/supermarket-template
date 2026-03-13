@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr';
 import { supabaseServiceRole } from '@/lib/supabaseService';
 import type { StoreSettings, PaymentMethod } from '@/lib/types';
 
-// PATCH SQL (applicare manualmente se la colonna social_links non esiste):
+// PATCH SQL (apply manually if the social_links column does not exist):
 // alter table public.store_settings add column if not exists social_links jsonb not null default '{}'::jsonb;
 
 const CONTACT_WHITELIST = ['store_name', 'address', 'email', 'phone', 'opening_hours', 'maps_link'] as const;
@@ -24,7 +24,7 @@ async function requireAdminSession(): Promise<{ ok: false; status: 401 | 403 } |
                     return cookieStore.getAll();
                 },
                 setAll() {
-                    // Route Handler: no-op per evitare scritture durante check
+                    // Route Handler: no-op to avoid writes during check
                 },
             },
         }
@@ -57,11 +57,11 @@ function normalizeContact(value: unknown): string | null {
 function validateContactFields(body: Record<string, unknown>): { ok: false; status: 400; message: string } | null {
     const maps = normalizeContact(body.maps_link);
     if (maps !== null && !/^https?:\/\//i.test(maps)) {
-        return { ok: false, status: 400, message: 'maps_link deve iniziare con http:// o https://' };
+        return { ok: false, status: 400, message: 'maps_link must start with http:// or https://' };
     }
     const em = normalizeContact(body.email);
     if (em !== null && !em.includes('@')) {
-        return { ok: false, status: 400, message: 'email non valida' };
+        return { ok: false, status: 400, message: 'email is invalid' };
     }
     return null;
 }
@@ -87,7 +87,7 @@ export async function PUT(req: Request) {
     const session = await requireAdminSession();
     if (!session.ok) {
         return NextResponse.json(
-            { error: session.status === 401 ? 'Sessione richiesta' : 'Permesso negato' },
+            { error: session.status === 401 ? 'Session requested' : 'Permission denied' },
             { status: session.status }
         );
     }
@@ -143,7 +143,7 @@ export async function PUT(req: Request) {
     patch.updated_at = new Date().toISOString();
 
     if (Object.keys(patch).length <= 1) {
-        return NextResponse.json({ error: 'Nessun campo valido da aggiornare' }, { status: 400 });
+        return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
     const { data, error } = await supabaseServiceRole

@@ -7,14 +7,15 @@ export type Coordinates = {
 }
 
 export async function geocodeAddress(q: string, baseUrl?: string) {
-    // Validazione query
+    // Query validation
     if (!q || typeof q !== 'string' || !q.trim()) {
         console.error('❌ geocodeAddress: query vuota o non valida:', q)
         return null
     }
 
-    // Lato client: usa sempre path relativo (funziona automaticamente con il dominio corrente)
-    // Lato server: se baseUrl è fornito, usalo; altrimenti usa path relativo (Next.js lo risolve automaticamente)
+    // Client-side: always use relative path (automatically resolves with current domain)
+    // Server-side: if baseUrl is provided, use it; otherwise use relative path (Next.js resolves it automatically)
+    // On the server side: if baseUrl is provided, use it; otherwise use a relative path (Next.js resolves it automatically)
     const url = baseUrl 
         ? `${baseUrl}/api/geocode?q=${encodeURIComponent(q.trim())}`
         : `/api/geocode?q=${encodeURIComponent(q.trim())}`
@@ -61,7 +62,7 @@ export function computeDistanceFromStore(
         return 0
     }
 
-    // 🔥 FALLBACK AUTOMATICO dalle ENV
+    // 🔥 Automatic fallback from ENV variables
     const envLat = process.env.NEXT_PUBLIC_STORE_LAT
     const envLng = process.env.NEXT_PUBLIC_STORE_LNG
 

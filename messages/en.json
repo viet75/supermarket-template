@@ -45,7 +45,14 @@
   "checkout": {
     "title": "Checkout",
     "backToStore": "Back to store",
-    "settingsError": "Unable to load store settings."
+    "settingsError": "Unable to load store settings.",
+    "invalidRequestBody": "Invalid request.",
+    "missingOrderData": "Missing order data.",
+    "checkoutDisabled": "Checkout is not available at the moment.",
+    "deliveryDisabled": "Delivery is temporarily disabled.",
+    "orderNotFound": "Order not found.",
+    "addressUpdateFailed": "Failed to update the address.",
+    "stripeSessionCreationFailed": "Failed to create the payment session."
   },
   "checkoutForm": {
     "customerDataTitle": "📍 Customer details",
@@ -102,7 +109,14 @@
     "storeOpensLaterTodayAt": "The store opens later today. Your order will be fulfilled from {time}.",
     "storeReopensLaterTodayAt": "The store reopens later today. Your order will be fulfilled from {time}.",
     "deliveryOutOfRange": "Delivery is not available for this address ({distance} km, maximum {max} km).",
-    "checkingAvailability": "Checking store hours and availability..."
+    "checkingAvailability": "Checking store hours and availability...",
+    "estimate": "estimate",
+    "paymentMethodUnavailable": "Payment method not available",
+    "productsNotFound": "Some products in the cart are no longer available. Clear the cart and try again.",
+    "productsNotAvailable": "Some products are no longer available. We updated the cart.",
+    "stockInsufficient": "Some products are no longer available. We updated the cart.",
+    "invalidQuantityStep": "Invalid quantity for this product.",
+    "invalidQuantityUnit": "Invalid quantity for this product."
   },
   "header": {
     "defaultStoreName": "Supermarket Template",
@@ -162,7 +176,23 @@
     "notesPrefix": "Notes",
     "totalLabel": "Total",
     "drawerProductsTitle": "Order products #{id}",
-    "courierNotes": "Courier notes"
+    "courierNotes": "Courier notes",
+    "orderNotFound": "Order not found.",
+    "ordersLoadFailed": "Failed to load orders.",
+    "missingId": "Missing ID.",
+    "orderDeleteFailed": "Failed to delete order.",
+    "invalidOrderAction": "Invalid action: specify action, status or payment_status.",
+    "cancelledOrderOperationNotAllowed": "Cancelled order: operation not allowed.",
+    "paidOrderCannotBeCancelled": "Cannot cancel an order that is already paid.",
+    "paidOrderHandlingFailed": "Failed to handle paid order.",
+    "genericError": "An error occurred.",
+    "missingStatusUpdateParams": "Missing parameters to update the status.",
+    "markPaidFirst": "Mark the order as paid first.",
+    "invalidStatus": "Invalid status.",
+    "statusUpdateFailed": "Failed to update order status.",
+    "missingPaymentUpdateParams": "Missing parameters to update the payment.",
+    "invalidPaymentStatus": "Invalid payment status.",
+    "paymentUpdateFailed": "Failed to update payment status."
   },
   "adminProducts": {
     "title": "Products management",
@@ -367,5 +397,22 @@
     "message": "Thank you! Your order has been received successfully.",
     "orderId": "Order ID",
     "backToStore": "Back to store"
+  },
+  "adminOrderDetail": {
+    "missingOrderId": "Missing order ID",
+    "orderNotFound": "Order not found",
+    "orderLoadFailed": "Failed to load order",
+    "genericError": "Error",
+    "loading": "Loading…",
+    "backToOrders": "Back to orders list",
+    "order": "Order",
+    "ordersList": "Orders list",
+    "courierNotes": "Courier notes",
+    "products": "Products",
+    "product": "Product",
+    "costSummary": "Cost summary",
+    "subtotalProducts": "Products subtotal",
+    "deliveryCost": "Delivery cost",
+    "total": "Total"
   }
 }

@@ -3,12 +3,12 @@
 import { useEffect, useRef, useCallback } from 'react'
 
 /**
- * Hook che chiama una callback quando l'app torna in foreground
- * (visibilitychange o window focus).
- * Usa throttle per evitare spam (default 3000ms).
+ * Hook that calls a callback when the app returns to the foreground
+ * (visibilitychange or window focus).
+ * Uses throttle to avoid spam (default 3000ms).
  *
- * @param refresh - Funzione da chiamare (es. fetchProducts, router.refresh)
- * @param minIntervalMs - Intervallo minimo tra chiamate (default 3000)
+ * @param refresh - Function to call (e.g. fetchProducts, router.refresh)
+ * @param minIntervalMs - Minimum interval between calls (default 3000)
  */
 export function useForegroundRefresh(
     refresh: () => void | Promise<void>,

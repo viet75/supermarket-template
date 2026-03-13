@@ -5,11 +5,13 @@ import { formatPrice } from '@/lib/pricing'
 import { formatQty } from '@/lib/qty'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useTranslations } from 'next-intl'
+import { useTranslations, useLocale } from 'next-intl'
 
 export default function CartPage() {
+    const locale = useLocale()
     const { items, removeItem, clear, total } = useCartStore()
     const t = useTranslations('cartPage')
+
 
     return (
         <div className="container mx-auto px-4 py-8">
@@ -50,7 +52,12 @@ export default function CartPage() {
                                 <div>
                                     <h2 className="font-semibold">{i.name}</h2>
                                     <p className="text-sm text-gray-500 dark:text-zinc-400">
-                                        {formatQty(Number(i.qty), i.unit ?? 'per_unit', i.qty_step)}
+                                        {formatQty(
+                                            Number(i.qty),
+                                            i.unit ?? 'per_unit',
+                                            i.qty_step,
+                                            locale === 'en' ? 'en' : 'it'
+                                        )}
                                     </p>
                                     <p className="text-sm font-medium text-gray-700">
                                         {formatPrice((i.salePrice && i.salePrice < i.price ? i.salePrice : i.price) * i.qty)}
@@ -73,10 +80,10 @@ export default function CartPage() {
                             onClick={clear}
                             className="bg-gray-200 hover:bg-gray-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-gray-700 dark:text-zinc-300 px-4 py-2 rounded"
                         >
-                           {t('clear')} 
+                            {t('clear')}
                         </button>
                         <p className="text-lg font-semibold">
-                        {t('total')}: {formatPrice(total())}
+                            {t('total')}: {formatPrice(total())}
                         </p>
                     </div>
 

@@ -6,7 +6,7 @@ function round2(n: number) {
     return Math.round(n * 100) / 100
 }
 
-/** null/undefined/NaN/non finito => null; altrimenti numero finito (per delivery_max_km). Illimitato se null. */
+/** null/undefined/NaN/non-finite => null; otherwise finite number (for delivery_max_km). Unlimited if null. */
 export function normalizeDeliveryMaxKm(value: unknown): number | null {
     if (value == null || value === '') return null
     const n = Number(value)
@@ -14,8 +14,8 @@ export function normalizeDeliveryMaxKm(value: unknown): number | null {
 }
 
 /**
- * Calcola il costo della consegna in base alla distanza e alle impostazioni del negozio
- * Funzione pura per il calcolo della delivery fee
+ * Calculate the delivery fee based on the distance and the store settings
+ * Pure function for calculating the delivery fee
  */
 export function calculateDeliveryFee({
     distanceKm,
@@ -32,7 +32,7 @@ export function calculateDeliveryFee({
 }): number {
     const max = normalizeDeliveryMaxKm(maxKm)
     if (max !== null && distanceKm > max) {
-        throw new Error('Fuori zona di consegna')
+        throw new Error('Outside delivery area')
     }
 
     if (distanceKm <= baseKm) {
@@ -44,7 +44,7 @@ export function calculateDeliveryFee({
 }
 
 /**
- * Calcola il costo della consegna in base alla distanza e alle impostazioni del negozio
+ * Calculate the delivery fee based on the distance and the store settings
  */
 export function computeDeliveryFee(distanceKm: number, s: StoreSettings): number {
     if (!s.delivery_enabled) return 0
@@ -58,8 +58,8 @@ export function computeDeliveryFee(distanceKm: number, s: StoreSettings): number
         return 0
     }
 
-    // Se è previsto un costo fisso fino a `delivery_fee_per_km` km
-    // (es. 5€ fino a 3 km, oltre calcoliamo extra per ogni km aggiuntivo)
+    // If a fixed cost is expected up to `delivery_fee_per_km` km
+    // (e.g. 5€ up to 3 km, then calculate extra per each additional km)
     if (perKm > 0) {
         const extraKm = Math.max(0, km - s.delivery_fee_per_km)
         return round2(base + extraKm * perKm)
@@ -69,26 +69,26 @@ export function computeDeliveryFee(distanceKm: number, s: StoreSettings): number
 }
 
 /**
- * Verifica se l’indirizzo del cliente è entro il raggio di consegna.
+ * Verify if the client's address is within the delivery radius.
  */
 export function validateDelivery(distanceKm: number, s: StoreSettings): { ok: boolean; reason?: string } {
     if (!s.delivery_enabled) {
-        return { ok: false, reason: 'Consegna disabilitata' }
+        return { ok: false, reason: 'Delivery disabled' }
     }
     const km = Math.max(0, Number(distanceKm) || 0)
     const maxKmSafe = normalizeDeliveryMaxKm((s as any).delivery_max_km)
     if (maxKmSafe !== null && km > maxKmSafe) {
         return {
             ok: false,
-            reason: `⚠️ L’indirizzo è fuori dal raggio massimo di consegna (${maxKmSafe} km)`,
+            reason: `⚠️ The address is outside the maximum delivery radius (${maxKmSafe} km)`,
         }
     }
     return { ok: true }
 }
 
 /**
- * Calcola automaticamente la distanza tra il negozio e l’indirizzo del cliente.
- * Ritorna 0 se non è stato possibile calcolare.
+ * Automatically calculates the distance between the store and the client's address.
+ * Returns 0 if the distance cannot be calculated.
  */
 export async function getClientDistanceKm(
     store: StoreSettings,
@@ -109,13 +109,13 @@ export async function getClientDistanceKm(
     )
 }
 
-// wrapper per riutilizzare geocodeAddress e passare l’oggetto giusto
+// wrapper to reuse geocodeAddress and pass the correct object
 async function geocodeAndGetCoords(fullAddress: string): Promise<Coordinates | null> {
     return await import('./geo').then(m => m.geocodeAddress(fullAddress))
 }
 
 /**
- * Restituisce i metodi di pagamento abilitati dal negozio
+ * Returns the enabled payment methods from the store
  */
 export function allowedPaymentMethods(s: StoreSettings): PaymentMethod[] {
     return s.payment_methods

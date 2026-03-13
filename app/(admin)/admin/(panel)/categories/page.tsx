@@ -19,9 +19,9 @@ export default function CategoriesAdminPage() {
         const sb = supabaseClient()
         const query = sb.from('categories').select('*').order('name')
         if (showArchived) {
-            query.not('deleted_at', 'is', null) // archiviate
+            query.not('deleted_at', 'is', null) // archived
         } else {
-            query.is('deleted_at', null) // attive
+            query.is('deleted_at', null) // active
         }
         const { data, error } = await query
         if (error) console.error(error)
@@ -29,7 +29,7 @@ export default function CategoriesAdminPage() {
         setLoading(false)
     }, [showArchived])
 
-    // Hook per refetch automatico quando l'app torna in foreground
+    // Hook for automatic refetch when the app returns to the foreground
     useRefetchOnResume(loadCategories)
 
     useEffect(() => {
@@ -40,7 +40,7 @@ export default function CategoriesAdminPage() {
         if (!newName.trim()) return
         const sb = supabaseClient()
 
-        // categoria temporanea (optimistic)
+        // temporary category (optimistic)
         const tempCategory: Category = { id: crypto.randomUUID(), name: newName }
         setCategories((prev) => [...prev, tempCategory])
         setNewName('')
@@ -88,6 +88,7 @@ export default function CategoriesAdminPage() {
         }
 
         showToast('success', t('categoryMovedToArchive'))
+        await loadCategories()
     }
 
     async function restoreCategory(id: string) {

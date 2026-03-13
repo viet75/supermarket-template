@@ -11,11 +11,11 @@ export default function AdminImageUploader({ onUploaded }: { onUploaded: (url: s
 
         // (opz) mini validazioni
         if (!file.type.startsWith('image/')) {
-            setError('Seleziona un file immagine')
+            setError('Please select an image file')
             return
         }
         if (file.size > 5 * 1024 * 1024) { // 5MB
-            setError('Immagine troppo grande (max 5MB)')
+            setError('Image too large (max 5MB)')
             return
         }
         setError(null)
@@ -27,11 +27,11 @@ export default function AdminImageUploader({ onUploaded }: { onUploaded: (url: s
 
             const res = await fetch('/api/admin/upload', { method: 'POST', body: fd })
             const json = await res.json()
-            if (!res.ok || !json?.url) throw new Error(json?.error || 'Upload fallito')
+            if (!res.ok || !json?.url) throw new Error(json?.error || 'Upload failed')
 
             onUploaded(json.url)
         } catch (err: any) {
-            setError(err?.message || 'Errore upload')
+            setError(err?.message || 'Upload error')
         } finally {
             setLoading(false)
         }
@@ -39,9 +39,9 @@ export default function AdminImageUploader({ onUploaded }: { onUploaded: (url: s
 
     return (
         <div>
-            <label className="block text-sm font-medium mb-1">Immagine</label>
+            <label className="block text-sm font-medium mb-1">Image</label>
             <input type="file" accept="image/*" onChange={handleChange} disabled={loading} />
-            {loading && <p className="text-sm text-gray-500 mt-1">Caricamento…</p>}
+            {loading && <p className="text-sm text-gray-500 mt-1">Uploading…</p>}
             {error && <p className="text-sm text-red-600 mt-1">{error}</p>}
         </div>
     )

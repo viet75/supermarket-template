@@ -28,7 +28,7 @@ export default function Header() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
-  // Admin = autenticato + email coincide con NEXT_PUBLIC_ADMIN_EMAIL (se definita)
+  // Admin = authenticated + email matches NEXT_PUBLIC_ADMIN_EMAIL (if defined)
   useEffect(() => {
     const supabase = supabaseClient()
     const adminEmail = typeof process.env.NEXT_PUBLIC_ADMIN_EMAIL === 'string'
@@ -77,7 +77,7 @@ export default function Header() {
     }
   }, [])
 
-  // posizione dropdown (fixed) ancorata al bottone
+  // dropdown position (fixed) anchored to the button
   const [pos, setPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 })
 
   const computePos = () => {
@@ -85,7 +85,7 @@ export default function Header() {
     if (!btn) return
     const r = btn.getBoundingClientRect()
 
-    // dropdown: fixed, allineato a destra del bottone, sotto al bottone
+    // dropdown: fixed, aligned to the right of the button, below the button
     const top = r.bottom + 8
     const right = window.innerWidth - r.right
     setPos({ top, right })
@@ -97,7 +97,7 @@ export default function Header() {
 
     const onResize = () => computePos()
     window.addEventListener('resize', onResize)
-    window.addEventListener('scroll', onResize, { passive: true }) // se scrolla, riallinea
+    window.addEventListener('scroll', onResize, { passive: true }) // if scrolling, realign
 
     return () => {
       window.removeEventListener('resize', onResize)
@@ -105,11 +105,11 @@ export default function Header() {
     }
   }, [openMenu])
 
-  // chiudi se clic fuori + ESC
+  // close if clicked outside + ESC
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node
-      // se clicchi sul bottone o sul menu, non chiudere
+      // if clicked on the button or menu, do not close
       if (btnRef.current?.contains(target)) return
       if (menuRef.current?.contains(target)) return
       setOpenMenu(false)
@@ -140,7 +140,7 @@ export default function Header() {
     router.refresh()
   }
 
-  // contenuto dropdown
+  // dropdown content
   const dropdown = (
     <AnimatePresence>
       {openMenu && (
@@ -306,7 +306,7 @@ export default function Header() {
             onClick={() => {
               const next = !openMenu
               setOpenMenu(next)
-              // calcola subito posizione quando apre
+              // calculate position immediately when opening
               if (next) requestAnimationFrame(computePos)
             }}
             className="flex items-center gap-1 text-gray-700 dark:text-zinc-300 text-2xl hover:text-green-600 transition cursor-pointer"
@@ -325,7 +325,7 @@ export default function Header() {
             </motion.span>
           </button>
 
-          {/* ✅ Portal su body: sempre sopra qualsiasi sticky */}
+          {/* ✅ Portal on body: always above any sticky */}
           {mounted ? createPortal(dropdown, document.body) : null}
         </div>
       </div>

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 
 /**
  * ClientRefresher
- * Forza refresh quando l’utente usa la freccia indietro/avanti del browser
+ * Force refresh when the user uses the browser's back/forward arrow
  */
 export default function ClientRefresher() {
     const router = useRouter()
@@ -13,7 +13,7 @@ export default function ClientRefresher() {
     useEffect(() => {
         const handler = () => {
             console.log('🔄 Back/forward → refresh forzato')
-            // piccolo delay per assicurarsi che Next abbia completato il ripristino
+            // small delay to ensure Next has completed the restoration
             setTimeout(() => {
                 router.refresh()
             }, 100)

@@ -8,8 +8,6 @@ import { release_order_stock } from '@/lib/releaseOrderStock'
 import { getStripe } from '@/lib/stripe'
 import { cleanupExpiredReservations } from '@/lib/cleanupExpiredReservations'
 
-
-
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
@@ -17,47 +15,46 @@ function round2(n: number) {
     return Math.round(n * 100) / 100
 }
 
-// 🔎 Helper robusto per normalizzare numeri (accetta "8,5" e "8.5", number o string)
+// 🔎 Robust helper to normalize numbers (accepts "8,5", "8.5", number or string)
 function parseDec(v: unknown, field: string): number {
-    // Se è già un numero valido, restituiscilo direttamente
+    // If it's already a valid number, return it directly
     if (typeof v === 'number') {
         if (isNaN(v) || !isFinite(v) || v <= 0) {
             throw new Error(`Invalid ${field}: must be a positive number`)
         }
-        return parseFloat(v.toFixed(3)) // mantiene fino a 3 decimali
+        return parseFloat(v.toFixed(3)) // keep up to 3 decimal places
     }
-    
-    // Se è null/undefined, errore
+
+    // If it's null/undefined, error
     if (v === null || v === undefined) {
         throw new Error(`Invalid ${field}: value is required`)
     }
-    
-    // Converti a stringa e pulisci
+
+    // Convert to string and clean
     let s = String(v).trim()
     if (s === '' || s.toLowerCase() === 'nan') {
         throw new Error(`Invalid ${field}: empty or NaN`)
     }
-    
-    // Sostituisci virgola italiana con punto
+
+    // Replace Italian comma with dot
     s = s.replace(',', '.')
-    
-    // Rimuovi eventuali spazi
+
+    // Remove any spaces
     s = s.replace(/\s/g, '')
-    
+
     // Parse
     const n = parseFloat(s)
     if (isNaN(n) || !isFinite(n)) {
         throw new Error(`Invalid ${field}: not a valid number`)
     }
-    
-    // Valida che sia positivo
+
+    // Validate that it is positive
     if (n <= 0) {
         throw new Error(`Invalid ${field}: must be greater than 0`)
     }
-    
-    return parseFloat(n.toFixed(3)) // mantiene fino a 3 decimali
-}
 
+    return parseFloat(n.toFixed(3)) // keep up to 3 decimal places
+}
 
 async function loadSettings(): Promise<StoreSettings | null> {
     const { data, error } = await supabaseServiceRole
@@ -73,8 +70,25 @@ async function loadSettings(): Promise<StoreSettings | null> {
 
     return (data ?? null) as StoreSettings | null
 }
+async function loadProductsForReconcile(productIds: string[]) {
+    if (!productIds.length) return []
 
-/** Normalizza i metodi di pagamento dal body */
+    const uniqueIds = [...new Set(productIds.map(String))]
+
+    const { data, error } = await supabaseServiceRole
+        .from('products')
+        .select('id, stock, stock_unlimited')
+        .in('id', uniqueIds)
+
+    if (error) {
+        console.error('❌ Errore loadProductsForReconcile:', error.message)
+        return []
+    }
+
+    return data ?? []
+}
+
+/** Normalize payment methods from body */
 function normalizePaymentMethod(pm: string): PaymentMethod | null {
     switch (pm) {
         case 'cash':
@@ -120,69 +134,113 @@ export async function GET() {
     })
 }
 
-/** POST: crea ordine con validazioni + calcolo distanza */
+/** POST: create order with validations + distance calculation */
 export async function POST(req: Request) {
     try {
         if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
             return NextResponse.json(
-                { error: '❌ Variabili ENV mancanti (NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)' },
+                {
+                    error_code: 'env_missing',
+                    error: 'Missing environment variables',
+                },
                 { status: 500 }
             )
         }
 
-        // Lazy cleanup (backup): rilascia ordini scaduti prima di creare nuovo ordine
-        // Se il cron non gira, il primo utente che fa un ordine sblocca lo stock
+        // Lazy cleanup (backup): release expired orders before creating a new order
+        // If the cron is not running, the first user who makes an order unlocks the stock
         await cleanupExpiredReservations()
 
         const body = await req.json()
 
         // 🧾 Debug: log items payload
-        console.log("🧾 /api/orders items payload:", JSON.stringify(body?.items ?? body?.order_items ?? null));
+        console.log('🧾 /api/orders items payload:', JSON.stringify(body?.items ?? body?.order_items ?? null))
 
-        // Verifica campi base
+        // Validate base fields
         if (!Array.isArray(body.items) || body.items.length === 0) {
-            return NextResponse.json({ error: 'Il carrello è vuoto' }, { status: 400 })
-        }
-        if (!body.address?.line1 || !body.address?.city || !body.address?.cap) {
-            return NextResponse.json({ error: 'Indirizzo incompleto' }, { status: 400 })
+            return NextResponse.json(
+                {
+                    error_code: 'empty_cart',
+                    error: 'Cart is empty',
+                },
+                { status: 400 }
+            )
         }
 
-        // Carica le impostazioni del negozio
+        if (!body.address?.line1 || !body.address?.city || !body.address?.cap) {
+            return NextResponse.json(
+                {
+                    error_code: 'incomplete_address',
+                    error: 'Incomplete address',
+                },
+                { status: 400 }
+            )
+        }
+
+        // Load store settings
         const settings = await loadSettings()
         if (!settings) {
-            return NextResponse.json({ error: 'Impossibile caricare le impostazioni del negozio' }, { status: 500 })
+            return NextResponse.json(
+                {
+                    error_code: 'store_settings_unavailable',
+                    error: 'Unable to load store settings',
+                },
+                { status: 500 }
+            )
         }
 
         const deliveryEnabled = settings.delivery_enabled
         if (deliveryEnabled !== true) {
             return NextResponse.json(
-                { code: 'DELIVERY_DISABLED', message: 'Le consegne sono temporaneamente disabilitate' },
+                {
+                    error_code: 'delivery_disabled',
+                    error: 'Delivery is temporarily disabled',
+                    code: 'DELIVERY_DISABLED',
+                    message: 'Delivery is temporarily disabled',
+                },
                 { status: 409 }
             )
         }
 
-        // Validazione evasione: orari, cutoff, chiusure (stessa RPC usata dalla UI)
+        // Validation of fulfillment: hours, cutoff, closures (same RPC used by the UI)
         const { data: fpData, error: fpErr } = await supabaseServiceRole.rpc('get_fulfillment_preview')
-        const fp = (Array.isArray(fpData) ? fpData[0] : fpData) as { can_accept?: boolean; message?: string; next_fulfillment_date?: string | null } | null
+        const fp = (Array.isArray(fpData) ? fpData[0] : fpData) as {
+            can_accept?: boolean
+            message?: string
+            next_fulfillment_date?: string | null
+        } | null
+
         let fulfillmentDate: string | null = null
         let fulfillmentMessage = ''
+
         if (!fpErr && fp) {
             if (fp.can_accept === false) {
-                const storeClosedMsg = fp.message ?? 'Negozio chiuso. Ordini non accettati.'
+                const storeClosedMsg = fp.message ?? 'Store closed. Orders are not accepted.'
                 return NextResponse.json(
-                    { ok: false, code: 'STORE_CLOSED', message: storeClosedMsg, error: storeClosedMsg },
+                    {
+                        ok: false,
+                        error_code: 'store_closed',
+                        error: storeClosedMsg,
+                        code: 'STORE_CLOSED',
+                        message: storeClosedMsg,
+                    },
                     { status: 409, headers: { 'Cache-Control': 'no-store' } }
                 )
             }
-            fulfillmentDate = fp.next_fulfillment_date && /^\d{4}-\d{2}-\d{2}$/.test(String(fp.next_fulfillment_date)) ? String(fp.next_fulfillment_date) : null
+
+            fulfillmentDate =
+                fp.next_fulfillment_date && /^\d{4}-\d{2}-\d{2}$/.test(String(fp.next_fulfillment_date))
+                    ? String(fp.next_fulfillment_date)
+                    : null
+
             fulfillmentMessage = fp.message ? String(fp.message) : ''
         }
 
-        // Costruisci baseUrl dal dominio della richiesta corrente (funziona sia in Preview che Production)
+        // Build baseUrl from the current request domain (works in Preview and Production)
         const url = new URL(req.url)
         const baseUrl = `${url.protocol}//${url.host}`
 
-        // Costruisci e valida query per geocodifica
+        // Build and validate geocoding query
         const query = [body.address.line1, body.address.cap, body.address.city]
             .filter(Boolean)
             .map((s: any) => String(s).trim())
@@ -191,52 +249,77 @@ export async function POST(req: Request) {
 
         if (!query || query.trim().length === 0) {
             return NextResponse.json(
-                { error: 'Indirizzo cliente incompleto' },
+                {
+                    error_code: 'incomplete_address',
+                    error: 'Incomplete address',
+                },
                 { status: 400 }
             )
         }
 
-        // Valida CAP e città con geocode prima di creare l'ordine
+        // Validate CAP and city with geocoding before creating the order
         const zip = body.address.cap ? String(body.address.cap).trim() : null
         const city = body.address.city ? String(body.address.city).trim() : null
 
-        // Valida formato CAP
+        // Validate CAP format
         if (!zip || !/^\d{5}$/.test(zip) || zip === '00000') {
-            return NextResponse.json({ error: 'CAP non valido' }, { status: 400 })
+            return NextResponse.json(
+                {
+                    error_code: 'invalid_zip',
+                    error: 'Invalid ZIP code',
+                },
+                { status: 400 }
+            )
         }
 
-        // Chiama geocode con validazione CAP e città
+        // Call geocoding with CAP and city validation
         const geocodeUrl = `${baseUrl}/api/geocode?q=${encodeURIComponent(query.trim())}&zip=${encodeURIComponent(zip)}&city=${encodeURIComponent(city || '')}`
+
         let geocodeData: any = null
         try {
             const geocodeRes = await fetch(geocodeUrl)
             const text = await geocodeRes.text()
             geocodeData = JSON.parse(text)
         } catch (err) {
-            console.error('❌ Errore geocodifica:', err)
-            return NextResponse.json({ error: 'Impossibile geocodificare l\'indirizzo del cliente' }, { status: 400 })
+            console.error('❌ Geocoding error:', err)
+            return NextResponse.json(
+                {
+                    error_code: 'geocode_failed',
+                    error: 'Unable to geocode customer address',
+                },
+                { status: 400 }
+            )
         }
 
         if (!geocodeData.ok) {
-            return NextResponse.json({ error: 'CAP non valido o indirizzo non trovato' }, { status: 400 })
+            return NextResponse.json(
+                {
+                    error_code: 'invalid_zip',
+                    error: 'Invalid ZIP code',
+                },
+                { status: 400 }
+            )
         }
 
         const clientCoords = { lat: geocodeData.lat, lng: geocodeData.lng }
         const distanceKm = computeDistanceFromStore(settings, clientCoords)
 
-        // Validazione raggio massimo da variabile d'ambiente
+        // Validation of maximum radius from environment variable
         const MAX_RADIUS_KM = Number(process.env.NEXT_PUBLIC_DELIVERY_RADIUS_KM ?? 0)
         if (MAX_RADIUS_KM > 0 && distanceKm > MAX_RADIUS_KM) {
             return NextResponse.json(
-                { error: 'Indirizzo fuori dal raggio di consegna' },
+                {
+                    error_code: 'outside_delivery_area',
+                    error: 'Address outside delivery area',
+                },
                 { status: 400 }
             )
         }
 
-        // Calcolo delivery fee lato server (ignora qualsiasi delivery_fee dal frontend)
+        // Calculate delivery fee on server side (ignore any delivery_fee from frontend)
         let deliveryFee = 0
         if (settings.delivery_enabled) {
-            // Leggi i campi delivery dal database (possono non essere nel tipo TypeScript)
+            // Read delivery fields from database (they may not be in the TypeScript type)
             const settingsData = settings as any
             const baseKm = Number(settingsData.delivery_base_km ?? 0)
             const baseFee = Number(settingsData.delivery_base_fee ?? settings.delivery_fee_base ?? 0)
@@ -244,7 +327,13 @@ export async function POST(req: Request) {
             const maxKmSafe = normalizeDeliveryMaxKm(settings.delivery_max_km)
 
             if (maxKmSafe !== null && distanceKm > maxKmSafe) {
-                return NextResponse.json({ error: '⚠️ Indirizzo fuori dal raggio di consegna' }, { status: 400 })
+                return NextResponse.json(
+                    {
+                        error_code: 'outside_delivery_area',
+                        error: 'Address outside delivery area',
+                    },
+                    { status: 400 }
+                )
             }
 
             try {
@@ -256,18 +345,29 @@ export async function POST(req: Request) {
                     maxKm: maxKmSafe,
                 })
             } catch (error: any) {
-                return NextResponse.json({ error: error.message || 'Errore calcolo delivery fee' }, { status: 400 })
+                return NextResponse.json(
+                    {
+                        error_code: 'delivery_fee_calculation_failed',
+                        error: error.message || 'Delivery fee calculation failed',
+                    },
+                    { status: 400 }
+                )
             }
         }
 
-        // Validazione metodo di pagamento con normalizzazione
+        // Validation of payment method with normalization
         const pm = normalizePaymentMethod(body.payment_method as string)
         if (!pm || !settings.payment_methods.includes(pm)) {
-            return NextResponse.json({ error: 'Metodo di pagamento non disponibile' }, { status: 400 })
+            return NextResponse.json(
+                {
+                    error_code: 'payment_method_unavailable',
+                    error: 'Payment method not available',
+                },
+                { status: 400 }
+            )
         }
 
-
-        // Normalizza gli items con validazione robusta
+        // Normalize items with robust validation
         let items: { id: string; quantity: number; price: number; unit?: 'per_unit' | 'per_kg' }[] = []
         try {
             items = body.items.map((it: {
@@ -278,7 +378,7 @@ export async function POST(req: Request) {
                 unit?: 'per_unit' | 'per_kg' | string
             }) => {
                 const unit = it.unit === 'per_kg' || it.unit === 'per_unit' ? it.unit : undefined
-                // Normalizza quantity: accetta number, string con virgola italiana, o string con punto
+                // Normalize quantity: accept number, string with Italian comma, or string with dot
                 const rawQty = it.qty ?? it.quantity ?? 1
                 const normalizedQty = parseDec(rawQty, 'quantity')
                 const qty = unit === 'per_kg' ? parseFloat(normalizedQty.toFixed(3)) : normalizedQty
@@ -293,19 +393,28 @@ export async function POST(req: Request) {
             })
         } catch (e: any) {
             return NextResponse.json(
-                { error: e?.message ?? 'Formato numerico non valido' },
+                {
+                    error_code: 'invalid_numeric_format',
+                    error: e?.message ?? 'Invalid numeric format',
+                },
                 { status: 400 }
             )
         }
 
-        // Validazione items (doppio check per sicurezza)
+        // Validation of items (double check for security)
         for (const it of items) {
             if (!it.id || !Number.isFinite(it.quantity) || it.quantity <= 0) {
-                return NextResponse.json({ error: 'Formato degli articoli non valido' }, { status: 400 })
+                return NextResponse.json(
+                    {
+                        error_code: 'invalid_items_format',
+                        error: 'Invalid items format',
+                    },
+                    { status: 400 }
+                )
             }
         }
 
-        // ✅ Verifica esistenza prodotti e carica unit_type, qty_step, name per validazione
+        // ✅ Verify product existence and load unit_type, qty_step, name for validation
         const requestedIds = [...new Set(items.map((it) => it.id))]
         const { data: existingProducts, error: existingErr } = await supabaseServiceRole
             .from('products')
@@ -315,7 +424,10 @@ export async function POST(req: Request) {
         if (existingErr) {
             console.error('❌ Errore verifica prodotti:', existingErr)
             return NextResponse.json(
-                { error: 'Errore verifica prodotti' },
+                {
+                    error_code: 'product_check_failed',
+                    error: 'Product verification failed',
+                },
                 { status: 500, headers: { 'Cache-Control': 'no-store' } }
             )
         }
@@ -326,21 +438,35 @@ export async function POST(req: Request) {
 
         if (missing.length > 0) {
             console.warn('⚠️ Product IDs mancanti nel DB:', missing)
+
+            const reconcileProducts = await loadProductsForReconcile(requestedIds)
+
             return NextResponse.json(
                 {
-                    error: 'Alcuni prodotti nel carrello non sono più disponibili. Svuota il carrello e riprova.',
+                    error_code: 'products_not_found',
+                    error: 'Some products in the cart are no longer available. Clear the cart and try again.',
                     code: 'PRODUCTS_NOT_FOUND',
+                    message: 'Some products in the cart are no longer available. Clear the cart and try again.',
                     missing_product_ids: missing,
+                    products: reconcileProducts,
                 },
                 { status: 400, headers: { 'Cache-Control': 'no-store' } }
             )
         }
 
-        // Validazione qty_step (anti-tamper): per_kg => qty multiplo di step; per_unit => qty intero
+        // Validation of qty_step (anti-tamper): per_kg => qty multiple of step; per_unit => qty integer
         const round3 = (n: number) => Math.round((n + Number.EPSILON) * 1000) / 1000
+
         for (const it of items) {
-            const product = productsById.get(it.id) as { id: string; name?: string; unit_type?: string | null; qty_step?: number | null } | undefined
+            const product = productsById.get(it.id) as {
+                id: string
+                name?: string
+                unit_type?: string | null
+                qty_step?: number | null
+            } | undefined
+
             if (!product) continue
+
             const unitType = product.unit_type || 'per_unit'
             const productName = product.name || product.id
 
@@ -349,11 +475,14 @@ export async function POST(req: Request) {
                 const q = round3(it.quantity)
                 const s = round3(step)
                 const k = s > 0 ? q / s : 0
+
                 if (Math.abs(k - Math.round(k)) >= 1e-6) {
                     return NextResponse.json(
                         {
-                            error: `Quantità non valida per ${productName}. Seleziona multipli di ${s} kg.`,
+                            error_code: 'invalid_qty_step',
+                            error: `Invalid quantity for ${productName}. Select multiples of ${s} kg.`,
                             code: 'INVALID_QTY_STEP',
+                            message: `Invalid quantity for ${productName}. Select multiples of ${s} kg.`,
                         },
                         { status: 400, headers: { 'Cache-Control': 'no-store' } }
                     )
@@ -362,8 +491,10 @@ export async function POST(req: Request) {
                 if (Math.abs(it.quantity - Math.round(it.quantity)) > 1e-6) {
                     return NextResponse.json(
                         {
-                            error: `Quantità non valida per ${productName}. I prodotti a pezzo richiedono quantità intera.`,
+                            error_code: 'invalid_qty_unit',
+                            error: `Invalid quantity for ${productName}. Unit products require an integer quantity.`,
                             code: 'INVALID_QTY_UNIT',
+                            message: `Invalid quantity for ${productName}. Unit products require an integer quantity.`,
                         },
                         { status: 400, headers: { 'Cache-Control': 'no-store' } }
                     )
@@ -371,12 +502,12 @@ export async function POST(req: Request) {
             }
         }
 
-        // Calcola totali (ignora delivery_fee dal frontend, usa quello calcolato lato server)
+        // Calculate totals (ignore delivery_fee from frontend, use the one calculated on server side)
         const safeSubtotal = parseDec(body.subtotal, 'subtotal')
         const total = round2(safeSubtotal + deliveryFee)
 
-        // Crea l'ordine direttamente
-        // IMPORTANTE: stock_reserved deve essere false all'insert, viene settato a true solo da reserveOrderStock
+        // Create the order directly
+        // IMPORTANT: stock_reserved must be false at insert, it will be set to true only by reserveOrderStock
         const { data: orderData, error: orderError } = await supabaseServiceRole
             .from('orders')
             .insert({
@@ -389,17 +520,20 @@ export async function POST(req: Request) {
                 payment_status: 'pending',
                 status: 'pending',
                 distance_km: round2(distanceKm),
-                stock_reserved: false, // Forzato a false: verrà settato a true solo da reserveOrderStock dopo decrement riuscito
+                stock_reserved: false, // Forced to false: it will be set to true only by reserveOrderStock after successful decrement
                 ...(fulfillmentDate && { fulfillment_date: fulfillmentDate }),
             })
             .select('id')
             .single()
 
         if (orderError || !orderData) {
-            console.error('❌ Errore creazione ordine:', JSON.stringify(orderError, null, 2))
-            const msg = (orderError as any)?.message || 'Errore durante la creazione ordine'
+            console.error('❌ Order creation error:', JSON.stringify(orderError, null, 2))
+            const msg = (orderError as any)?.message || 'Order creation failed'
             return NextResponse.json(
-                { error: msg },
+                {
+                    error_code: 'order_creation_failed',
+                    error: msg,
+                },
                 { status: 500 }
             )
         }
@@ -407,8 +541,8 @@ export async function POST(req: Request) {
         const newOrderId = orderData.id
         let stockCommitted = false // Track if reserveOrderStock succeeded
 
-        // --- Inserimento order_items (bulk) --- //
-        // QA prodotto archiviato: (1) due browser; (2) A aggiunge prodotto al carrello; (3) B imposta products.archived=true; (4) A conferma ordine → 409 PRODUCTS_NOT_AVAILABLE, carrello riconciliato.
+        // --- Insertion of order_items (bulk) --- //
+        // Product archived: (1) two browsers; (2) A adds product to cart; (3) B sets products.archived=true; (4) A confirms order → 409 PRODUCTS_NOT_AVAILABLE, cart reconciled.
         const orderItemsRows = items.map((it) => ({
             order_id: newOrderId,
             product_id: it.id,
@@ -421,15 +555,20 @@ export async function POST(req: Request) {
             .insert(orderItemsRows)
 
         if (itemsInsertErr) {
-            console.error('❌ Errore inserimento order_items:', itemsInsertErr)
+            console.error('❌ Order items insertion error:', itemsInsertErr)
 
-            // Cleanup: elimina ordine (cascade se FK con on delete cascade, altrimenti elimina items e poi ordine)
+            // Cleanup: delete order (cascade if FK with on delete cascade, otherwise delete items and then order)
             try {
                 await supabaseServiceRole.from('order_items').delete().eq('order_id', newOrderId)
-            } catch { /* ignore */ }
+            } catch {
+                /* ignore */
+            }
+
             try {
                 await supabaseServiceRole.from('orders').delete().eq('id', newOrderId)
-            } catch { /* ignore */ }
+            } catch {
+                /* ignore */
+            }
 
             const errMsg = String((itemsInsertErr as { message?: string })?.message ?? '')
             const errCode = (itemsInsertErr as { code?: string })?.code
@@ -437,50 +576,65 @@ export async function POST(req: Request) {
                 errMsg.includes('PRODUCT_UNAVAILABLE') || errCode === 'P0001'
 
             if (isProductUnavailable) {
+                const reconcileProducts = await loadProductsForReconcile(requestedIds)
+
                 return NextResponse.json(
                     {
                         ok: false,
+                        error_code: 'products_not_available',
+                        error: 'Some products are no longer available. We updated the cart.',
                         code: 'PRODUCTS_NOT_AVAILABLE',
-                        message: 'Alcuni prodotti non sono più disponibili. Abbiamo aggiornato il carrello.',
+                        message: 'Some products are no longer available. We updated the cart.',
+                        products: reconcileProducts,
                     },
                     { status: 409, headers: { 'Cache-Control': 'no-store' } }
                 )
             }
+
             if (errCode === '23503') {
+                const reconcileProducts = await loadProductsForReconcile(requestedIds)
+
                 return NextResponse.json(
                     {
-                        error: 'Alcuni prodotti nel carrello non sono più disponibili. Svuota il carrello e riprova.',
+                        error_code: 'products_not_found',
+                        error: 'Some products in the cart are no longer available. Clear the cart and try again.',
                         code: 'PRODUCTS_NOT_FOUND',
+                        message: 'Some products in the cart are no longer available. Clear the cart and try again.',
+                        products: reconcileProducts,
                     },
                     { status: 400, headers: { 'Cache-Control': 'no-store' } }
                 )
             }
 
             return NextResponse.json(
-                { error: 'Errore durante il salvataggio degli articoli' },
+                {
+                    error_code: 'order_items_save_failed',
+                    error: 'Error while saving order items',
+                },
                 { status: 500, headers: { 'Cache-Control': 'no-store' } }
             )
         }
 
-        // Riserva stock dopo l'inserimento di tutti gli order_items
+        // Reserve stock after insertion of all order_items
         try {
             await reserveOrderStock(newOrderId)
             stockCommitted = true // Mark that stock reservation succeeded
         } catch (error) {
             // 📦 Debug: log stock check details before returning error
-            const errorMessage = error instanceof Error ? error.message : 'Stock non disponibile per uno o più prodotti'
-            
-            // Extract product name from error message if it matches pattern "Stock insufficiente per <productName>"
+            const errorMessage =
+                error instanceof Error ? error.message : 'Stock not available for one or more products'
+
+            // Extract product name from error message if it matches pattern "Stock insufficient per <productName>"
             const stockErrorMatch = errorMessage.match(/Stock insufficiente per (.+)/)
             if (stockErrorMatch) {
                 const productName = stockErrorMatch[1]
-                
+
                 // Query order_items with products to get full product details
                 const { data: orderItemsWithProducts } = await supabaseServiceRole
                     .from('order_items')
                     .select('quantity, product_id, products(id, name, stock, unit_type, stock_unlimited)')
                     .eq('order_id', newOrderId)
-                
+
                 if (orderItemsWithProducts && orderItemsWithProducts.length > 0) {
                     // Find the product that matches the error
                     for (const oi of orderItemsWithProducts) {
@@ -489,31 +643,46 @@ export async function POST(req: Request) {
                             productData = productData[0] || null
                         }
                         if (productData && productData.name === productName) {
-                            console.log("📦 Stock check", {
+                            console.log('📦 Stock check', {
                                 productId: oi.product_id,
                                 productName: productData.name,
                                 unitType: productData.unit_type || null,
                                 stock: productData.stock ?? null,
                                 stockUnlimited: productData.stock_unlimited ?? false,
-                                requestedQty: oi.quantity
+                                requestedQty: oi.quantity,
                             })
                             break
                         }
                     }
                 }
             }
-            
-            // Cleanup: elimina order_items e ordine
+
+            const reconcileProducts = await loadProductsForReconcile(requestedIds)
+
+            // Cleanup: delete order_items and order
             await supabaseServiceRole.from('order_items').delete().eq('order_id', newOrderId)
             await supabaseServiceRole.from('orders').delete().eq('id', newOrderId)
-            
-            // Stock insufficiente: HTTP 409 + code STOCK_INSUFFICIENT per UX dedicata
-            const isStockError = errorMessage.includes('INSUFFICIENT_STOCK') || errorMessage.includes('Stock insufficiente')
+
+            // Stock insufficient: HTTP 409 + code STOCK_INSUFFICIENT for dedicated UX
+            const isStockError =
+                errorMessage.includes('INSUFFICIENT_STOCK') || errorMessage.includes('Stock insufficiente')
+
             const status = isStockError ? 409 : 400
-            const body = isStockError
-                ? { ok: false, code: 'STOCK_INSUFFICIENT', message: 'Alcuni prodotti non sono più disponibili. Abbiamo aggiornato il carrello.' }
-                : { error: errorMessage }
-            return NextResponse.json(body, {
+            const responseBody = isStockError
+                ? {
+                    ok: false,
+                    error_code: 'stock_insufficient',
+                    error: 'Some products are no longer available. We updated the cart.',
+                    code: 'STOCK_INSUFFICIENT',
+                    message: 'Some products are no longer available. We updated the cart.',
+                    products: reconcileProducts,  
+                }
+                : {
+                    error_code: 'stock_reservation_failed',
+                    error: errorMessage,
+                }
+
+            return NextResponse.json(responseBody, {
                 status,
                 headers: { 'Cache-Control': 'no-store' },
             })
@@ -521,24 +690,24 @@ export async function POST(req: Request) {
 
         // Wrap everything after reserveOrderStock in try/catch for rollback protection
         try {
-            // Imposta stock_committed=true e reserve_expires_at in base al metodo di pagamento
+            // Set stock_committed=true and reserve_expires_at based on payment method
             let reserveExpiresAt: string | null = null
             let stockReserved: boolean
 
             if (pm === 'card_online') {
-              // TTL diverso per dev/prod
-              const TTL_MINUTES =
-                process.env.NODE_ENV === 'development' ? 1 : 15
-            
-              const expiresAt = new Date(Date.now() + TTL_MINUTES * 60 * 1000)
-              reserveExpiresAt = expiresAt.toISOString()
-              stockReserved = true
+                // TTL different for dev/prod
+                const TTL_MINUTES =
+                    process.env.NODE_ENV === 'development' ? 1 : 15
+
+                const expiresAt = new Date(Date.now() + TTL_MINUTES * 60 * 1000)
+                reserveExpiresAt = expiresAt.toISOString()
+                stockReserved = true
             } else {
-              // Per cash/pos_on_delivery: non è una riserva temporanea, quindi stock_reserved=false
-              stockReserved = false
+                // For cash/pos_on_delivery: not a temporary reservation, so stock_reserved=false
+                stockReserved = false
             }
 
-            // Aggiorna ordine: stock_committed=true per tutti i metodi, stock_reserved e reserve_expires_at solo per card_online
+            // Update order: stock_committed=true for all methods, stock_reserved and reserve_expires_at only for card_online
             await supabaseServiceRole
                 .from('orders')
                 .update({
@@ -548,23 +717,23 @@ export async function POST(req: Request) {
                 })
                 .eq('id', newOrderId)
 
-            // Se payment_method è card_online, crea Stripe Checkout Session
+            // If payment_method is card_online, create Stripe Checkout Session
             let checkoutUrl: string | null = null
             if (pm === 'card_online') {
                 try {
-                    // Leggi order_items con join products per ottenere name, unit_type, image_url
+                    // Read order_items with join products to get name, unit_type, image_url
                     const { data: orderItems, error: itemsError } = await supabaseServiceRole
                         .from('order_items')
                         .select('quantity, price, products(id, name, unit_type, image_url)')
                         .eq('order_id', newOrderId)
 
                     if (itemsError || !orderItems || orderItems.length === 0) {
-                        throw new Error('Errore caricamento articoli per checkout')
+                        throw new Error('Error loading order items for checkout')
                     }
 
-                    // Costruisci line_items per Stripe
+                    // Build line_items for Stripe
                     const line_items = orderItems.map((it: any) => {
-                        // Normalizza product data
+                        // Normalize product data
                         let productData = it.products
                         if (Array.isArray(productData)) {
                             productData = productData[0] || null
@@ -576,16 +745,17 @@ export async function POST(req: Request) {
                         const quantity = Number(it.quantity) || 1
                         const price = Number(it.price) || 0
 
-                        // Stripe accetta solo quantità intere
-                        // Se il prodotto è "per_kg", ingloba la quantità nel prezzo (label sempre in kg)
+                        // Stripe accepts only integer quantities
+                        // If the product is "per_kg", incorporate the quantity into the price (label always in kg)
                         if (unitType === 'per_kg') {
                             const qtyKg = Math.round((quantity + Number.EPSILON) * 1000) / 1000
                             const qtyFormatted = new Intl.NumberFormat('it-IT', {
                                 minimumFractionDigits: 0,
                                 maximumFractionDigits: 3,
                             }).format(qtyKg)
+
                             return {
-                                quantity: 1, // sempre 1 per i prodotti a peso
+                                quantity: 1, // always 1 for weight products
                                 price_data: {
                                     currency: 'eur',
                                     unit_amount: Math.round(price * quantity * 100),
@@ -597,7 +767,7 @@ export async function POST(req: Request) {
                             }
                         }
 
-                        // Prodotti venduti "a pezzo"
+                        // Unit products
                         return {
                             quantity: Math.round(quantity),
                             price_data: {
@@ -611,7 +781,7 @@ export async function POST(req: Request) {
                         }
                     })
 
-                    // Aggiungi delivery fee come line item separato se > 0
+                    // Add delivery fee as separate line item if > 0
                     if (deliveryFee > 0) {
                         line_items.push({
                             quantity: 1,
@@ -625,13 +795,13 @@ export async function POST(req: Request) {
                         })
                     }
 
-                    // Deriva siteUrl dal dominio della richiesta corrente
+                    // Derive siteUrl from the current request domain
                     const url = new URL(req.url)
                     const siteUrl = `${url.protocol}//${url.host}`
 
                     const stripe = getStripe()
 
-                    // Crea la sessione Stripe
+                    // Create Stripe Checkout Session
                     const session = await stripe.checkout.sessions.create({
                         mode: 'payment',
                         payment_method_types: ['card'],
@@ -643,14 +813,14 @@ export async function POST(req: Request) {
 
                     checkoutUrl = session.url
 
-                    // Aggiorna ordine con stripe_session_id (non bloccare se fallisce)
+                    // Update order with stripe_session_id (do not block if fails)
                     void supabaseServiceRole
                         .from('orders')
                         .update({ stripe_session_id: session.id })
                         .eq('id', newOrderId)
                 } catch (stripeError: any) {
                     // Re-throw to be caught by outer catch for rollback
-                    throw new Error(stripeError?.message ?? 'Errore creazione sessione di pagamento')
+                    throw new Error(stripeError?.message ?? 'Payment session creation failed')
                 }
             }
 
@@ -675,33 +845,47 @@ export async function POST(req: Request) {
                     console.error('❌ Errore durante release_order_stock:', releaseError)
                 })
             }
-            
-            // Cleanup: elimina order_items e ordine
+
+            // Cleanup: delete order_items and order
             const { error: cleanupItemsError } = await supabaseServiceRole
                 .from('order_items')
                 .delete()
-                .eq('order_id', newOrderId);
+                .eq('order_id', newOrderId)
+
             if (cleanupItemsError && process.env.NODE_ENV !== 'production') {
-                console.warn('⚠️ Cleanup order_items error (non-blocking):', cleanupItemsError.message);
+                console.warn('⚠️ Cleanup order_items error (non-blocking):', cleanupItemsError.message)
             }
 
             const { error: cleanupOrderError } = await supabaseServiceRole
                 .from('orders')
                 .delete()
-                .eq('id', newOrderId);
+                .eq('id', newOrderId)
+
             if (cleanupOrderError && process.env.NODE_ENV !== 'production') {
-                console.warn('⚠️ Cleanup orders error (non-blocking):', cleanupOrderError.message);
+                console.warn('⚠️ Cleanup orders error (non-blocking):', cleanupOrderError.message)
             }
-            
-            const errorMessage = error instanceof Error ? error.message : 'Errore creazione ordine'
-            const isStockError = errorMessage.includes('INSUFFICIENT_STOCK') || errorMessage.includes('Stock insufficiente')
+
+            const errorMessage = error instanceof Error ? error.message : 'Order creation error'
+            const isStockError =
+                errorMessage.includes('INSUFFICIENT_STOCK') || errorMessage.includes('Stock insufficiente')
 
             console.error('❌ Errore dopo reserveOrderStock:', errorMessage)
+
             const status = isStockError ? 409 : 500
-            const body = isStockError
-                ? { ok: false, code: 'STOCK_INSUFFICIENT', message: 'Alcuni prodotti non sono più disponibili. Abbiamo aggiornato il carrello.' }
-                : { error: errorMessage }
-            return NextResponse.json(body, {
+            const responseBody = isStockError
+                ? {
+                    ok: false,
+                    error_code: 'stock_insufficient',
+                    error: 'Some products are no longer available. We updated the cart.',
+                    code: 'STOCK_INSUFFICIENT',
+                    message: 'Some products are no longer available. We updated the cart.',
+                }
+                : {
+                    error_code: 'order_creation_failed',
+                    error: errorMessage,
+                }
+
+            return NextResponse.json(responseBody, {
                 status,
                 headers: { 'Cache-Control': 'no-store' },
             })
@@ -709,7 +893,10 @@ export async function POST(req: Request) {
     } catch (e: any) {
         console.error('❌ API ERROR /api/orders:', e)
         return NextResponse.json(
-            { error: e?.message ?? 'Errore interno' },
+            {
+                error_code: 'internal_error',
+                error: e?.message ?? 'Internal error',
+            },
             { status: 500 }
         )
     }

@@ -21,7 +21,7 @@ function LoginForm() {
         setBusy(false)
 
         if (error) {
-            alert('Credenziali non valide')
+            alert('Invalid credentials')
             return
         }
 
@@ -68,7 +68,7 @@ function LoginForm() {
                            text-white disabled:opacity-50 
                            hover:opacity-90 transition"
             >
-                {busy ? 'Accesso…' : 'Entra'}
+                {busy ? 'Signing in…' : 'Sign in'}
             </button>
         </div>
     )
@@ -86,10 +86,10 @@ export default function LoginPage() {
                         className="inline-flex items-center gap-2 mb-3 text-sm font-medium
                                    text-gray-700 dark:text-gray-200 hover:text-green-600 dark:hover:text-green-400
                                    transition-colors"
-                        aria-label="Torna al negozio"
+                        aria-label="Back to store"
                     >
                         <span aria-hidden>←</span>
-                        Torna al negozio
+                        Back to store
                     </Link>
 
                     <LoginForm />
