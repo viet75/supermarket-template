@@ -147,7 +147,7 @@ export default function CategoryChips({ categories, activeId, onChange }: Props)
         <div className="min-w-0 flex-1 overflow-hidden">
           <div
             ref={scrollerRef}
-            className="flex gap-2 overflow-x-auto no-scrollbar pr-1"
+            className="flex gap-2 overflow-x-auto no-scrollbar pr-1 touch-pan-x"
           >
             {categories.map((c) => (
               <button
