@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS public.products (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name text NOT NULL,
     price numeric(10,2) NOT NULL,
-    category_id uuid REFERENCES public.categories(id) ON DELETE CASCADE,
+    category_id uuid REFERENCES public.categories(id) ON DELETE SET NULL,
     image text,
     created_at timestamptz DEFAULT now(),
     deleted_at timestamptz

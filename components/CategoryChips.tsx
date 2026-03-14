@@ -34,18 +34,9 @@ export default function CategoryChips({ categories, activeId, onChange }: Props)
     'bg-green-600 text-white ' +
     'shadow-md'
 
-  // Translate only the demo seed categories
+  // Return category name as stored in the database
   const getCategoryDisplayName = (category: { name: string; slug?: string | null }) => {
-    switch (category.slug) {
-      case 'fresh-produce':
-        return locale === 'it' ? 'Frutta e Verdura' : 'Fresh Produce'
-      case 'pantry':
-        return locale === 'it' ? 'Dispensa' : 'Pantry'
-      case 'beverages':
-        return locale === 'it' ? 'Bevande' : 'Beverages'
-      default:
-        return category.name
-    }
+    return category.name
   }
 
   useEffect(() => {
@@ -97,7 +88,7 @@ export default function CategoryChips({ categories, activeId, onChange }: Props)
   }, [categories.length])
 
   return (
-    <div className="relative flex items-center gap-2 pb-1">
+    <div className="relative flex items-center gap-2 px-1 py-2">
       {/* PINNED: not inside the scroller */}
       <button
         onClick={() => onChange(null)}
@@ -135,7 +126,7 @@ export default function CategoryChips({ categories, activeId, onChange }: Props)
             className="
               pointer-events-none absolute left-0 top-0 bottom-0 w-8 z-10
               bg-gradient-to-r from-white to-transparent
-              dark:from-gray-950
+              dark:from-zinc-950
             "
             aria-hidden
           />
@@ -147,25 +138,28 @@ export default function CategoryChips({ categories, activeId, onChange }: Props)
             className="
               pointer-events-none absolute right-0 top-0 bottom-0 w-8 z-10
               bg-gradient-to-l from-white to-transparent
-              dark:from-gray-950
+              dark:from-zinc-950
             "
             aria-hidden
           />
         )}
 
-        <div
-          ref={scrollerRef}
-          className="flex gap-2 overflow-x-auto no-scrollbar"
-        >
-          {categories.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => onChange(c.id)}
-              className={[base, activeId === c.id ? active : inactive].join(' ')}
-            >
-              {getCategoryDisplayName(c)}
-            </button>
-          ))}
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <div
+            ref={scrollerRef}
+            className="flex gap-2 overflow-x-auto no-scrollbar pr-1"
+          >
+            {categories.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => onChange(c.id)}
+                className={[base, activeId === c.id ? active : inactive].join(' ')}
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
