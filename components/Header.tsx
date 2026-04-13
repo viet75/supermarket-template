@@ -249,7 +249,7 @@ export default function Header() {
       className="flex items-center gap-2 shrink-0"
     >
       <div className="flex items-center gap-2">
-        <div className="flex items-center rounded-full border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 p-1">
+        <div className="hidden lg:flex items-center rounded-full border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 p-1">
           <button
             type="button"
             onClick={() => switchLocale('it')}
