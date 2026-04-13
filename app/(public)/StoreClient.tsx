@@ -150,13 +150,17 @@ export default function StoreClient({
         className="
     relative
     sticky top-0 z-50 overflow-hidden
+  "
+      >
+        {/* Search + actions */}
+        <div
+          className="
+    relative z-10 px-3 pt-3 pb-2
     bg-white/85 dark:bg-zinc-900/80 backdrop-blur-md
     border-b border-gray-200/60 dark:border-zinc-800/60
     shadow-sm md:shadow
   "
-      >
-        {/* Search + actions */}
-        <div className="relative z-10 px-3 pt-3 pb-2">
+        >
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 md:gap-3">
             <div className="relative min-w-0 w-full md:max-w-xl lg:max-w-2xl">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-zinc-500">
@@ -184,12 +188,7 @@ export default function StoreClient({
           </div>
         </div>
 
-        <div
-          className={[
-            'relative overflow-hidden transition-[height] duration-200 ease-out',
-            showCategories ? 'h-[72px]' : 'h-0',
-          ].join(' ')}
-        >
+        <div className="relative overflow-hidden h-[72px]">
           <div
             className={[
               'absolute inset-x-0 top-0',

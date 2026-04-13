@@ -248,7 +248,7 @@ export default function Header() {
       ref={headerRef}
       className="flex items-center gap-2 shrink-0"
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 md:gap-4">
         <div className="hidden lg:flex items-center rounded-full border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 p-1">
           <button
             type="button"
@@ -277,7 +277,7 @@ export default function Header() {
 
         <Link
           href="/cart"
-          className="relative text-gray-700 dark:text-zinc-300 text-2xl hover:text-green-600 transition"
+          className="relative text-gray-700 dark:text-zinc-300 text-2xl md:text-[26px] hover:text-green-600 transition"
           aria-label={t('cart')}
         >
           🛒
@@ -303,7 +303,7 @@ export default function Header() {
               // calculate position immediately when opening
               if (next) requestAnimationFrame(computePos)
             }}
-            className="flex items-center gap-1 text-gray-700 dark:text-zinc-300 text-2xl hover:text-green-600 transition cursor-pointer"
+            className="flex items-center gap-1 text-gray-700 dark:text-zinc-300 text-2xl md:text-[26px] hover:text-green-600 transition cursor-pointer"
             aria-label={t('profile')}
             aria-expanded={openMenu}
             aria-haspopup="menu"
