@@ -67,7 +67,7 @@ export default function CartBar({ onCheckout }: CartBarProps) {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 120, damping: 18 }}
-          className="pointer-events-none fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] left-1/2 z-50 w-[92%] max-w-md -translate-x-1/2 md:hidden"
+          className="pointer-events-none fixed bottom-[calc(0.5rem+env(safe-area-inset-bottom,0px))] left-1/2 z-50 w-[92%] max-w-md -translate-x-1/2 md:hidden"
         >
           {onCheckout ? (
             <button
