@@ -246,22 +246,17 @@ export default function Header() {
   return (
     <header
       ref={headerRef}
-      className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-zinc-800 shadow-sm"
+      className="flex items-center gap-2 shrink-0"
     >
-      <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
-        {process.env.NEXT_PUBLIC_STORE_NAME ?? t('defaultStoreName')}
-      </h1>
-
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <div className="flex items-center rounded-full border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 p-1">
           <button
             type="button"
             onClick={() => switchLocale('it')}
-            className={`px-2.5 py-1 text-xs font-semibold rounded-full transition ${
-              locale === 'it'
-                ? 'bg-green-600 text-white'
-                : 'text-gray-600 dark:text-zinc-300 hover:bg-gray-200 dark:hover:bg-zinc-700'
-            }`}
+            className={`px-2.5 py-1 text-xs font-medium rounded-full transition ${locale === 'it'
+              ? 'bg-green-600 text-white'
+              : 'text-gray-600 dark:text-zinc-300 hover:bg-gray-200 dark:hover:bg-zinc-700'
+              }`}
             aria-pressed={locale === 'it'}
           >
             IT
@@ -270,11 +265,10 @@ export default function Header() {
           <button
             type="button"
             onClick={() => switchLocale('en')}
-            className={`px-2.5 py-1 text-xs font-semibold rounded-full transition ${
-              locale === 'en'
-                ? 'bg-green-600 text-white'
-                : 'text-gray-600 dark:text-zinc-300 hover:bg-gray-200 dark:hover:bg-zinc-700'
-            }`}
+            className={`px-2.5 py-1 text-xs font-medium rounded-full transition ${locale === 'en'
+              ? 'bg-green-600 text-white'
+              : 'text-gray-600 dark:text-zinc-300 hover:bg-gray-200 dark:hover:bg-zinc-700'
+              }`}
             aria-pressed={locale === 'en'}
           >
             EN

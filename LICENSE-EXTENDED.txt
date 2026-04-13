@@ -3,20 +3,20 @@ Extended License
 
 Copyright (c) 2026 Angelo
 
-IMPORTANT — READ CAREFULLY:
+IMPORTANT — PLEASE READ CAREFULLY
 
-By purchasing this software, you are granted an Extended License under the following terms:
+By purchasing this software, you are granted an Extended License under the following terms.
 
-PERMITTED USE:
+PERMITTED USE
 
 You may:
 
 • Use the template for unlimited projects
 • Use the template for multiple clients
-• Modify the template
-• Deploy unlimited instances
+• Modify the template to suit your needs
+• Deploy unlimited instances of the template
 
-RESTRICTIONS:
+RESTRICTIONS
 
 You may NOT:
 
@@ -25,20 +25,18 @@ You may NOT:
 • Sell the template as a template
 • Create a competing template for sale
 
-Ownership:
+OWNERSHIP
 
-Full ownership remains with the author.
+This purchase grants usage rights only.
+All intellectual property rights remain with the author.
 
-You are purchasing usage rights only.
-
-Support:
+SUPPORT
 
 Support is not included unless explicitly stated.
 
-Liability:
+LIABILITY
 
-Provided "as is", without warranty.
+The software is provided "as is", without warranty.
 
-Author:
-
+Author
 Angelo

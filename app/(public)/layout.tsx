@@ -1,4 +1,3 @@
-import Header from '@/components/Header'
 import PublicScrollShell from '@/components/PublicScrollShell'
 import { getStoreSettings } from '@/lib/getStoreSettings'
 import ScrollToTopOnRouteChange from './ScrollToTopOnRouteChange'
@@ -18,7 +17,7 @@ export default async function PublicLayout({ children }: { children: React.React
 
     return (
         <PublicScrollShell
-            header={<Header />}
+            header={null}
             footer={
                 hasContacts ? (
                     <footer className="border-t border-gray-200 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900/60">

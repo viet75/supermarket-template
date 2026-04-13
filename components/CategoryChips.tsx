@@ -30,9 +30,7 @@ export default function CategoryChips({ categories, activeId, onChange }: Props)
     'shadow-sm hover:shadow-md hover:bg-white/90 dark:hover:bg-white/10'
 
   const active =
-    'border border-green-600/80 ' +
-    'bg-green-600 text-white ' +
-    'shadow-md'
+    'border border-transparent bg-green-600 text-white shadow-sm'
 
   // Return category name as stored in the database
   const getCategoryDisplayName = (category: { name: string; slug?: string | null }) => {

@@ -14,7 +14,7 @@ export default function SearchBar({ onChange }: { onChange: (q: string) => void 
     }
 
     return (
-        <div className="px-3 mb-2">
+        <div className="w-full">
             <div
                 className="
           relative

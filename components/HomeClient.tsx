@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { supabaseClient } from '@/lib/supabaseClient'
+import Header from '@/components/Header'
 import SearchBar from '@/components/SearchBar'
 import CategoryChipsContainer from '@/components/CategoryChipsContainer'
 import ProductCard from '@/components/ProductCard'
@@ -78,15 +79,17 @@ export default function HomeClient() {
 
   return (
     <>
-      {/* Search sempre sticky */}
-      <div className="sticky top-0 z-40 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-        <div className="px-3 pt-2">
-          <SearchBar onChange={setQ} />
+      <div className="sticky top-0 z-50 bg-white dark:bg-gray-900">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-zinc-800">
+          <div className="flex-1 min-w-0">
+            <SearchBar onChange={setQ} />
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Header />
+          </div>
         </div>
+        <CategoryChipsContainer activeId={cat} onChange={setCat} />
       </div>
-
-      {/* Categories: here we do not pass show (fallback true in the container) */}
-      <CategoryChipsContainer activeId={cat} onChange={setCat} />
 
       {loading ? (
         <div className="mx-auto max-w-screen-2xl w-full px-3 pb-24">

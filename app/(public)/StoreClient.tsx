@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import type { Product, Category } from '@/lib/types'
+import Header from '@/components/Header'
 import CategoryChipsContainer from '@/components/CategoryChipsContainer'
 import ProductsGrid from '@/components/ProductsGrid'
 import { useForegroundRefresh } from '@/lib/useForegroundRefresh'
@@ -148,26 +149,26 @@ export default function StoreClient({
       <div
         className="
     relative
-    sticky top-[var(--app-header-h,0px)] z-50
-    bg-white/95 dark:bg-zinc-900/92
-    supports-[backdrop-filter]:backdrop-blur-md
-    border-b border-gray-200/70 dark:border-white/10
-    shadow-sm
+    sticky top-0 z-50 overflow-hidden
+    bg-white/85 dark:bg-zinc-900/80 backdrop-blur-md
+    border-b border-gray-200/60 dark:border-zinc-800/60
+    shadow-sm md:shadow
   "
       >
-        {/* Search */}
-        <div className="flex justify-center px-4 pt-4 pb-2">
-          <div className="relative w-full max-w-2xl">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-zinc-500">
-              🔍
-            </span>
-            <input
-              type="text"
-              placeholder={t('search.placeholder')}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="
-          w-full pl-10 pr-4 py-2 rounded-full
+        {/* Search + actions */}
+        <div className="relative z-10 px-3 pt-3 pb-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 md:gap-3">
+            <div className="relative min-w-0 w-full md:max-w-xl lg:max-w-2xl">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-zinc-500">
+                🔍
+              </span>
+              <input
+                type="text"
+                placeholder={t('search.placeholder')}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="
+          w-full h-11 pl-10 pr-4 rounded-full
           border border-gray-300 dark:border-white/10
           bg-white dark:bg-zinc-900/60
           text-gray-900 dark:text-zinc-100
@@ -175,33 +176,43 @@ export default function StoreClient({
           shadow-sm
           focus:outline-none focus:ring-2 focus:ring-inset focus:ring-green-500
         "
-            />
+              />
+            </div>
+            <div className="justify-self-end">
+              <Header />
+            </div>
           </div>
         </div>
 
         <div
           className={[
-            'absolute left-0 right-0 top-full z-50',
-            'px-4 pb-2',
-            'bg-white/95 dark:bg-zinc-900/92',
-            'supports-[backdrop-filter]:backdrop-blur-md',
-            'border-b border-gray-200/70 dark:border-zinc-800/70',
-            'transition-all duration-200 ease-out',
-            showCategories
-              ? 'opacity-100 translate-y-0 pointer-events-auto'
-              : 'opacity-0 -translate-y-2 pointer-events-none',
+            'relative overflow-hidden transition-[height] duration-200 ease-out',
+            showCategories ? 'h-[72px]' : 'h-0',
           ].join(' ')}
         >
-          <CategoryChipsContainer
-            activeId={activeCategory}
-            onChange={setActiveCategory}
-            show={true}
-          />
+          <div
+            className={[
+              'absolute inset-x-0 top-0',
+              'px-3 pt-2 pb-4',
+              'bg-white dark:bg-zinc-900',
+              'border-b border-gray-200/60 dark:border-zinc-800/60',
+              'transition-transform duration-200 ease-out',
+              showCategories
+                ? 'translate-y-0 pointer-events-auto'
+                : '-translate-y-full pointer-events-none',
+            ].join(' ')}
+          >
+            <CategoryChipsContainer
+              activeId={activeCategory}
+              onChange={setActiveCategory}
+              show={true}
+            />
+          </div>
         </div>
       </div>
 
       {/* Fixed spacer to prevent products from being covered by category overlay */}
-      <div className="h-[56px] md:h-[60px]" />
+      <div className="h-0" />
 
       {/* Content */}
       <div className="px-1 sm:px-2 md:px-4 pb-24">

@@ -76,7 +76,7 @@ export default function CategoryChipsContainer({
       className={[
         'relative overflow-hidden [overflow-anchor:none]',
         'transition-[height] duration-300 ease-in-out',
-        show ? 'h-11' : 'h-0',
+        show ? 'h-14' : 'h-0',
       ].join(' ')}
     >
       <div

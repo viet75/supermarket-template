@@ -1,47 +1,44 @@
-SUPERMAKET PWA TEMPLATE
+SUPERMARKET PWA TEMPLATE
 Standard License
 
 Copyright (c) 2026 Angelo
 
-IMPORTANT — READ CAREFULLY:
+IMPORTANT — PLEASE READ CAREFULLY
 
-By purchasing this software, you are granted a non-exclusive, non-transferable license to use the Supermarket PWA Template under the following terms:
+By purchasing this software, you are granted a non-exclusive, non-transferable license to use the Supermarket PWA Template under the following terms.
 
-PERMITTED USE:
+PERMITTED USE
 
 You may:
 
 • Use the template to create ONE (1) end product
-• Use the template for personal or commercial projects
+• Use the template for personal or commercial purposes
 • Modify the template to suit your needs
-• Deploy the template on your own server
+• Deploy the template on your own server or hosting environment
 
-RESTRICTIONS:
+RESTRICTIONS
 
 You may NOT:
 
 • Resell the template
-• Redistribute the template
-• Share the source code
+• Redistribute the template source code
+• Share the template publicly
 • Sell the template as a template
 • Use the template for multiple clients
 • Create a competing template based on this project
 
-Ownership:
+OWNERSHIP
 
-You do NOT own the source code.
-You are purchasing a license to use the template.
+This purchase grants you a license to use the software.
+All intellectual property rights remain with the author.
 
-The author retains full ownership of the software.
-
-Support:
+SUPPORT
 
 Support is not included unless explicitly stated.
 
-Liability:
+LIABILITY
 
 The software is provided "as is", without warranty of any kind.
 
-Author:
-
+Author
 Angelo
