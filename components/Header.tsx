@@ -277,7 +277,7 @@ export default function Header() {
 
         <Link
           href="/cart"
-          className="relative text-gray-700 dark:text-zinc-300 text-2xl md:text-[26px] hover:text-green-600 transition"
+          className="relative hidden md:inline-flex items-center justify-center text-gray-700 dark:text-zinc-300 text-2xl md:text-[26px] hover:text-green-600 transition"
           aria-label={t('cart')}
         >
           🛒

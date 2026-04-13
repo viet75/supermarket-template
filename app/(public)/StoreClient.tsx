@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import type { Product, Category } from '@/lib/types'
 import Header from '@/components/Header'
+import CartBar from '@/components/CartBar'
 import CategoryChipsContainer from '@/components/CategoryChipsContainer'
 import ProductsGrid from '@/components/ProductsGrid'
 import { useForegroundRefresh } from '@/lib/useForegroundRefresh'
@@ -14,6 +15,7 @@ import type {
   RealtimePostgresChangesPayload,
   REALTIME_SUBSCRIBE_STATES,
 } from '@supabase/supabase-js'
+import { useCartStore } from '@/stores/cartStore'
 
 function parseNum(v: unknown): number | null {
   if (v === null || v === undefined) return null
@@ -143,6 +145,8 @@ export default function StoreClient({
     minDeltaPx: 1,
   })
 
+  const cartLineCount = useCartStore((s) => s.items.length)
+
   return (
     <>
       {/* HEADER sticky (NO blur: transparent strip) */}
@@ -213,8 +217,14 @@ export default function StoreClient({
       {/* Fixed spacer to prevent products from being covered by category overlay */}
       <div className="h-0" />
 
-      {/* Content */}
-      <div className="px-1 sm:px-2 md:px-4 pb-24">
+      {/* Content — extra bottom padding on mobile when floating cart bar is shown */}
+      <div
+        className={
+          cartLineCount > 0
+            ? 'px-1 sm:px-2 md:px-4 pb-32 md:pb-24'
+            : 'px-1 sm:px-2 md:px-4 pb-24'
+        }
+      >
         {filteredProducts.length > 0 ? (
           <ProductsGrid products={filteredProducts} />
         ) : (
@@ -223,6 +233,8 @@ export default function StoreClient({
           </p>
         )}
       </div>
+
+      <CartBar />
     </>
   )
 }

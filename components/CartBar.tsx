@@ -1,65 +1,94 @@
 'use client'
 
-import Link from 'next/link'
+import { Link } from '@/i18n/navigation'
 import { useEffect, useState } from 'react'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { useCartStore } from '@/stores/cartStore'
 import { formatPrice } from '@/lib/pricing'
 import { motion, AnimatePresence } from 'framer-motion'
 
 type CartBarProps = {
-    onCheckout?: () => void
+  onCheckout?: () => void
 }
 
+const barClassName =
+  'flex w-full items-center justify-between gap-2 sm:gap-3 rounded-[28px] border border-white/30 dark:border-white/10 bg-white/80 dark:bg-zinc-900/75 backdrop-blur-lg px-3 py-2 shadow-[0_10px_40px_-4px_rgba(0,0,0,0.12)] dark:shadow-[0_10px_40px_-4px_rgba(0,0,0,0.45)] transition-colors active:scale-[0.99]'
+
+const ctaClassName =
+  'shrink-0 rounded-full bg-green-600 px-3 py-1.5 text-sm font-semibold tracking-tight text-white shadow-md shadow-green-700/25 ring-1 ring-inset ring-white/20 dark:bg-green-600 dark:shadow-green-950/40'
+
 export default function CartBar({ onCheckout }: CartBarProps) {
-    const t = useTranslations()
-    const [mounted, setMounted] = useState(false)
-    useEffect(() => setMounted(true), [])
+  const t = useTranslations('cart')
+  const locale = useLocale()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
-    const items = useCartStore((s) => s.items)
+  const items = useCartStore((s) => s.items)
+  const total = useCartStore((s) => s.total())
 
-    if (!mounted) return null // Prevent hydration errors
+  if (!mounted) return null
 
-    const count = items.length
-    const total = items.reduce((acc, it) => {
-        const price =
-            it.salePrice && it.salePrice < it.price ? it.salePrice : it.price
-        return acc + price * it.qty
-    }, 0)
+  const count = items.length
+  const formatted = formatPrice(total, locale)
 
-    return (
-        <AnimatePresence>
-            {count > 0 && (
-                <motion.div
-                    initial={{ y: 100, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: 100, opacity: 0 }}
-                    transition={{ type: 'spring', stiffness: 120, damping: 15 }}
-                    className="fixed bottom-4 left-1/2 z-50 w-[90%] max-w-md -translate-x-1/2"
-                >
-                    {onCheckout ? (
-                        <button
-                            onClick={onCheckout}
-                            className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-lg hover:from-green-600 hover:to-emerald-700 transition-colors"
-                        >
-                            <span className="text-lg">🛒</span>
-                            <span>
-                                {t('cart.goToCart')} ({count} – {formatPrice(total)})
-                            </span>
-                        </button>
-                    ) : (
-                        <Link
-                            href="/checkout"
-                            className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-lg hover:from-green-600 hover:to-emerald-700 transition-colors"
-                        >
-                            <span className="text-lg">🛒</span>
-                            <span>
-                                {t('cart.goToCart')} ({count} – {formatPrice(total)})
-                            </span>
-                        </Link>
-                    )}
-                </motion.div>
-            )}
-        </AnimatePresence>
-    )
+  const itemLabel =
+    locale === 'en'
+      ? count === 1
+        ? 'item'
+        : 'items'
+      : count === 1
+        ? 'articolo'
+        : 'articoli'
+
+  const inner = (
+    <>
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="text-lg leading-none" aria-hidden>
+          🛒
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs leading-snug text-gray-500 dark:text-zinc-400">
+            {count} {itemLabel}
+          </p>
+          <p className="mt-0.5 text-lg font-bold tabular-nums leading-none tracking-tight text-gray-900 dark:text-zinc-50">
+            {formatted}
+          </p>
+        </div>
+      </div>
+      <span className={ctaClassName}>{t('goToCart')}</span>
+    </>
+  )
+
+  return (
+    <AnimatePresence>
+      {count > 0 && (
+        <motion.div
+          initial={{ y: 100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 100, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 120, damping: 18 }}
+          className="pointer-events-none fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] left-1/2 z-50 w-[92%] max-w-md -translate-x-1/2 md:hidden"
+        >
+          {onCheckout ? (
+            <button
+              type="button"
+              onClick={onCheckout}
+              className={`${barClassName} pointer-events-auto text-left`}
+              aria-label={t('goToCart')}
+            >
+              {inner}
+            </button>
+          ) : (
+            <Link
+              href="/cart"
+              className={`${barClassName} pointer-events-auto`}
+              aria-label={t('goToCart')}
+            >
+              {inner}
+            </Link>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
 }
