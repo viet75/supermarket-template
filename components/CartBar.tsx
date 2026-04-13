@@ -17,11 +17,33 @@ const barClassName =
 const ctaClassName =
   'shrink-0 rounded-full bg-green-600 px-3 py-1.5 text-sm font-semibold tracking-tight text-white shadow-md shadow-green-700/25 ring-1 ring-inset ring-white/20 dark:bg-green-600 dark:shadow-green-950/40'
 
+const BOTTOM_STANDALONE = 'calc(env(safe-area-inset-bottom, 0px) + 0.15rem)'
+const BOTTOM_BROWSER = 'calc(env(safe-area-inset-bottom, 0px) + 0.35rem)'
+
 export default function CartBar({ onCheckout }: CartBarProps) {
   const t = useTranslations('cart')
   const locale = useLocale()
   const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  const [bottomOffset, setBottomOffset] = useState(BOTTOM_BROWSER)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(display-mode: standalone)')
+
+    const apply = () => {
+      setBottomOffset(mq.matches ? BOTTOM_STANDALONE : BOTTOM_BROWSER)
+    }
+
+    apply()
+    setMounted(true)
+
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', apply)
+      return () => mq.removeEventListener('change', apply)
+    }
+
+    mq.addListener(apply)
+    return () => mq.removeListener(apply)
+  }, [])
 
   const items = useCartStore((s) => s.items)
   const total = useCartStore((s) => s.total())
@@ -67,7 +89,8 @@ export default function CartBar({ onCheckout }: CartBarProps) {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 120, damping: 18 }}
-          className="pointer-events-none fixed bottom-[calc(0.5rem+env(safe-area-inset-bottom,0px))] left-1/2 z-50 w-[92%] max-w-md -translate-x-1/2 md:hidden"
+          className="pointer-events-none fixed left-1/2 z-50 w-[92%] max-w-md -translate-x-1/2 md:hidden"
+          style={{ bottom: bottomOffset }}
         >
           {onCheckout ? (
             <button
