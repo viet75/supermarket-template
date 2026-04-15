@@ -12,10 +12,10 @@ type CartBarProps = {
 }
 
 const barClassName =
-  'flex w-full items-center justify-between gap-2 sm:gap-3 rounded-[28px] border border-white/30 dark:border-white/10 bg-white/80 dark:bg-zinc-900/75 backdrop-blur-lg px-3 py-2 shadow-[0_10px_40px_-4px_rgba(0,0,0,0.12)] dark:shadow-[0_10px_40px_-4px_rgba(0,0,0,0.45)] transition-colors active:scale-[0.99]'
+  'flex w-full items-center justify-between gap-2 sm:gap-3 rounded-[28px] border border-white/30 dark:border-white/10 bg-white/80 dark:bg-zinc-900/75 backdrop-blur-lg px-3 py-2 shadow-[0_10px_40px_-4px_rgba(0,0,0,0.12)] dark:shadow-[0_10px_40px_-4px_rgba(0,0,0,0.45)] transition-colors'
 
 const ctaClassName =
-  'shrink-0 rounded-full bg-green-600 px-3 py-1.5 text-sm font-semibold tracking-tight text-white shadow-md shadow-green-700/25 ring-1 ring-inset ring-white/20 dark:bg-green-600 dark:shadow-green-950/40'
+  'shrink-0 rounded-full bg-green-600 px-3 py-1.5 text-sm font-semibold tracking-tight text-white shadow-md shadow-green-700/25 ring-1 ring-inset ring-white/20 dark:bg-green-600 dark:shadow-green-950/40 transition-all duration-100 active:scale-90 active:bg-green-700 active:shadow-sm'
 
 const BOTTOM_STANDALONE = 'calc(env(safe-area-inset-bottom, 0px) + 0.15rem)'
 const BOTTOM_BROWSER = 'calc(env(safe-area-inset-bottom, 0px) + 0.35rem)'
@@ -62,6 +62,21 @@ export default function CartBar({ onCheckout }: CartBarProps) {
         ? 'articolo'
         : 'articoli'
 
+  const cta = onCheckout ? (
+    <button
+      type="button"
+      onClick={onCheckout}
+      className={ctaClassName}
+      aria-label={t('goToCart')}
+    >
+      {t('goToCart')}
+    </button>
+  ) : (
+    <Link href="/cart" className={ctaClassName} aria-label={t('goToCart')}>
+      {t('goToCart')}
+    </Link>
+  )
+
   const inner = (
     <>
       <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -77,7 +92,7 @@ export default function CartBar({ onCheckout }: CartBarProps) {
           </p>
         </div>
       </div>
-      <span className={ctaClassName}>{t('goToCart')}</span>
+      {cta}
     </>
   )
 
@@ -92,24 +107,7 @@ export default function CartBar({ onCheckout }: CartBarProps) {
           className="pointer-events-none fixed left-1/2 z-50 w-[92%] max-w-md -translate-x-1/2 md:hidden"
           style={{ bottom: bottomOffset }}
         >
-          {onCheckout ? (
-            <button
-              type="button"
-              onClick={onCheckout}
-              className={`${barClassName} pointer-events-auto text-left`}
-              aria-label={t('goToCart')}
-            >
-              {inner}
-            </button>
-          ) : (
-            <Link
-              href="/cart"
-              className={`${barClassName} pointer-events-auto`}
-              aria-label={t('goToCart')}
-            >
-              {inner}
-            </Link>
-          )}
+          <div className={`${barClassName} pointer-events-auto`}>{inner}</div>
         </motion.div>
       )}
     </AnimatePresence>
