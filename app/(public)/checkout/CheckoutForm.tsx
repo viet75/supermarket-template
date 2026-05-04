@@ -721,7 +721,8 @@ export default function CheckoutForm({ settings }: Props) {
     const line1HasText = !!(addr.line1 ?? '').trim()
     const line1MissingCivic = line1HasText && !looksLikeFullStreetAddress(addr.line1)
     const showLine1CivicError = (attemptedSubmit || line1Touched) && line1MissingCivic
-    const cityInvalid = !(addr.city ?? '').trim()
+    const normalizedCity = (addr.city ?? '').trim()
+    const cityInvalid = normalizedCity.length < 3
     const capInvalid = !(addr.cap ?? '').trim() || (addr.cap ?? '').trim().length < 5
     const showLine1Error = (attemptedSubmit || line1Touched) && line1Invalid
     const showCityError = (attemptedSubmit || cityTouched) && cityInvalid
@@ -766,7 +767,7 @@ export default function CheckoutForm({ settings }: Props) {
             setSaving(false)
             return
         }
-        if (!addr.firstName || !addr.lastName || !isPhoneValid || !addr.line1 || !addr.city || !addr.cap) {
+        if (!addr.firstName || !addr.lastName || !isPhoneValid || !addr.line1 || cityInvalid || !addr.cap) {
             setMsg({ type: 'error', text: t('requiredFields') })
             setSaving(false)
             return
@@ -1170,7 +1171,8 @@ export default function CheckoutForm({ settings }: Props) {
                             !validation.ok ||
                             fulfillment?.can_accept === false ||
                             !settings.delivery_enabled ||
-                            !isPhoneValid
+                            !isPhoneValid ||
+                            cityInvalid
                         }
 
                         className={`w-full rounded-xl font-semibold px-4 py-3 transition 
@@ -1178,6 +1180,7 @@ export default function CheckoutForm({ settings }: Props) {
                                 addr.firstName &&
                                 addr.lastName &&
                                 isPhoneValid &&
+                                !cityInvalid &&
                                 fulfillment?.can_accept !== false &&
                                 settings.delivery_enabled
                                 ? 'bg-green-600 hover:bg-green-700 text-white'

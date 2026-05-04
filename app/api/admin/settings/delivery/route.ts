@@ -125,10 +125,30 @@ export async function PUT(req: Request) {
     }
 
     if (body.delivery_min_order_amount !== undefined) {
-      update.delivery_min_order_amount =
-        body.delivery_min_order_amount === null || body.delivery_min_order_amount === ''
-          ? null
-          : Number(body.delivery_min_order_amount)
+      const rawMin = body.delivery_min_order_amount
+      if (rawMin === null || rawMin === '') {
+        update.delivery_min_order_amount = null
+      } else if (typeof rawMin === 'string') {
+        const normalizedMin = rawMin.trim().replace(',', '.')
+        const parsedMin = Number(normalizedMin)
+        if (!Number.isFinite(parsedMin)) {
+          return NextResponse.json(
+            { error: 'Invalid delivery_min_order_amount' },
+            { status: 400 }
+          )
+        }
+        // Keep exact decimal representation for numeric column (no round/toFixed).
+        update.delivery_min_order_amount = normalizedMin
+      } else {
+        const parsedMin = Number(rawMin)
+        if (!Number.isFinite(parsedMin)) {
+          return NextResponse.json(
+            { error: 'Invalid delivery_min_order_amount' },
+            { status: 400 }
+          )
+        }
+        update.delivery_min_order_amount = parsedMin
+      }
     }
 
     if (Array.isArray(body.payment_methods)) {
