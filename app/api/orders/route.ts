@@ -502,6 +502,57 @@ export async function POST(req: Request) {
             }
         }
 
+        const subtotal = round2(items.reduce((sum, it) => sum + it.price * it.quantity, 0))
+
+        const fulfillment_type = (body.fulfillment_type as string | undefined) ?? 'delivery'
+
+        const { data: settingsData, error: minSettingsErr } = await supabaseServiceRole
+            .from('store_settings')
+            .select('delivery_min_order_enabled, delivery_min_order_amount')
+            .limit(1)
+            .single()
+
+        if (minSettingsErr) {
+            return NextResponse.json(
+                {
+                    error_code: 'settings_read_failed',
+                    error: 'Failed to read store settings',
+                },
+                { status: 500 }
+            )
+        }
+
+        const deliveryMinOrderEnabled = settingsData?.delivery_min_order_enabled ?? false
+
+        const deliveryMinOrderAmount =
+            settingsData?.delivery_min_order_amount !== null &&
+            settingsData?.delivery_min_order_amount !== undefined
+                ? Number(settingsData.delivery_min_order_amount)
+                : null
+
+        const isDeliveryMinOrderActive =
+            deliveryMinOrderEnabled &&
+            deliveryMinOrderAmount !== null &&
+            Number.isFinite(deliveryMinOrderAmount) &&
+            deliveryMinOrderAmount > 0
+
+        if (
+            fulfillment_type === 'delivery' &&
+            isDeliveryMinOrderActive &&
+            subtotal < deliveryMinOrderAmount
+        ) {
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error: 'MIN_ORDER_NOT_REACHED',
+                    message: 'Minimum order amount not reached',
+                    min_required: deliveryMinOrderAmount,
+                    subtotal,
+                },
+                { status: 400 }
+            )
+        }
+
         // Calculate totals (ignore delivery_fee from frontend, use the one calculated on server side)
         const safeSubtotal = parseDec(body.subtotal, 'subtotal')
         const total = round2(safeSubtotal + deliveryFee)

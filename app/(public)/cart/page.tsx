@@ -1,17 +1,52 @@
 'use client'
 
+import clsx from 'clsx'
 import { useCartStore } from '@/stores/cartStore'
 import { formatPrice } from '@/lib/pricing'
 import { formatQty } from '@/lib/qty'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useTranslations, useLocale } from 'next-intl'
+import { useStoreDeliveryMinSettings } from '@/hooks/useStoreDeliveryMinSettings'
+import { deliveryMinOrderStatus } from '@/lib/minOrderDelivery'
 
 export default function CartPage() {
     const locale = useLocale()
     const { items, removeItem, clear, total } = useCartStore()
     const t = useTranslations('cartPage')
+    const tCart = useTranslations('cart')
+    const deliverySettings = useStoreDeliveryMinSettings()
+    const subtotal = total()
+    const minOrderUx = deliveryMinOrderStatus(deliverySettings, subtotal)
 
+    const fulfillmentType = 'delivery'
+    const deliveryMinOrderEnabled = deliverySettings?.delivery_min_order_enabled ?? false
+    const deliveryMinOrderAmount =
+        deliverySettings?.delivery_min_order_amount !== null &&
+        deliverySettings?.delivery_min_order_amount !== undefined
+            ? Number(deliverySettings.delivery_min_order_amount)
+            : null
+    const isDeliveryMinOrderActive =
+        deliveryMinOrderEnabled &&
+        deliveryMinOrderAmount !== null &&
+        Number.isFinite(deliveryMinOrderAmount) &&
+        deliveryMinOrderAmount > 0
+    const isMinActive = isDeliveryMinOrderActive
+    const missingAmount =
+        deliveryMinOrderAmount != null && Number.isFinite(deliveryMinOrderAmount)
+            ? Math.max(deliveryMinOrderAmount - subtotal, 0)
+            : 0
+    const isDeliveryBlocked =
+        fulfillmentType === 'delivery' &&
+        deliverySettings?.delivery_enabled === true &&
+        isDeliveryMinOrderActive &&
+        missingAmount > 0
+
+    const showMinProgress =
+        isMinActive &&
+        deliverySettings?.delivery_enabled === true &&
+        deliveryMinOrderAmount != null &&
+        deliveryMinOrderAmount > 0
 
     return (
         <div className="container mx-auto px-4 py-8">
@@ -83,17 +118,68 @@ export default function CartPage() {
                             {t('clear')}
                         </button>
                         <p className="text-lg font-semibold">
-                            {t('total')}: {formatPrice(total())}
+                            {t('total')}: {formatPrice(subtotal)}
                         </p>
                     </div>
 
-                    <div className="mt-6 text-right">
-                        <Link
-                            href="/checkout"
-                            className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded"
-                        >
-                            {t('checkout')}
-                        </Link>
+                    {minOrderUx.active && (
+                        <div className="mt-2 text-sm">
+                            {!minOrderUx.reached ? (
+                                <p className="text-amber-600 dark:text-amber-500">
+                                    {tCart('minOrder.missing', {
+                                        amount: minOrderUx.missing.toFixed(2),
+                                    })}
+                                </p>
+                            ) : (
+                                <p className="text-emerald-600 dark:text-emerald-500">
+                                    {tCart('minOrder.reached')}
+                                </p>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="mt-6 flex flex-col items-stretch sm:items-end text-right">
+                        {showMinProgress && (
+                            <div className="mb-3 w-full sm:ml-auto sm:max-w-sm">
+                                <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-zinc-700">
+                                    <div
+                                        className="h-2 rounded-full bg-emerald-500 transition-all duration-300"
+                                        style={{
+                                            width: `${Math.min(
+                                                (subtotal / deliveryMinOrderAmount) * 100,
+                                                100
+                                            )}%`,
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                        {isDeliveryBlocked ? (
+                            <button
+                                type="button"
+                                disabled
+                                title={tCart('checkoutBlockedMinOrder')}
+                                aria-label={tCart('checkoutBlockedMinOrder')}
+                                className={clsx(
+                                    'inline-flex justify-center rounded px-6 py-2.5 text-sm font-semibold text-white transition-colors sm:inline-block',
+                                    'cursor-not-allowed bg-zinc-400 opacity-90 dark:bg-zinc-600'
+                                )}
+                            >
+                                {t('checkout')}
+                            </button>
+                        ) : (
+                            <Link
+                                href="/checkout"
+                                className="inline-flex justify-center rounded bg-green-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-700 sm:inline-block"
+                            >
+                                {t('checkout')}
+                            </Link>
+                        )}
+                        {isDeliveryBlocked && (
+                            <p className="mt-2 text-left text-sm text-amber-600 dark:text-amber-400 sm:text-right">
+                                {tCart('checkoutBlockedMinOrder')}
+                            </p>
+                        )}
                     </div>
                     {/* ✅ Back to store button (responsive + dark mode) */}
                     <div className="mt-4 text-center">

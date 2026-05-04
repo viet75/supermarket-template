@@ -244,8 +244,9 @@ ALTER TABLE public.store_settings
 ADD COLUMN IF NOT EXISTS delivery_base_km numeric(10,2),
 ADD COLUMN IF NOT EXISTS delivery_base_fee numeric(10,2) NOT NULL DEFAULT 0,
 ADD COLUMN IF NOT EXISTS delivery_extra_fee_per_km numeric(10,2) NOT NULL DEFAULT 0,
-ADD COLUMN IF NOT EXISTS payment_methods jsonb NOT NULL
-DEFAULT jsonb_build_object(
+ADD COLUMN IF NOT EXISTS delivery_min_order_enabled boolean NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS delivery_min_order_amount numeric(10,2),
+ADD COLUMN IF NOT EXISTS payment_methods jsonb NOT NULL DEFAULT jsonb_build_object(
   'cash', true,
   'pos_on_delivery', true,
   'card_online', true
@@ -1445,6 +1446,7 @@ END $$;
 
 -- ============================================================
 -- PATCH 2026-02-19 — get_fulfillment_preview multi-slot same-day
+-- PATCH 2026-05-04 — message branch: "reopens later" only if NOT is_open_today
 -- Fix: between two slots in the same day => fulfillment today
 -- ============================================================
 
@@ -1635,7 +1637,9 @@ END IF;
   next_date := start_date;
 
   -- 6) final message
-IF has_future_slot_today AND next_date = d THEN
+  -- Multi-slot: only "reopens at next slot today" when closed NOW (between slots / before first slot).
+  -- If already inside a slot, has_future_slot_today is still true (later slot exists) — must not override.
+IF NOT is_open_today AND has_future_slot_today AND next_date = d THEN
   msg_code := 'store_reopens_later_today';
   IF next_slot_start IS NOT NULL THEN
     msg := 'Negozio chiuso. Il tuo ordine verrà evaso oggi (dalle ' || to_char(next_slot_start, 'HH24:MI') || ').';

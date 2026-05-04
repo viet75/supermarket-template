@@ -62,7 +62,7 @@ export async function GET() {
     const { data, error } = await svc
       .from('store_settings')
       .select(
-        'delivery_enabled, delivery_base_km, delivery_base_fee, delivery_extra_fee_per_km, delivery_max_km, payment_methods, cutoff_time, accept_orders_when_closed, timezone, preparation_days, closed_dates, closed_ranges, weekly_hours, closed_message'
+        'delivery_enabled, delivery_base_km, delivery_base_fee, delivery_extra_fee_per_km, delivery_max_km, delivery_min_order_enabled, delivery_min_order_amount, payment_methods, cutoff_time, accept_orders_when_closed, timezone, preparation_days, closed_dates, closed_ranges, weekly_hours, closed_message'
       )
       .eq('singleton_key', true)
       .maybeSingle()
@@ -120,6 +120,17 @@ export async function PUT(req: Request) {
       update.delivery_max_km = Number(body.delivery_max_km)
     }
 
+    if (typeof body.delivery_min_order_enabled === 'boolean') {
+      update.delivery_min_order_enabled = body.delivery_min_order_enabled
+    }
+
+    if (body.delivery_min_order_amount !== undefined) {
+      update.delivery_min_order_amount =
+        body.delivery_min_order_amount === null || body.delivery_min_order_amount === ''
+          ? null
+          : Number(body.delivery_min_order_amount)
+    }
+
     if (Array.isArray(body.payment_methods)) {
       // Validation: payment_methods must be an array of valid strings
       const allowed: PaymentMethod[] = ['cash', 'card_online', 'pos_on_delivery']
@@ -175,6 +186,8 @@ export async function PUT(req: Request) {
         delivery_base_fee,
         delivery_extra_fee_per_km,
         delivery_max_km,
+        delivery_min_order_enabled,
+        delivery_min_order_amount,
         payment_methods,
         cutoff_time,
         accept_orders_when_closed,

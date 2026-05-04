@@ -13,7 +13,12 @@
     "clear": "Pulisci ricerca"
   },
   "cart": {
-    "goToCart": "Vai al carrello"
+    "goToCart": "Vai al carrello",
+    "checkoutBlockedMinOrder": "Raggiungi l'importo minimo per procedere con la consegna",
+    "minOrder": {
+      "missing": "Ti mancano {amount}€ per la consegna",
+      "reached": "Consegna disponibile ✔"
+    }
   },
   "product": {
     "open": "Apri",
@@ -52,7 +57,8 @@
     "deliveryDisabled": "Le consegne sono temporaneamente disabilitate.",
     "orderNotFound": "Ordine non trovato.",
     "addressUpdateFailed": "Errore durante l'aggiornamento dell'indirizzo.",
-    "stripeSessionCreationFailed": "Errore nella creazione della sessione di pagamento."
+    "stripeSessionCreationFailed": "Errore nella creazione della sessione di pagamento.",
+    "minOrderNotReached": "Non hai raggiunto l'importo minimo per la consegna"
   },
   "checkoutForm": {
     "customerDataTitle": "📍 Dati cliente",
@@ -97,6 +103,7 @@
     "paymentCardOnline": "Pagamento con carta online",
     "capInvalidFull": "CAP non valido. Inserisci 5 cifre (es: 74123).",
     "fullAddressExample": "Inserisci l'indirizzo completo (via, numero civico, CAP e città). Esempio: Via Roma 10, 00100 Roma",
+    "completeAddressRequired": "Inserisci l'indirizzo completo (via, numero civico, CAP e città).",
     "fillAddressFields": "Compila tutti i campi dell'indirizzo",
     "apiError": "Errore API",
     "deliveryToday": "Il tuo ordine sarà consegnato in giornata.",
@@ -109,6 +116,7 @@
     "storeOpensLaterTodayAt": "Il negozio apre più tardi oggi. Il tuo ordine verrà evaso dalle {time}.",
     "storeReopensLaterTodayAt": "Il negozio riapre più tardi oggi. Il tuo ordine verrà evaso dalle {time}.",
     "deliveryOutOfRange": "La consegna non è disponibile per questo indirizzo ({distance} km, massimo {max} km).",
+    "addressOutOfDeliveryRange": "Indirizzo fuori area consegna",
     "checkingAvailability": "Verifica orari e disponibilità...",
     "estimate": "stima",
     "paymentMethodUnavailable": "Metodo di pagamento non disponibile",
@@ -289,6 +297,11 @@
     "baseDeliveryCost": "Costo base consegna (€)",
     "extraCostPerKm": "Costo extra per km (€)",
     "maxDistance": "Distanza massima (km)",
+    "minOrder": {
+      "title": "Importo minimo consegna",
+      "description": "Impedisci consegne sotto una certa soglia",
+      "placeholder": "Es. 30.00"
+    },
     "hoursAndClosures": "Orari e chiusure",
     "hoursDescription": "Cutoff orario, giorni di chiusura e primo giorno utile per evasione ordini. Se il negozio è chiuso puoi accettare ordini e slittare al primo giorno aperto.",
     "cutoffLabel": "Cutoff orario (es. 19:00)",

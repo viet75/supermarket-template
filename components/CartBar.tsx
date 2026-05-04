@@ -3,9 +3,12 @@
 import { Link } from '@/i18n/navigation'
 import { useEffect, useState } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
+import clsx from 'clsx'
 import { useCartStore } from '@/stores/cartStore'
 import { formatPrice } from '@/lib/pricing'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useStoreDeliveryMinSettings } from '@/hooks/useStoreDeliveryMinSettings'
+import { deliveryMinOrderStatus } from '@/lib/minOrderDelivery'
 
 type CartBarProps = {
   onCheckout?: () => void
@@ -46,12 +49,38 @@ export default function CartBar({ onCheckout }: CartBarProps) {
   }, [])
 
   const items = useCartStore((s) => s.items)
-  const total = useCartStore((s) => s.total())
+  const cartTotal = useCartStore((s) => s.total)
+  const deliverySettings = useStoreDeliveryMinSettings()
+  const subtotal = cartTotal()
+  const minOrderUx = deliveryMinOrderStatus(deliverySettings, subtotal)
+
+  const fulfillmentType = 'delivery'
+  const deliveryMinOrderEnabled = deliverySettings?.delivery_min_order_enabled ?? false
+  const deliveryMinOrderAmount =
+    deliverySettings?.delivery_min_order_amount !== null &&
+    deliverySettings?.delivery_min_order_amount !== undefined
+      ? Number(deliverySettings.delivery_min_order_amount)
+      : null
+  const isDeliveryMinOrderActive =
+    deliveryMinOrderEnabled &&
+    deliveryMinOrderAmount !== null &&
+    Number.isFinite(deliveryMinOrderAmount) &&
+    deliveryMinOrderAmount > 0
+  const isMinActive = isDeliveryMinOrderActive
+  const missingAmount =
+    deliveryMinOrderAmount != null && Number.isFinite(deliveryMinOrderAmount)
+      ? Math.max(deliveryMinOrderAmount - subtotal, 0)
+      : 0
+  const isDeliveryBlocked =
+    fulfillmentType === 'delivery' &&
+    deliverySettings?.delivery_enabled === true &&
+    isDeliveryMinOrderActive &&
+    missingAmount > 0
 
   if (!mounted) return null
 
   const count = items.length
-  const formatted = formatPrice(total, locale)
+  const formatted = formatPrice(subtotal, locale)
 
   const itemLabel =
     locale === 'en'
@@ -62,20 +91,33 @@ export default function CartBar({ onCheckout }: CartBarProps) {
         ? 'articolo'
         : 'articoli'
 
-  const cta = onCheckout ? (
-    <button
-      type="button"
-      onClick={onCheckout}
-      className={ctaClassName}
-      aria-label={t('goToCart')}
-    >
-      {t('goToCart')}
-    </button>
-  ) : (
-    <Link href="/cart" className={ctaClassName} aria-label={t('goToCart')}>
-      {t('goToCart')}
-    </Link>
-  )
+  const cta =
+    onCheckout ? (
+      <button
+        type="button"
+        disabled={isDeliveryBlocked}
+        onClick={isDeliveryBlocked ? undefined : onCheckout}
+        title={isDeliveryBlocked ? t('checkoutBlockedMinOrder') : undefined}
+        aria-label={isDeliveryBlocked ? t('checkoutBlockedMinOrder') : t('goToCart')}
+        className={clsx(
+          ctaClassName,
+          isDeliveryBlocked &&
+            'cursor-not-allowed bg-zinc-400 opacity-80 shadow-none ring-0 active:scale-100 dark:bg-zinc-600 dark:opacity-90'
+        )}
+      >
+        {t('goToCart')}
+      </button>
+    ) : (
+      <Link href="/cart" className={ctaClassName} aria-label={t('goToCart')}>
+        {t('goToCart')}
+      </Link>
+    )
+
+  const showMinProgress =
+    isMinActive &&
+    deliverySettings?.delivery_enabled === true &&
+    deliveryMinOrderAmount != null &&
+    deliveryMinOrderAmount > 0
 
   const inner = (
     <>
@@ -90,9 +132,44 @@ export default function CartBar({ onCheckout }: CartBarProps) {
           <p className="mt-0.5 text-lg font-bold tabular-nums leading-none tracking-tight text-gray-900 dark:text-zinc-50">
             {formatted}
           </p>
+          {minOrderUx.active && (
+            <p
+              className={
+                minOrderUx.reached
+                  ? 'mt-1 text-[11px] leading-tight text-emerald-600 dark:text-emerald-500'
+                  : 'mt-1 text-[11px] leading-tight text-amber-600 dark:text-amber-500'
+              }
+            >
+              {minOrderUx.reached
+                ? t('minOrder.reached')
+                : t('minOrder.missing', { amount: minOrderUx.missing.toFixed(2) })}
+            </p>
+          )}
         </div>
       </div>
-      {cta}
+      <div className="flex min-w-0 max-w-[52%] shrink flex-col items-end gap-1.5 sm:max-w-none">
+        {onCheckout && showMinProgress && (
+          <div className="w-full min-w-[9rem]">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-zinc-700">
+              <div
+                className="h-1.5 rounded-full bg-emerald-500 transition-all duration-300 dark:bg-emerald-500"
+                style={{
+                  width: `${Math.min(
+                    (subtotal / (deliveryMinOrderAmount as number)) * 100,
+                    100
+                  )}%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
+        {cta}
+        {onCheckout && isDeliveryBlocked && (
+          <p className="max-w-[14rem] text-right text-[11px] leading-snug text-amber-600 dark:text-amber-400">
+            {t('checkoutBlockedMinOrder')}
+          </p>
+        )}
+      </div>
     </>
   )
 

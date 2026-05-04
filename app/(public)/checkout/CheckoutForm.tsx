@@ -67,6 +67,7 @@ export type FulfillmentPreview = {
 export default function CheckoutForm({ settings }: Props) {
     const router = useRouter()
     const t = useTranslations('checkoutForm')
+    const tCheckout = useTranslations('checkout')
     const locale = useLocale()
 
     const formatFulfillmentDate = (dateStr: string | null | undefined) => {
@@ -81,9 +82,34 @@ export default function CheckoutForm({ settings }: Props) {
 
     function mapApiErrorMessage(
         errorCode: string | null | undefined,
-        fallback?: string | null
+        message?: string | null
     ) {
-        switch (errorCode) {
+        const normalizedError = String(errorCode ?? '').toLowerCase()
+        const normalizedMessage = String(message ?? '').toLowerCase()
+
+        if (
+            normalizedError === 'outside_delivery_area' ||
+            normalizedError === 'address_outside_delivery_area' ||
+            normalizedMessage.includes('outside delivery area') ||
+            normalizedMessage.includes('outside the delivery area')
+        ) {
+            return t('addressOutOfDeliveryRange')
+        }
+
+        if (normalizedError === 'min_order_not_reached') {
+            return tCheckout('minOrderNotReached')
+        }
+
+        if (
+            normalizedError === 'address_incomplete' ||
+            normalizedError === 'missing_address' ||
+            normalizedMessage === 'complete address' ||
+            normalizedMessage.includes('enter the full address')
+        ) {
+            return t('completeAddressRequired')
+        }
+
+        switch (normalizedError) {
             case 'empty_cart':
                 return t('emptyCart')
             case 'incomplete_address':
@@ -109,7 +135,7 @@ export default function CheckoutForm({ settings }: Props) {
             case 'invalid_qty_unit':
                 return t('invalidQuantityUnit')
             default:
-                return fallback || t('genericError')
+                return t('genericError')
         }
     }
 
@@ -128,10 +154,14 @@ export default function CheckoutForm({ settings }: Props) {
     const isOutOfRangeLikeError = (message: string | null | undefined) => {
         if (!message) return false
         const m = message.toLowerCase()
+        const localizedOutOfRange = t('addressOutOfDeliveryRange').toLowerCase()
         return (
+            m === localizedOutOfRange ||
             m.includes('fuori dal raggio') ||
+            m.includes('fuori area consegna') ||
             m.includes('out of delivery range') ||
             m.includes('outside delivery area') ||
+            m.includes('outside the delivery area') ||
             m.includes('non è disponibile') ||
             m.includes('not available')
         )
@@ -782,10 +812,14 @@ export default function CheckoutForm({ settings }: Props) {
                 try {
                     const data = await res.json()
 
-                    apiMsg = mapApiErrorMessage(
-                        data?.error_code,
-                        data?.message || data?.error || apiMsg
-                    )
+                    if (data?.error === 'MIN_ORDER_NOT_REACHED') {
+                        apiMsg = tCheckout('minOrderNotReached')
+                    } else {
+                        apiMsg = mapApiErrorMessage(
+                            data?.error_code,
+                            data?.message || data?.error || apiMsg
+                        )
+                    }
 
                     const shouldReconcile =
                         data?.error_code === 'products_not_available' ||
@@ -832,7 +866,7 @@ export default function CheckoutForm({ settings }: Props) {
             setMsg({ type: 'error', text: e?.message ?? t('unexpectedError') })
             setSaving(false)
         }
-    }, [items, addr, subtotal, pay, settings, validation, fulfillment, clearCart, reconcileWithProducts, router, backendTotal, errorMessage, previewDistanceKm, isPhoneValid])
+    }, [items, addr, subtotal, pay, settings, validation, fulfillment, clearCart, reconcileWithProducts, router, backendTotal, errorMessage, previewDistanceKm, isPhoneValid, tCheckout])
 
     if (!mounted) return <Skeleton />
     if (!hydrated && items.length === 0) return <Skeleton />

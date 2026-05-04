@@ -7,12 +7,14 @@ import WeeklyHoursEditor, {
 } from '../components/WeeklyHoursEditor'
 import { useTranslations } from 'next-intl'
 
-type DeliverySettings = {
+type StoreSettings = {
   delivery_enabled: boolean
   delivery_base_km: number
   delivery_base_fee: number
   delivery_extra_fee_per_km: number
   delivery_max_km: number
+  delivery_min_order_enabled: boolean
+  delivery_min_order_amount: number | null
   payment_methods?: string[]
   cutoff_time?: string | null
   accept_orders_when_closed?: boolean
@@ -52,7 +54,7 @@ function formatClosedDates(dates: string[]): string {
 
 export default function DeliverySettingsPage() {
   const t = useTranslations('adminDelivery')
-  const [settings, setSettings] = useState<DeliverySettings | null>(null)
+  const [settings, setSettings] = useState<StoreSettings | null>(null)
   const [paymentMethods, setPaymentMethods] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -72,6 +74,7 @@ export default function DeliverySettingsPage() {
     delivery_base_fee: '',
     delivery_extra_fee_per_km: '',
     delivery_max_km: '',
+    delivery_min_order_amount: '',
   })
 
   // Initial loading
@@ -79,26 +82,40 @@ export default function DeliverySettingsPage() {
     fetch('/api/admin/settings/delivery')
       .then((res) => res.json())
       .then((data) => {
-        setSettings(data.settings)
-        if (Array.isArray(data.settings?.payment_methods)) {
-          setPaymentMethods(data.settings.payment_methods)
+        const s = data.settings
+        const normalized: StoreSettings = {
+          ...s,
+          delivery_min_order_enabled: Boolean(s?.delivery_min_order_enabled),
+          delivery_min_order_amount:
+            s?.delivery_min_order_amount !== null &&
+            s?.delivery_min_order_amount !== undefined
+              ? Number(s.delivery_min_order_amount)
+              : null,
+        }
+        setSettings(normalized)
+        if (Array.isArray(normalized.payment_methods)) {
+          setPaymentMethods(normalized.payment_methods)
         } else {
           setPaymentMethods([])
         }
-        const s = data.settings
         setNumDisplay({
           delivery_base_km: numToDisplay(s?.delivery_base_km),
           delivery_base_fee: numToDisplay(s?.delivery_base_fee),
           delivery_extra_fee_per_km: numToDisplay(s?.delivery_extra_fee_per_km),
           delivery_max_km: numToDisplay(s?.delivery_max_km),
+          delivery_min_order_amount:
+            normalized.delivery_min_order_amount !== null &&
+            normalized.delivery_min_order_amount !== undefined
+              ? String(normalized.delivery_min_order_amount)
+              : '',
         })
-        setCutoffTime(s?.cutoff_time ?? '19:00')
-        setAcceptWhenClosed(s?.accept_orders_when_closed !== false)
-        setTimezone(s?.timezone ?? 'Europe/Rome')
-        setPreparationDays(typeof s?.preparation_days === 'number' ? s.preparation_days : 0)
-        setClosedDatesText(formatClosedDates(Array.isArray(s?.closed_dates) ? s.closed_dates : []))
-        setClosedMessage(typeof s?.closed_message === 'string' ? s.closed_message : '')
-        setWeeklyHours(parseWeeklyHours(s?.weekly_hours))
+        setCutoffTime(normalized?.cutoff_time ?? '19:00')
+        setAcceptWhenClosed(normalized?.accept_orders_when_closed !== false)
+        setTimezone(normalized?.timezone ?? 'Europe/Rome')
+        setPreparationDays(typeof normalized?.preparation_days === 'number' ? normalized.preparation_days : 0)
+        setClosedDatesText(formatClosedDates(Array.isArray(normalized?.closed_dates) ? normalized.closed_dates : []))
+        setClosedMessage(typeof normalized?.closed_message === 'string' ? normalized.closed_message : '')
+        setWeeklyHours(parseWeeklyHours(normalized?.weekly_hours))
         setLoading(false)
       })
       .catch(() => {
@@ -107,7 +124,7 @@ export default function DeliverySettingsPage() {
       })
   }, [])
 
-  function update<K extends keyof DeliverySettings>(key: K, value: DeliverySettings[K]) {
+  function update<K extends keyof StoreSettings>(key: K, value: StoreSettings[K]) {
     if (!settings) return
     setSettings({ ...settings, [key]: value })
     setSuccess(false)
@@ -151,12 +168,16 @@ export default function DeliverySettingsPage() {
 
     const closedDates = parseClosedDates(closedDatesText)
 
+    const delivery_min_order_amount = parseOptionalNumber(numDisplay.delivery_min_order_amount)
+
     const payload = {
       ...settings,
       delivery_base_km: baseKm,
       delivery_base_fee: baseFee ?? 0,
       delivery_extra_fee_per_km: extraFee ?? 0,
       delivery_max_km: maxKm,
+      delivery_min_order_enabled: settings.delivery_min_order_enabled,
+      delivery_min_order_amount,
       payment_methods: paymentMethods,
       cutoff_time: cutoffTime.trim() || '19:00',
       accept_orders_when_closed: acceptWhenClosed,
@@ -186,23 +207,37 @@ export default function DeliverySettingsPage() {
         console.log('[delivery onSave] missing settings in response', data)
         throw new Error(t('invalidResponse'))
       }
-      setSettings(s)
-      if (Array.isArray(s.payment_methods)) {
-        setPaymentMethods(s.payment_methods)
+      const normalized: StoreSettings = {
+        ...s,
+        delivery_min_order_enabled: Boolean(s?.delivery_min_order_enabled),
+        delivery_min_order_amount:
+          s?.delivery_min_order_amount !== null &&
+          s?.delivery_min_order_amount !== undefined
+            ? Number(s.delivery_min_order_amount)
+            : null,
+      }
+      setSettings(normalized)
+      if (Array.isArray(normalized.payment_methods)) {
+        setPaymentMethods(normalized.payment_methods)
       }
       setNumDisplay({
         delivery_base_km: numToDisplay(s.delivery_base_km),
         delivery_base_fee: numToDisplay(s.delivery_base_fee),
         delivery_extra_fee_per_km: numToDisplay(s.delivery_extra_fee_per_km),
         delivery_max_km: numToDisplay(s.delivery_max_km),
+        delivery_min_order_amount:
+          normalized.delivery_min_order_amount !== null &&
+          normalized.delivery_min_order_amount !== undefined
+            ? String(normalized.delivery_min_order_amount)
+            : '',
       })
-      setCutoffTime(s.cutoff_time ?? '19:00')
-      setAcceptWhenClosed(s.accept_orders_when_closed !== false)
-      setTimezone(s.timezone ?? 'Europe/Rome')
-      setPreparationDays(typeof s.preparation_days === 'number' ? s.preparation_days : 0)
-      setClosedDatesText(formatClosedDates(Array.isArray(s.closed_dates) ? s.closed_dates : []))
-      setClosedMessage(typeof s.closed_message === 'string' ? s.closed_message : '')
-      setWeeklyHours(parseWeeklyHours(s.weekly_hours))
+      setCutoffTime(normalized.cutoff_time ?? '19:00')
+      setAcceptWhenClosed(normalized.accept_orders_when_closed !== false)
+      setTimezone(normalized.timezone ?? 'Europe/Rome')
+      setPreparationDays(typeof normalized.preparation_days === 'number' ? normalized.preparation_days : 0)
+      setClosedDatesText(formatClosedDates(Array.isArray(normalized.closed_dates) ? normalized.closed_dates : []))
+      setClosedMessage(typeof normalized.closed_message === 'string' ? normalized.closed_message : '')
+      setWeeklyHours(parseWeeklyHours(normalized.weekly_hours))
       setSuccess(true)
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : t('saveError')
@@ -306,6 +341,32 @@ export default function DeliverySettingsPage() {
             onChange={(e) => setNumDisplayField('delivery_max_km', e.target.value)}
             className="w-full border rounded px-3 py-2"
           />
+        </div>
+
+        <div className="space-y-3 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <label className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={settings.delivery_min_order_enabled}
+              onChange={(e) => update('delivery_min_order_enabled', e.target.checked)}
+            />
+            <span className="text-sm font-medium">{t('minOrder.title')}</span>
+          </label>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('minOrder.description')}</p>
+          <div>
+            <input
+              id="delivery-min-order-amount"
+              type="number"
+              min={0}
+              step={0.01}
+              disabled={!settings.delivery_min_order_enabled}
+              placeholder={t('minOrder.placeholder')}
+              aria-label={t('minOrder.title')}
+              value={numDisplay.delivery_min_order_amount}
+              onChange={(e) => setNumDisplayField('delivery_min_order_amount', e.target.value)}
+              className="w-full border rounded px-3 py-2 disabled:opacity-60 disabled:cursor-not-allowed dark:bg-gray-800 dark:border-gray-600"
+            />
+          </div>
         </div>
       </div>
 

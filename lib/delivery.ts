@@ -1,4 +1,5 @@
-// lib/delivery.ts
+// lib/delivery.ts — fee, radius, payment helpers for delivery.
+// Opening hours / multi-slot fulfillment preview: Postgres RPC `public.get_fulfillment_preview()` (see supabase/setup.sql).
 import type { StoreSettings, PaymentMethod } from '@/lib/types'
 import { computeDistanceFromStore, Coordinates } from './geo'
 

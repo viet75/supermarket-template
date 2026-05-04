@@ -13,7 +13,12 @@
     "clear": "Clear search"
   },
   "cart": {
-    "goToCart": "Go to cart"
+    "goToCart": "Go to cart",
+    "checkoutBlockedMinOrder": "Reach the minimum order amount to continue with delivery",
+    "minOrder": {
+      "missing": "{amount}€ left for delivery",
+      "reached": "Delivery available ✔"
+    }
   },
   "product": {
     "open": "Open",
@@ -52,7 +57,8 @@
     "deliveryDisabled": "Delivery is temporarily disabled.",
     "orderNotFound": "Order not found.",
     "addressUpdateFailed": "Failed to update the address.",
-    "stripeSessionCreationFailed": "Failed to create the payment session."
+    "stripeSessionCreationFailed": "Failed to create the payment session.",
+    "minOrderNotReached": "You have not reached the minimum order amount for delivery"
   },
   "checkoutForm": {
     "customerDataTitle": "📍 Customer details",
@@ -97,6 +103,7 @@
     "paymentCardOnline": "Online card payment",
     "capInvalidFull": "Invalid ZIP code. Enter 5 digits (e.g. 74123).",
     "fullAddressExample": "Enter the full address (street, house number, ZIP code and city). Example: Via Roma 10, 00100 Roma",
+    "completeAddressRequired": "Enter the full address (street, house number, ZIP code and city).",
     "fillAddressFields": "Fill in all address fields",
     "apiError": "API error",
     "deliveryToday": "Your order will be delivered today.",
@@ -109,6 +116,7 @@
     "storeOpensLaterTodayAt": "The store opens later today. Your order will be fulfilled from {time}.",
     "storeReopensLaterTodayAt": "The store reopens later today. Your order will be fulfilled from {time}.",
     "deliveryOutOfRange": "Delivery is not available for this address ({distance} km, maximum {max} km).",
+    "addressOutOfDeliveryRange": "Address outside delivery area",
     "checkingAvailability": "Checking store hours and availability...",
     "estimate": "estimate",
     "paymentMethodUnavailable": "Payment method not available",
@@ -289,6 +297,11 @@
     "baseDeliveryCost": "Base delivery cost (€)",
     "extraCostPerKm": "Extra cost per km (€)",
     "maxDistance": "Maximum distance (km)",
+    "minOrder": {
+      "title": "Minimum order for delivery",
+      "description": "Prevent deliveries below a certain amount",
+      "placeholder": "E.g. 30.00"
+    },
     "hoursAndClosures": "Hours and closures",
     "hoursDescription": "Order cutoff time, closure days and first available fulfillment day. If the store is closed you can still accept orders and move them to the next open day.",
     "cutoffLabel": "Cutoff time (e.g. 19:00)",
