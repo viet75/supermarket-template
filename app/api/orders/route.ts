@@ -748,7 +748,7 @@ export async function POST(req: Request) {
             if (pm === 'card_online') {
                 // TTL different for dev/prod
                 const TTL_MINUTES =
-                    process.env.NODE_ENV === 'development' ? 1 : 15
+                    process.env.NODE_ENV === 'development' ? 1 : 5
 
                 const expiresAt = new Date(Date.now() + TTL_MINUTES * 60 * 1000)
                 reserveExpiresAt = expiresAt.toISOString()
